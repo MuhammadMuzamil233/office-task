@@ -11,11 +11,12 @@ const mongoose = require("mongoose");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || "change-this-secret-in-production";
-const MONGODB_URI = process.env.DATABASE_URL || process.env.MONGODB_URI || "mongodb+srv://zoiichaa1_db_user:YHLeAxYaeamAnzyf@cluster0.viocqia.mongodb.net/office-task-register";
+const JWT_SECRET = process.env.JWT_SECRET;
+const MONGODB_URI = process.env.DATABASE_URL || process.env.MONGODB_URI;
 
-if (!MONGODB_URI) {
-  console.error("Missing DATABASE_URL environment variable. Set it to your MongoDB connection string.");
+if (!JWT_SECRET || !MONGODB_URI) {
+  console.error("Missing JWT_SECRET or DATABASE_URL/MONGODB_URI environment variable.");
+  process.exit(1);
 }
 
 app.use(express.json());
