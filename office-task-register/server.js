@@ -79,6 +79,24 @@ const COOKIE_OPTS = {
   maxAge: 30 * 24 * 60 * 60 * 1000
 };
 
+let databaseConnection;
+function connectDatabase() {
+  if (!databaseConnection) {
+    databaseConnection = mongoose.connect(MONGODB_URI);
+  }
+  return databaseConnection;
+}
+
+app.use(async (req, res, next) => {
+  try {
+    await connectDatabase();
+    next();
+  } catch (e) {
+    console.error("Failed to connect to MongoDB:", e);
+    res.status(503).json({ error: "Database is unavailable" });
+  }
+});
+
 // ---------- Auth routes ----------
 app.post("/api/register", async (req, res) => {
   try {
@@ -206,12 +224,16 @@ app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-mongoose.connect(MONGODB_URI)
-  .then(() => {
-    console.log("Connected to MongoDB.");
-    app.listen(PORT, () => console.log(`Office Task Register running on port ${PORT}`));
-  })
-  .catch((e) => {
-    console.error("Failed to connect to MongoDB:", e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  connectDatabase()
+    .then(() => {
+      console.log("Connected to MongoDB.");
+      app.listen(PORT, () => console.log(`Office Task Register running on port ${PORT}`));
+    })
+    .catch((e) => {
+      console.error("Failed to connect to MongoDB:", e);
+      process.exit(1);
+    });
+}
+
+module.exports = app;
