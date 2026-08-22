@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="ur-PK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Office Task Register</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1C2B27;
+    --ledger:#F1ECE0;
+    --ledger-line:#D9CFB8;
+    --brass:#B08D3E;
+    --teal:#0F3D3E;
+    --teal-light:#1B5C5A;
+    --stamp-red:#A6402B;
+    --done-green:#3F6B4C;
+    --paper-shadow:rgba(28,43,39,0.12);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;min-height:100vh;
+    background:radial-gradient(circle at 15% 10%, rgba(176,141,62,0.07), transparent 40%), var(--ledger);
+    font-family:'IBM Plex Sans', sans-serif;color:var(--ink);
+    padding:32px 16px 80px;
+  }
+  .wrap{max-width:780px;margin:0 auto;}
+  .hidden{display:none !important;}
+
+  /* ---------- Auth screen ---------- */
+  #authScreen{max-width:420px;margin:60px auto;}
+  .auth-card{
+    background:#FBF9F3;border:1px solid var(--ledger-line);border-radius:6px;
+    box-shadow:0 10px 24px var(--paper-shadow);overflow:hidden;
+  }
+  .auth-card .top{
+    background:var(--teal);color:#F1ECE0;padding:24px 28px 18px;
+    border-bottom:4px solid var(--brass);
+  }
+  .auth-card .top h1{font-family:'IBM Plex Serif',serif;font-size:23px;margin:0 0 4px;}
+  .auth-card .top p{margin:0;font-size:13px;color:#CFE3DD;font-family:'IBM Plex Mono',monospace;}
+  .auth-card .body{padding:24px 28px 28px;}
+  .tabs{display:flex;gap:8px;margin-bottom:18px;}
+  .tabs button{
+    flex:1;padding:8px;border:1px solid var(--ledger-line);background:var(--ledger);
+    font-family:'IBM Plex Sans',sans-serif;font-weight:600;font-size:13px;color:#8a7550;
+    border-radius:4px;cursor:pointer;
+  }
+  .tabs button.active{background:var(--teal);color:#fff;border-color:var(--teal);}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12.5px;font-weight:600;margin-bottom:5px;color:#5c6b62;}
+  .field input{
+    width:100%;border:1px solid var(--ledger-line);background:#fff;border-radius:4px;
+    padding:10px 12px;font-size:14px;font-family:'IBM Plex Sans',sans-serif;color:var(--ink);
+  }
+  .field input:focus{outline:2px solid var(--brass);outline-offset:1px;}
+  .auth-card form button[type=submit]{
+    width:100%;background:var(--teal);color:#fff;border:none;border-radius:4px;
+    padding:11px;font-weight:600;font-size:14px;cursor:pointer;margin-top:4px;
+  }
+  .auth-card form button[type=submit]:hover{background:var(--teal-light);}
+  .auth-card form button[type=submit]:disabled{opacity:0.6;cursor:not-allowed;}
+  .auth-err{
+    background:rgba(166,64,43,0.08);color:var(--stamp-red);font-size:13px;
+    padding:9px 12px;border-radius:4px;margin-bottom:14px;
+  }
+
+  /* ---------- App screen (same ledger look) ---------- */
+  header.book{
+    background:var(--teal);color:#F1ECE0;border-radius:6px 6px 2px 2px;
+    padding:28px 32px 22px;position:relative;box-shadow:0 10px 24px var(--paper-shadow);
+    border-bottom:4px solid var(--brass);
+  }
+  header.book::before{
+    content:"";position:absolute;left:0;top:0;bottom:0;width:10px;
+    background:repeating-linear-gradient(180deg, var(--brass) 0 6px, transparent 6px 14px);
+    border-radius:6px 0 0 2px;
+  }
+  header.book h1{font-family:'IBM Plex Serif',serif;font-weight:700;font-size:26px;margin:0 0 4px;}
+  header.book .sub{
+    font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#CFE3DD;
+    display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;
+  }
+  header.book .sub span.tag{background:rgba(255,255,255,0.08);padding:2px 8px;border-radius:3px;}
+  header.book .whoami{margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+  header.book .whoami .greet{font-size:13px;color:#CFE3DD;}
+  header.book .whoami .greet b{color:#fff;}
+  header.book .whoami button{
+    background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:#fff;
+    font-size:12.5px;padding:6px 12px;border-radius:4px;cursor:pointer;
+  }
+
+  section.card{
+    background:#FBF9F3;border:1px solid var(--ledger-line);border-radius:4px;
+    margin-top:22px;box-shadow:0 6px 16px var(--paper-shadow);overflow:hidden;
+  }
+  section.card h2{
+    font-family:'IBM Plex Serif',serif;font-size:16px;font-weight:600;margin:0;
+    padding:14px 20px;border-bottom:1px solid var(--ledger-line);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  section.card h2 .count{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--teal-light);
+    background:rgba(15,61,61,0.08);padding:2px 8px;border-radius:10px;
+  }
+  #reminders.card h2{color:var(--stamp-red);}
+  #reminders.card h2 .count{color:var(--stamp-red);background:rgba(166,64,43,0.1);}
+  .reminder-row{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px dashed var(--ledger-line);}
+  .reminder-row:last-child{border-bottom:none;}
+  .stamp{
+    font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:11px;color:var(--stamp-red);
+    border:2px solid var(--stamp-red);border-radius:4px;padding:3px 8px;transform:rotate(-6deg);
+    letter-spacing:1px;white-space:nowrap;opacity:0.85;flex-shrink:0;
+  }
+  .reminder-row .rtext{flex:1;}
+  .reminder-row .rtext .title{font-weight:600;}
+  .reminder-row .rtext .meta{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8a7550;margin-top:2px;}
+
+  ul.tasks{list-style:none;margin:0;padding:0;}
+  li.task{display:flex;align-items:flex-start;gap:12px;padding:14px 20px;border-bottom:1px solid var(--ledger-line);}
+  li.task:last-child{border-bottom:none;}
+  li.task.done .title{text-decoration:line-through;color:#8a9089;}
+  .checkbox{
+    appearance:none;-webkit-appearance:none;width:20px;height:20px;border:2px solid var(--teal);
+    border-radius:4px;flex-shrink:0;margin-top:2px;cursor:pointer;position:relative;transition:background .15s ease;
+  }
+  .checkbox:checked{background:var(--done-green);border-color:var(--done-green);}
+  .checkbox:checked::after{
+    content:"✓";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:13px;font-weight:700;
+  }
+  .task .body{flex:1;}
+  .task .title{font-weight:500;}
+  .task .meta{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8a9089;margin-top:2px;}
+  .del{background:none;border:none;color:#a35c4a;cursor:pointer;font-size:16px;line-height:1;padding:4px;opacity:.5;transition:opacity .15s ease;}
+  .del:hover{opacity:1;}
+  .empty{padding:22px 20px;color:#8a9089;font-size:14px;font-style:italic;}
+  .loading{padding:22px 20px;color:#8a9089;font-size:13px;font-family:'IBM Plex Mono',monospace;}
+  .err{padding:14px 20px;color:var(--stamp-red);font-size:13px;background:rgba(166,64,43,0.06);}
+
+  form#addForm{display:flex;gap:10px;padding:16px 20px;background:#F1ECE0;border-top:2px solid var(--ledger-line);}
+  form#addForm input[type="text"]{
+    flex:1;border:1px solid var(--ledger-line);background:#FBF9F3;border-radius:4px;
+    padding:10px 12px;font-size:14px;font-family:'IBM Plex Sans',sans-serif;color:var(--ink);
+  }
+  form#addForm input[type="text"]:focus{outline:2px solid var(--brass);outline-offset:1px;}
+  form#addForm button{
+    background:var(--teal);color:#fff;border:none;border-radius:4px;padding:10px 20px;
+    font-weight:600;font-size:14px;cursor:pointer;transition:background .15s ease;
+  }
+  form#addForm button:hover{background:var(--teal-light);}
+  form#addForm button:disabled{opacity:.5;cursor:not-allowed;}
+
+  footer.note{text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8a9089;margin-top:24px;}
+
+  @media (max-width:480px){
+    header.book{padding:22px 18px 18px;}
+    header.book h1{font-size:21px;}
+    section.card h2{padding:12px 16px;}
+    li.task, .reminder-row, form#addForm{padding-left:16px;padding-right:16px;}
+  }
+  @media (prefers-reduced-motion: reduce){ *{transition:none !important;} }
+</style>
+</head>
+<body>
+
+<!-- ================= AUTH SCREEN ================= -->
+<div class="wrap" id="authScreen">
+  <div class="auth-card">
+    <div class="top">
+      <h1>Office Task Register</h1>
+      <p>Sign in to see and add today's tasks</p>
+    </div>
+    <div class="body">
+      <div class="tabs">
+        <button id="tabLogin" class="active">Log in</button>
+        <button id="tabRegister">Create account</button>
+      </div>
+      <div id="authError" class="auth-err hidden"></div>
+
+      <form id="loginForm">
+        <div class="field">
+          <label>Username</label>
+          <input type="text" id="loginUsername" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="loginPassword" autocomplete="current-password" required>
+        </div>
+        <button type="submit">Log in</button>
+      </form>
+
+      <form id="registerForm" class="hidden">
+        <div class="field">
+          <label>Your name</label>
+          <input type="text" id="regName" placeholder="e.g. Ahmed Khan" required>
+        </div>
+        <div class="field">
+          <label>Choose a username</label>
+          <input type="text" id="regUsername" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label>Choose a password</label>
+          <input type="password" id="regPassword" autocomplete="new-password" required minlength="4">
+        </div>
+        <button type="submit">Create account</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ================= APP SCREEN ================= -->
+<div class="wrap hidden" id="appScreen">
+  <header class="book">
+    <h1>Office Task Register</h1>
+    <div class="sub">
+      <span id="todayLabel"></span>
+      <span class="tag" id="pendingTag">…</span>
+    </div>
+    <div class="whoami">
+      <span class="greet">Signed in as <b id="myName"></b></span>
+      <button id="logoutBtn">Log out</button>
+    </div>
+  </header>
+
+  <section class="card" id="reminders" style="display:none;">
+    <h2>Not done yet — carried over <span class="count" id="remCount">0</span></h2>
+    <div id="remList"></div>
+  </section>
+
+  <section class="card" id="todaySection">
+    <h2>Today's Tasks <span class="count" id="todayCount">0</span></h2>
+    <div id="todayList"></div>
+    <form id="addForm">
+      <input type="text" id="taskInput" placeholder="Type a task and press Add…" autocomplete="off" disabled>
+      <button type="submit" disabled>Add</button>
+    </form>
+  </section>
+
+  <footer class="note">Shared with everyone in the office who signs in.</footer>
+</div>
+
+<script>
+  const todayStr = () => {
+    const d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  };
+  const fmtDate = (isoStr) => {
+    const d = new Date(isoStr + "T00:00:00");
+    return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+  };
+  const daysAgo = (isoStr) => {
+    const d1 = new Date(isoStr + "T00:00:00");
+    const d2 = new Date(todayStr() + "T00:00:00");
+    return Math.round((d2 - d1) / 86400000);
+  };
+  function escapeHtml(str){
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+  async function api(path, opts={}){
+    const res = await fetch(path, {
+      ...opts,
+      headers: { "Content-Type": "application/json", ...(opts.headers||{}) },
+      credentials: "include"
+    });
+    let data = null;
+    try{ data = await res.json(); }catch(e){}
+    if(!res.ok){ throw new Error((data && data.error) || "Something went wrong"); }
+    return data;
+  }
+
+  // ---------------- Auth screen logic ----------------
+  const tabLogin = document.getElementById("tabLogin");
+  const tabRegister = document.getElementById("tabRegister");
+  const loginForm = document.getElementById("loginForm");
+  const registerForm = document.getElementById("registerForm");
+  const authError = document.getElementById("authError");
+
+  tabLogin.addEventListener("click", () => {
+    tabLogin.classList.add("active"); tabRegister.classList.remove("active");
+    loginForm.classList.remove("hidden"); registerForm.classList.add("hidden");
+    authError.classList.add("hidden");
+  });
+  tabRegister.addEventListener("click", () => {
+    tabRegister.classList.add("active"); tabLogin.classList.remove("active");
+    registerForm.classList.remove("hidden"); loginForm.classList.add("hidden");
+    authError.classList.add("hidden");
+  });
+
+  function showAuthError(msg){
+    authError.textContent = msg;
+    authError.classList.remove("hidden");
+  }
+
+  loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    authError.classList.add("hidden");
+    const btn = loginForm.querySelector("button");
+    btn.disabled = true;
+    try{
+      await api("/api/login", {
+        method:"POST",
+        body: JSON.stringify({
+          username: document.getElementById("loginUsername").value,
+          password: document.getElementById("loginPassword").value
+        })
+      });
+      await boot();
+    }catch(err){
+      showAuthError(err.message);
+    }finally{
+      btn.disabled = false;
+    }
+  });
+
+  registerForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    authError.classList.add("hidden");
+    const btn = registerForm.querySelector("button");
+    btn.disabled = true;
+    try{
+      await api("/api/register", {
+        method:"POST",
+        body: JSON.stringify({
+          name: document.getElementById("regName").value,
+          username: document.getElementById("regUsername").value,
+          password: document.getElementById("regPassword").value
+        })
+      });
+      await boot();
+    }catch(err){
+      showAuthError(err.message);
+    }finally{
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById("logoutBtn").addEventListener("click", async () => {
+    await api("/api/logout", { method:"POST" });
+    document.getElementById("appScreen").classList.add("hidden");
+    document.getElementById("authScreen").classList.remove("hidden");
+    tabLogin.click();
+    loginForm.reset();
+    registerForm.reset();
+  });
+
+  // ---------------- App screen logic ----------------
+  const today = todayStr();
+  let tasks = [];
+  let me = null;
+
+  function showError(msg){
+    let el = document.getElementById("errBanner");
+    if(!el){
+      el = document.createElement("div");
+      el.id = "errBanner";
+      el.className = "err";
+      document.getElementById("todaySection").insertBefore(el, document.getElementById("todayList"));
+    }
+    el.textContent = msg;
+    setTimeout(()=>{ if(el) el.remove(); }, 5000);
+  }
+
+  async function loadTasks(){
+    try{
+      tasks = await api("/api/tasks");
+    }catch(e){
+      showError(e.message);
+      tasks = [];
+    }
+    render();
+  }
+
+  function render(){
+    document.getElementById("todayLabel").textContent =
+      new Date().toLocaleDateString('en-GB', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+
+    const overdue = tasks.filter(t => !t.completed && t.date_added < today);
+    const todays  = tasks.filter(t => t.date_added === today);
+
+    document.getElementById("pendingTag").textContent = overdue.length + " pending from before";
+
+    const remSection = document.getElementById("reminders");
+    const remList = document.getElementById("remList");
+    document.getElementById("remCount").textContent = overdue.length;
+    remList.innerHTML = "";
+    if(overdue.length === 0){
+      remSection.style.display = "none";
+    } else {
+      remSection.style.display = "block";
+      overdue.sort((a,b)=> a.date_added.localeCompare(b.date_added));
+      overdue.forEach(t => {
+        const row = document.createElement("div");
+        row.className = "reminder-row";
+        const age = daysAgo(t.date_added);
+        row.innerHTML = `
+          <span class="stamp">${age} day${age>1?'s':''} late</span>
+          <div class="rtext">
+            <div class="title">${escapeHtml(t.title)}</div>
+            <div class="meta">Added ${fmtDate(t.date_added)}${t.added_by ? " by " + escapeHtml(t.added_by) : ""}</div>
+          </div>
+        `;
+        const doneBtn = document.createElement("input");
+        doneBtn.type = "checkbox"; doneBtn.className = "checkbox"; doneBtn.title = "Mark as done";
+        doneBtn.addEventListener("change", () => toggleComplete(t.id, doneBtn.checked));
+        const delBtn = document.createElement("button");
+        delBtn.className = "del"; delBtn.innerHTML = "✕"; delBtn.title = "Remove task";
+        delBtn.addEventListener("click", () => removeTask(t.id));
+        row.appendChild(doneBtn); row.appendChild(delBtn);
+        remList.appendChild(row);
+      });
+    }
+
+    const list = document.getElementById("todayList");
+    document.getElementById("todayCount").textContent = todays.length;
+    list.innerHTML = "";
+    if(todays.length === 0){
+      list.innerHTML = `<div class="empty">No tasks added today yet. Add the first one below.</div>`;
+    } else {
+      const ul = document.createElement("ul");
+      ul.className = "tasks";
+      todays.forEach(t => {
+        const li = document.createElement("li");
+        li.className = "task" + (t.completed ? " done" : "");
+        li.innerHTML = `
+          <input type="checkbox" class="checkbox" ${t.completed ? "checked":""} title="Mark as done">
+          <div class="body">
+            <div class="title">${escapeHtml(t.title)}</div>
+            <div class="meta">${t.completed ? "Completed" : "Added"} today${t.added_by ? " · " + escapeHtml(t.added_by) : ""}</div>
+          </div>
+          <button class="del" title="Remove task">✕</button>
+        `;
+        li.querySelector(".checkbox").addEventListener("change", (e) => toggleComplete(t.id, e.target.checked));
+        li.querySelector(".del").addEventListener("click", () => removeTask(t.id));
+        ul.appendChild(li);
+      });
+      list.appendChild(ul);
+    }
+  }
+
+  async function addTask(title){
+    try{
+      const t = await api("/api/tasks", { method:"POST", body: JSON.stringify({ title }) });
+      tasks.push(t);
+      render();
+    }catch(e){
+      showError(e.message);
+    }
+  }
+  async function toggleComplete(id, completed){
+    try{
+      const t = await api("/api/tasks/" + id, { method:"PATCH", body: JSON.stringify({ completed }) });
+      tasks = tasks.map(x => x.id === t.id ? t : x);
+      render();
+    }catch(e){
+      showError(e.message);
+      loadTasks();
+    }
+  }
+  async function removeTask(id){
+    try{
+      await api("/api/tasks/" + id, { method:"DELETE" });
+      tasks = tasks.filter(x => x.id !== id);
+      render();
+    }catch(e){
+      showError(e.message);
+    }
+  }
+
+  document.getElementById("addForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = document.getElementById("taskInput");
+    const val = input.value.trim();
+    if(val){
+      input.value = "";
+      await addTask(val);
+      input.focus();
+    }
+  });
+
+  async function boot(){
+    try{
+      me = await api("/api/me");
+      document.getElementById("myName").textContent = me.name;
+      document.getElementById("authScreen").classList.add("hidden");
+      document.getElementById("appScreen").classList.remove("hidden");
+      document.getElementById("taskInput").disabled = false;
+      document.querySelector("#addForm button").disabled = false;
+      await loadTasks();
+    }catch(e){
+      document.getElementById("appScreen").classList.add("hidden");
+      document.getElementById("authScreen").classList.remove("hidden");
+    }
+  }
+
+  boot();
+</script>
+</body>
+</html>
