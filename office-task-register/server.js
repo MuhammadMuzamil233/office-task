@@ -2,6 +2,8 @@
 // Handles: user accounts (register/login), and a shared task list
 // visible to everyone, with overdue tasks carried forward as reminders.
 
+require("dotenv").config();
+
 const express = require("express");
 const path = require("path");
 const bcrypt = require("bcryptjs");
