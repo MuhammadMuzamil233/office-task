@@ -38,6 +38,7 @@ const taskSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true, maxlength: 500 },
   dateAdded: { type: String, required: true }, // stored as "YYYY-MM-DD" for simple day comparisons
   completed: { type: Boolean, default: false },
+  completedAt: { type: Date, default: null },
   addedBy: { type: String, default: null },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   comments: [{
@@ -70,6 +71,8 @@ function taskToJson(t) {
     title: t.title,
     date_added: t.dateAdded,
     completed: t.completed,
+    completed_at: t.completedAt,
+    updated_at: t.updatedAt,
     added_by: t.addedBy,
     created_at: t.createdAt,
     comments: (t.comments || []).map(comment => ({
@@ -243,13 +246,13 @@ app.patch("/api/admin-requests/:id", authMiddleware, adminMiddleware, async (req
 
 // ---------- Task routes ----------
 // Returns all incomplete tasks from before today (overdue reminders)
-// plus every task added today, for the whole office.
+// plus incomplete tasks added today, for the whole office.
 app.get("/api/tasks", authMiddleware, async (req, res) => {
   try {
     const today = todayStr();
     const tasks = await Task.find({
       $or: [
-        { dateAdded: today },
+        { dateAdded: today, completed: false },
         { completed: false, dateAdded: { $lt: today } }
       ]
     }).sort({ dateAdded: 1, createdAt: 1 });
@@ -257,6 +260,23 @@ app.get("/api/tasks", authMiddleware, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not load tasks" });
+  }
+});
+
+app.get("/api/tasks/history", authMiddleware, async (req, res) => {
+  try {
+    const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 100) : "";
+    const filter = { completed: true };
+    if (search) {
+      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const searchPattern = new RegExp(escapedSearch, "i");
+      filter.$or = [{ title: searchPattern }, { addedBy: searchPattern }];
+    }
+    const tasks = await Task.find(filter).sort({ updatedAt: -1, createdAt: -1 });
+    res.json(tasks.map(taskToJson));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not load task history" });
   }
 });
 
@@ -283,7 +303,10 @@ app.patch("/api/tasks/:id", authMiddleware, adminMiddleware, async (req, res) =>
   try {
     const { completed, title } = req.body;
     const updates = {};
-    if (typeof completed === "boolean") updates.completed = completed;
+    if (typeof completed === "boolean") {
+      updates.completed = completed;
+      updates.completedAt = completed ? new Date() : null;
+    }
     if (typeof title === "string" && title.trim()) updates.title = title.trim().slice(0, 500);
     if (!Object.keys(updates).length) {
       return res.status(400).json({ error: "A valid task update is required" });
