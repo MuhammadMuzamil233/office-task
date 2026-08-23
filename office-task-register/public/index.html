@@ -141,12 +141,19 @@
   .loading{padding:22px 20px;color:#8a9089;font-size:13px;font-family:'IBM Plex Mono',monospace;}
   .err{padding:14px 20px;color:var(--stamp-red);font-size:13px;background:rgba(166,64,43,0.06);}
   .admin-tools{padding:16px 20px;background:#E7EFE9;border-top:2px solid #B7CDBE;}
-  .admin-task{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #C9D9CE;}
+  .admin-task{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #C9D9CE;}
   .admin-task:last-child{border-bottom:none;}
   .admin-task textarea{flex:1;min-width:0;min-height:42px;resize:vertical;border:1px solid var(--ledger-line);background:#fff;border-radius:4px;padding:8px 10px;font:14px 'IBM Plex Sans',sans-serif;color:var(--ink);}
   .admin-task button{border:1px solid var(--teal);background:var(--teal);color:#fff;border-radius:4px;padding:7px 10px;cursor:pointer;font-weight:600;}
   .admin-task button.delete{border-color:var(--stamp-red);background:transparent;color:var(--stamp-red);}
   .admin-empty{color:#64766b;font-size:13px;}
+  .task-comments{width:100%;margin-top:8px;border-left:3px solid var(--brass);padding-left:10px;}
+  .task-comment{display:flex;flex-wrap:wrap;gap:4px 8px;padding:5px 0;font-size:12px;}
+  .task-comment b{color:var(--teal-light);}
+  .task-comment span{white-space:pre-wrap;color:var(--ink);flex-basis:100%;}
+  .task-comment small{color:#8a9089;font:10px 'IBM Plex Mono',monospace;}
+  .admin-task .task-comments{flex-basis:100%;}
+  .admin-task > textarea[aria-label="Admin reply"]{flex-basis:100%;}
   .admin-requests{padding:16px 20px;background:#F6F1E5;border-top:1px solid var(--ledger-line);}
   .admin-requests h3{font:600 13px 'IBM Plex Sans',sans-serif;margin:0 0 8px;color:var(--teal);}
   .admin-request{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--ledger-line);}
@@ -278,6 +285,9 @@
     const d = new Date(isoStr + "T00:00:00");
     return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
   };
+  const fmtDateTime = (isoStr, fallbackDate) => isoStr ? new Date(isoStr).toLocaleString('en-GB', {
+    day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'
+  }) : fmtDate(fallbackDate);
   const daysAgo = (isoStr) => {
     const d1 = new Date(isoStr + "T00:00:00");
     const d2 = new Date(todayStr() + "T00:00:00");
@@ -287,6 +297,18 @@
     const div = document.createElement("div");
     div.textContent = str;
     return div.innerHTML;
+  }
+  function appendComments(parent, task){
+    if(!task.comments || task.comments.length === 0) return;
+    const comments = document.createElement("div");
+    comments.className = "task-comments";
+    task.comments.forEach(comment => {
+      const item = document.createElement("div");
+      item.className = "task-comment";
+      item.innerHTML = `<b>Admin reply by ${escapeHtml(comment.added_by)}</b><span>${escapeHtml(comment.text)}</span><small>${fmtDateTime(comment.created_at)}</small>`;
+      comments.appendChild(item);
+    });
+    parent.appendChild(comments);
   }
   async function api(path, opts={}){
     const res = await fetch(path, {
@@ -482,9 +504,10 @@
           <span class="stamp">${age} day${age>1?'s':''} late</span>
           <div class="rtext">
             <div class="title">${escapeHtml(t.title)}</div>
-            <div class="meta">Added ${fmtDate(t.date_added)}${t.added_by ? " by " + escapeHtml(t.added_by) : ""}</div>
+            <div class="meta">Added ${fmtDateTime(t.created_at, t.date_added)}${t.added_by ? " by " + escapeHtml(t.added_by) : ""}</div>
           </div>
         `;
+        appendComments(row.querySelector(".rtext"), t);
         const doneBtn = document.createElement("input");
         doneBtn.type = "checkbox"; doneBtn.className = "checkbox"; doneBtn.title = "Mark as done";
         doneBtn.disabled = me.role !== "admin";
@@ -513,12 +536,13 @@
           <input type="checkbox" class="checkbox" ${t.completed ? "checked":""} ${me.role === "admin" ? "" : "disabled"} title="Mark as done">
           <div class="body">
             <div class="title">${escapeHtml(t.title)}</div>
-            <div class="meta">${t.completed ? "Completed" : "Added"} today${t.added_by ? " · " + escapeHtml(t.added_by) : ""}</div>
+            <div class="meta">${t.completed ? "Completed" : "Added"} ${fmtDateTime(t.created_at, t.date_added)}${t.added_by ? " · " + escapeHtml(t.added_by) : ""}</div>
           </div>
           <button class="del ${me.role === "admin" ? "" : "hidden"}" title="Remove task">✕</button>
         `;
         li.querySelector(".checkbox").addEventListener("change", (e) => toggleComplete(t.id, e.target.checked));
         li.querySelector(".del").addEventListener("click", () => removeTask(t.id));
+        appendComments(li.querySelector(".body"), t);
         ul.appendChild(li);
       });
       list.appendChild(ul);
@@ -544,6 +568,15 @@
           saveBtn.addEventListener("click", () => updateTask(t.id, input.value));
           deleteBtn.addEventListener("click", () => removeTask(t.id));
           row.append(input, saveBtn, deleteBtn);
+          appendComments(row, t);
+          if(me.role === "admin"){
+            const commentInput = document.createElement("textarea");
+            commentInput.rows = 2; commentInput.maxLength = 1000; commentInput.placeholder = "Write an admin reply…"; commentInput.setAttribute("aria-label", "Admin reply");
+            const commentBtn = document.createElement("button");
+            commentBtn.type = "button"; commentBtn.textContent = "Reply";
+            commentBtn.addEventListener("click", () => addComment(t.id, commentInput.value));
+            row.append(commentInput, commentBtn);
+          }
           adminList.appendChild(row);
         });
       }
@@ -575,6 +608,14 @@
     if(!title.trim()) return showError("Task text is required");
     try{
       const t = await api("/api/tasks/" + id, { method:"PATCH", body: JSON.stringify({ title: title.trim() }) });
+      tasks = tasks.map(x => x.id === t.id ? t : x);
+      render();
+    }catch(e){ showError(e.message); }
+  }
+  async function addComment(id, text){
+    if(!text.trim()) return showError("Comment text is required");
+    try{
+      const t = await api("/api/tasks/" + id + "/comments", { method:"POST", body: JSON.stringify({ text: text.trim() }) });
       tasks = tasks.map(x => x.id === t.id ? t : x);
       render();
     }catch(e){ showError(e.message); }

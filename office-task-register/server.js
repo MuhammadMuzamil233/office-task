@@ -39,7 +39,13 @@ const taskSchema = new mongoose.Schema({
   dateAdded: { type: String, required: true }, // stored as "YYYY-MM-DD" for simple day comparisons
   completed: { type: Boolean, default: false },
   addedBy: { type: String, default: null },
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null }
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  comments: [{
+    text: { type: String, required: true, trim: true, maxlength: 1000 },
+    addedBy: { type: String, required: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    createdAt: { type: Date, default: Date.now }
+  }]
 }, { timestamps: true });
 
 const adminRequestSchema = new mongoose.Schema({
@@ -64,7 +70,14 @@ function taskToJson(t) {
     title: t.title,
     date_added: t.dateAdded,
     completed: t.completed,
-    added_by: t.addedBy
+    added_by: t.addedBy,
+    created_at: t.createdAt,
+    comments: (t.comments || []).map(comment => ({
+      id: comment._id.toString(),
+      text: comment.text,
+      added_by: comment.addedBy,
+      created_at: comment.createdAt
+    }))
   };
 }
 
@@ -285,6 +298,25 @@ app.patch("/api/tasks/:id", authMiddleware, adminMiddleware, async (req, res) =>
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not update task" });
+  }
+});
+
+app.post("/api/tasks/:id/comments", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: "Comment text is required" });
+    }
+    const task = await Task.findByIdAndUpdate(
+      req.params.id,
+      { $push: { comments: { text: text.trim().slice(0, 1000), addedBy: req.user.name, userId: req.user.id } } },
+      { new: true }
+    );
+    if (!task) return res.status(404).json({ error: "Task not found" });
+    res.json(taskToJson(task));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not add comment" });
   }
 });
 
