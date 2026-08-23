@@ -116,7 +116,7 @@
     letter-spacing:1px;white-space:nowrap;opacity:0.85;flex-shrink:0;
   }
   .reminder-row .rtext{flex:1;}
-  .reminder-row .rtext .title{font-weight:600;}
+  .reminder-row .rtext .title{font-weight:600;white-space:pre-wrap;}
   .reminder-row .rtext .meta{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8a7550;margin-top:2px;}
 
   ul.tasks{list-style:none;margin:0;padding:0;}
@@ -133,7 +133,7 @@
     color:#fff;font-size:13px;font-weight:700;
   }
   .task .body{flex:1;}
-  .task .title{font-weight:500;}
+  .task .title{font-weight:500;white-space:pre-wrap;}
   .task .meta{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8a9089;margin-top:2px;}
   .del{background:none;border:none;color:#a35c4a;cursor:pointer;font-size:16px;line-height:1;padding:4px;opacity:.5;transition:opacity .15s ease;}
   .del:hover{opacity:1;}
@@ -143,7 +143,7 @@
   .admin-tools{padding:16px 20px;background:#E7EFE9;border-top:2px solid #B7CDBE;}
   .admin-task{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #C9D9CE;}
   .admin-task:last-child{border-bottom:none;}
-  .admin-task input[type="text"]{flex:1;min-width:0;border:1px solid var(--ledger-line);background:#fff;border-radius:4px;padding:8px 10px;font:14px 'IBM Plex Sans',sans-serif;color:var(--ink);}
+  .admin-task textarea{flex:1;min-width:0;min-height:42px;resize:vertical;border:1px solid var(--ledger-line);background:#fff;border-radius:4px;padding:8px 10px;font:14px 'IBM Plex Sans',sans-serif;color:var(--ink);}
   .admin-task button{border:1px solid var(--teal);background:var(--teal);color:#fff;border-radius:4px;padding:7px 10px;cursor:pointer;font-weight:600;}
   .admin-task button.delete{border-color:var(--stamp-red);background:transparent;color:var(--stamp-red);}
   .admin-empty{color:#64766b;font-size:13px;}
@@ -252,7 +252,7 @@
     <h2>Today's Tasks <span class="count" id="todayCount">0</span></h2>
     <div id="todayList"></div>
     <form id="addForm">
-      <input type="text" id="taskInput" placeholder="Type a task and press Add…" autocomplete="off" disabled>
+      <textarea id="taskInput" rows="3" placeholder="Write a task with separate points…" autocomplete="off" disabled></textarea>
       <button type="submit" disabled>Add</button>
     </form>
   </section>
@@ -535,8 +535,8 @@
         tasks.forEach(t => {
           const row = document.createElement("div");
           row.className = "admin-task";
-          const input = document.createElement("input");
-          input.type = "text"; input.value = t.title; input.maxLength = 500; input.setAttribute("aria-label", "Task title");
+          const input = document.createElement("textarea");
+          input.value = t.title; input.maxLength = 500; input.rows = 2; input.setAttribute("aria-label", "Task title");
           const saveBtn = document.createElement("button");
           saveBtn.type = "button"; saveBtn.textContent = "Save";
           const deleteBtn = document.createElement("button");
