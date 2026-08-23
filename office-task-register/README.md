@@ -59,7 +59,7 @@ Koi bhi paid card ki zaroorat nahi. Neeche steps follow karein.
    vercel env add ADMIN_USERNAME production
    vercel --prod
    ```
-   `ADMIN_USERNAME` mein jo username set karein, us account se register/login karne wala user admin hoga. Baqi tamam accounts sirf tasks assign kar sakte hain.
+   `ADMIN_USERNAME` wala account primary admin hota hai. Baqi users **Create admin account** se approval request bhej sakte hain; primary admin Admin Panel se Approve ya Reject karega.
 6. Deploy ke baad Vercel aapko ek URL dega jaisa:
    ```
    https://office-task-register.vercel.app

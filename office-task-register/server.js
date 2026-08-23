@@ -42,8 +42,16 @@ const taskSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null }
 }, { timestamps: true });
 
+const adminRequestSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  username: { type: String, required: true },
+  name: { type: String, required: true },
+  status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" }
+}, { timestamps: true });
+
 const User = mongoose.model("User", userSchema);
 const Task = mongoose.model("Task", taskSchema);
+const AdminRequest = mongoose.model("AdminRequest", adminRequestSchema);
 
 function todayStr() {
   const d = new Date();
@@ -116,7 +124,7 @@ app.use(async (req, res, next) => {
 // ---------- Auth routes ----------
 app.post("/api/register", async (req, res) => {
   try {
-    const { username, password, name } = req.body;
+    const { username, password, name, requestAdmin } = req.body;
     if (!username || !password || !name) {
       return res.status(400).json({ error: "Name, username and password are all required" });
     }
@@ -133,11 +141,14 @@ app.post("/api/register", async (req, res) => {
       username: cleanUsername,
       name: name.trim(),
       passwordHash,
-      role: cleanUsername === ADMIN_USERNAME ? "admin" : "user"
+      role: cleanUsername === ADMIN_USERNAME && !requestAdmin ? "admin" : "user"
     });
+    if (requestAdmin && user.role !== "admin") {
+      await AdminRequest.create({ userId: user._id, username: user.username, name: user.name });
+    }
     const token = signToken(user);
     res.cookie("token", token, COOKIE_OPTS);
-    res.json({ id: user._id.toString(), username: user.username, name: user.name, role: user.role });
+    res.json({ id: user._id.toString(), username: user.username, name: user.name, role: user.role, adminRequestPending: requestAdmin && user.role !== "admin" });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not create account, please try again" });
@@ -178,6 +189,43 @@ app.post("/api/logout", (req, res) => {
 
 app.get("/api/me", authMiddleware, (req, res) => {
   res.json({ id: req.user.id, username: req.user.username, name: req.user.name, role: req.user.role || "user" });
+});
+
+app.get("/api/admin-requests", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const requests = await AdminRequest.find({ status: "pending" }).sort({ createdAt: 1 });
+    res.json(requests.map(request => ({
+      id: request._id.toString(),
+      username: request.username,
+      name: request.name,
+      created_at: request.createdAt
+    })));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not load admin requests" });
+  }
+});
+
+app.patch("/api/admin-requests/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!["approved", "rejected"].includes(status)) {
+      return res.status(400).json({ error: "Request status must be approved or rejected" });
+    }
+    const request = await AdminRequest.findOneAndUpdate(
+      { _id: req.params.id, status: "pending" },
+      { status },
+      { new: true }
+    );
+    if (!request) return res.status(404).json({ error: "Admin request not found" });
+    if (status === "approved") {
+      await User.findByIdAndUpdate(request.userId, { role: "admin" });
+    }
+    res.json({ ok: true, status: request.status });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not process admin request" });
+  }
 });
 
 // ---------- Task routes ----------

@@ -61,6 +61,8 @@
   }
   .auth-card form button[type=submit]:hover{background:var(--teal-light);}
   .auth-card form button[type=submit]:disabled{opacity:0.6;cursor:not-allowed;}
+  .admin-link{display:block;margin:16px auto 0;border:none;background:none;color:var(--teal-light);font:600 12px 'IBM Plex Sans',sans-serif;text-decoration:underline;cursor:pointer;}
+  .admin-hint{margin:-4px 0 14px;color:var(--teal-light);font-size:12px;line-height:1.4;}
   .auth-err{
     background:rgba(166,64,43,0.08);color:var(--stamp-red);font-size:13px;
     padding:9px 12px;border-radius:4px;margin-bottom:14px;
@@ -145,6 +147,14 @@
   .admin-task button{border:1px solid var(--teal);background:var(--teal);color:#fff;border-radius:4px;padding:7px 10px;cursor:pointer;font-weight:600;}
   .admin-task button.delete{border-color:var(--stamp-red);background:transparent;color:var(--stamp-red);}
   .admin-empty{color:#64766b;font-size:13px;}
+  .admin-requests{padding:16px 20px;background:#F6F1E5;border-top:1px solid var(--ledger-line);}
+  .admin-requests h3{font:600 13px 'IBM Plex Sans',sans-serif;margin:0 0 8px;color:var(--teal);}
+  .admin-request{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--ledger-line);}
+  .admin-request:last-child{border-bottom:none;}
+  .admin-request .requester{flex:1;min-width:0;font-size:13px;}
+  .admin-request .requester small{display:block;color:#8a9089;font:11px 'IBM Plex Mono',monospace;margin-top:2px;}
+  .admin-request button{border:1px solid var(--done-green);background:var(--done-green);color:#fff;border-radius:4px;padding:6px 9px;cursor:pointer;font-weight:600;}
+  .admin-request button.reject{border-color:var(--stamp-red);background:transparent;color:var(--stamp-red);}
 
   form#addForm{display:flex;gap:10px;padding:16px 20px;background:#F1ECE0;border-top:2px solid var(--ledger-line);}
   form#addForm input[type="text"]{
@@ -184,6 +194,7 @@
         <button id="tabLogin" class="active">Log in</button>
         <button id="tabRegister">Create account</button>
       </div>
+      <button type="button" id="adminRegisterBtn" class="admin-link">Create admin account</button>
       <div id="authError" class="auth-err hidden"></div>
 
       <form id="loginForm">
@@ -199,6 +210,7 @@
       </form>
 
       <form id="registerForm" class="hidden">
+        <p id="adminHint" class="admin-hint hidden">Use the admin username configured in Vercel Environment Variables.</p>
         <div class="field">
           <label>Your name</label>
           <input type="text" id="regName" placeholder="e.g. Ahmed Khan" required>
@@ -248,6 +260,10 @@
   <section class="card hidden" id="adminPanel">
     <h2>Admin Panel <span class="count">Admin only</span></h2>
     <div class="admin-tools" id="adminTaskList"></div>
+    <div class="admin-requests" id="adminRequests">
+      <h3>Admin approval requests</h3>
+      <div id="adminRequestList"><div class="admin-empty">No pending requests.</div></div>
+    </div>
   </section>
 
   <footer class="note">Shared with everyone in the office who signs in.</footer>
@@ -290,16 +306,29 @@
   const loginForm = document.getElementById("loginForm");
   const registerForm = document.getElementById("registerForm");
   const authError = document.getElementById("authError");
+  const adminRegisterBtn = document.getElementById("adminRegisterBtn");
+  const adminHint = document.getElementById("adminHint");
+  let adminRequestMode = false;
 
   tabLogin.addEventListener("click", () => {
     tabLogin.classList.add("active"); tabRegister.classList.remove("active");
     loginForm.classList.remove("hidden"); registerForm.classList.add("hidden");
+    adminRequestMode = false;
+    adminHint.classList.add("hidden");
     authError.classList.add("hidden");
   });
   tabRegister.addEventListener("click", () => {
     tabRegister.classList.add("active"); tabLogin.classList.remove("active");
     registerForm.classList.remove("hidden"); loginForm.classList.add("hidden");
+    adminRequestMode = false;
+    adminHint.classList.add("hidden");
     authError.classList.add("hidden");
+  });
+  adminRegisterBtn.addEventListener("click", () => {
+    tabRegister.click();
+    adminRequestMode = true;
+    adminHint.classList.remove("hidden");
+    document.getElementById("regUsername").focus();
   });
 
   function showAuthError(msg){
@@ -334,15 +363,17 @@
     const btn = registerForm.querySelector("button");
     btn.disabled = true;
     try{
-      await api("/api/register", {
+      const account = await api("/api/register", {
         method:"POST",
         body: JSON.stringify({
           name: document.getElementById("regName").value,
           username: document.getElementById("regUsername").value,
-          password: document.getElementById("regPassword").value
+          password: document.getElementById("regPassword").value,
+          requestAdmin: adminRequestMode
         })
       });
       await boot();
+      if(account.adminRequestPending) showError("Admin request sent. An existing admin must approve it before you get admin authority.");
     }catch(err){
       showAuthError(err.message);
     }finally{
@@ -363,6 +394,7 @@
   const today = todayStr();
   let tasks = [];
   let me = null;
+  let adminRequests = [];
 
   function showError(msg){
     let el = document.getElementById("errBanner");
@@ -384,6 +416,44 @@
       tasks = [];
     }
     render();
+  }
+
+  async function loadAdminRequests(){
+    if(!me || me.role !== "admin") return;
+    try{
+      adminRequests = await api("/api/admin-requests");
+      renderAdminRequests();
+    }catch(e){ showError(e.message); }
+  }
+
+  function renderAdminRequests(){
+    const list = document.getElementById("adminRequestList");
+    list.innerHTML = "";
+    if(adminRequests.length === 0){
+      list.innerHTML = `<div class="admin-empty">No pending requests.</div>`;
+      return;
+    }
+    adminRequests.forEach(request => {
+      const row = document.createElement("div");
+      row.className = "admin-request";
+      row.innerHTML = `<div class="requester"><b>${escapeHtml(request.name)}</b><small>@${escapeHtml(request.username)}</small></div>`;
+      const approveBtn = document.createElement("button");
+      approveBtn.type = "button"; approveBtn.textContent = "Approve";
+      const rejectBtn = document.createElement("button");
+      rejectBtn.type = "button"; rejectBtn.className = "reject"; rejectBtn.textContent = "Reject";
+      approveBtn.addEventListener("click", () => processAdminRequest(request.id, "approved"));
+      rejectBtn.addEventListener("click", () => processAdminRequest(request.id, "rejected"));
+      row.append(approveBtn, rejectBtn);
+      list.appendChild(row);
+    });
+  }
+
+  async function processAdminRequest(id, status){
+    try{
+      await api("/api/admin-requests/" + id, { method:"PATCH", body: JSON.stringify({ status }) });
+      adminRequests = adminRequests.filter(request => request.id !== id);
+      renderAdminRequests();
+    }catch(e){ showError(e.message); }
   }
 
   function render(){
@@ -540,6 +610,7 @@
       document.getElementById("taskInput").disabled = false;
       document.querySelector("#addForm button").disabled = false;
       await loadTasks();
+      await loadAdminRequests();
     }catch(e){
       document.getElementById("appScreen").classList.add("hidden");
       document.getElementById("authScreen").classList.remove("hidden");
