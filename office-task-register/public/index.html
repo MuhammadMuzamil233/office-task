@@ -138,6 +138,13 @@
   .empty{padding:22px 20px;color:#8a9089;font-size:14px;font-style:italic;}
   .loading{padding:22px 20px;color:#8a9089;font-size:13px;font-family:'IBM Plex Mono',monospace;}
   .err{padding:14px 20px;color:var(--stamp-red);font-size:13px;background:rgba(166,64,43,0.06);}
+  .admin-tools{padding:16px 20px;background:#E7EFE9;border-top:2px solid #B7CDBE;}
+  .admin-task{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #C9D9CE;}
+  .admin-task:last-child{border-bottom:none;}
+  .admin-task input[type="text"]{flex:1;min-width:0;border:1px solid var(--ledger-line);background:#fff;border-radius:4px;padding:8px 10px;font:14px 'IBM Plex Sans',sans-serif;color:var(--ink);}
+  .admin-task button{border:1px solid var(--teal);background:var(--teal);color:#fff;border-radius:4px;padding:7px 10px;cursor:pointer;font-weight:600;}
+  .admin-task button.delete{border-color:var(--stamp-red);background:transparent;color:var(--stamp-red);}
+  .admin-empty{color:#64766b;font-size:13px;}
 
   form#addForm{display:flex;gap:10px;padding:16px 20px;background:#F1ECE0;border-top:2px solid var(--ledger-line);}
   form#addForm input[type="text"]{
@@ -236,6 +243,11 @@
       <input type="text" id="taskInput" placeholder="Type a task and press Add…" autocomplete="off" disabled>
       <button type="submit" disabled>Add</button>
     </form>
+  </section>
+
+  <section class="card hidden" id="adminPanel">
+    <h2>Admin Panel <span class="count">Admin only</span></h2>
+    <div class="admin-tools" id="adminTaskList"></div>
   </section>
 
   <footer class="note">Shared with everyone in the office who signs in.</footer>
@@ -405,9 +417,11 @@
         `;
         const doneBtn = document.createElement("input");
         doneBtn.type = "checkbox"; doneBtn.className = "checkbox"; doneBtn.title = "Mark as done";
+        doneBtn.disabled = me.role !== "admin";
         doneBtn.addEventListener("change", () => toggleComplete(t.id, doneBtn.checked));
         const delBtn = document.createElement("button");
         delBtn.className = "del"; delBtn.innerHTML = "✕"; delBtn.title = "Remove task";
+        delBtn.classList.toggle("hidden", me.role !== "admin");
         delBtn.addEventListener("click", () => removeTask(t.id));
         row.appendChild(doneBtn); row.appendChild(delBtn);
         remList.appendChild(row);
@@ -426,18 +440,45 @@
         const li = document.createElement("li");
         li.className = "task" + (t.completed ? " done" : "");
         li.innerHTML = `
-          <input type="checkbox" class="checkbox" ${t.completed ? "checked":""} title="Mark as done">
+          <input type="checkbox" class="checkbox" ${t.completed ? "checked":""} ${me.role === "admin" ? "" : "disabled"} title="Mark as done">
           <div class="body">
             <div class="title">${escapeHtml(t.title)}</div>
             <div class="meta">${t.completed ? "Completed" : "Added"} today${t.added_by ? " · " + escapeHtml(t.added_by) : ""}</div>
           </div>
-          <button class="del" title="Remove task">✕</button>
+          <button class="del ${me.role === "admin" ? "" : "hidden"}" title="Remove task">✕</button>
         `;
         li.querySelector(".checkbox").addEventListener("change", (e) => toggleComplete(t.id, e.target.checked));
         li.querySelector(".del").addEventListener("click", () => removeTask(t.id));
         ul.appendChild(li);
       });
       list.appendChild(ul);
+    }
+
+    const adminPanel = document.getElementById("adminPanel");
+    if(me.role === "admin"){
+      adminPanel.classList.remove("hidden");
+      const adminList = document.getElementById("adminTaskList");
+      adminList.innerHTML = "";
+      if(tasks.length === 0){
+        adminList.innerHTML = `<div class="admin-empty">No visible tasks to manage.</div>`;
+      } else {
+        tasks.forEach(t => {
+          const row = document.createElement("div");
+          row.className = "admin-task";
+          const input = document.createElement("input");
+          input.type = "text"; input.value = t.title; input.maxLength = 500; input.setAttribute("aria-label", "Task title");
+          const saveBtn = document.createElement("button");
+          saveBtn.type = "button"; saveBtn.textContent = "Save";
+          const deleteBtn = document.createElement("button");
+          deleteBtn.type = "button"; deleteBtn.className = "delete"; deleteBtn.textContent = "Delete";
+          saveBtn.addEventListener("click", () => updateTask(t.id, input.value));
+          deleteBtn.addEventListener("click", () => removeTask(t.id));
+          row.append(input, saveBtn, deleteBtn);
+          adminList.appendChild(row);
+        });
+      }
+    } else {
+      adminPanel.classList.add("hidden");
     }
   }
 
@@ -459,6 +500,14 @@
       showError(e.message);
       loadTasks();
     }
+  }
+  async function updateTask(id, title){
+    if(!title.trim()) return showError("Task text is required");
+    try{
+      const t = await api("/api/tasks/" + id, { method:"PATCH", body: JSON.stringify({ title: title.trim() }) });
+      tasks = tasks.map(x => x.id === t.id ? t : x);
+      render();
+    }catch(e){ showError(e.message); }
   }
   async function removeTask(id){
     try{
@@ -485,6 +534,7 @@
     try{
       me = await api("/api/me");
       document.getElementById("myName").textContent = me.name;
+      document.querySelector(".greet").firstChild.textContent = me.role === "admin" ? "Admin signed in as " : "Signed in as ";
       document.getElementById("authScreen").classList.add("hidden");
       document.getElementById("appScreen").classList.remove("hidden");
       document.getElementById("taskInput").disabled = false;

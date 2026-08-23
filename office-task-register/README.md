@@ -50,13 +50,16 @@ Koi bhi paid card ki zaroorat nahi. Neeche steps follow karein.
 4. Vercel project ke **Settings → Environment Variables** mein ye variables add karein:
    - `DATABASE_URL` = `mongodb+srv://zoiichaa1_db_user:<db_password>@cluster0.viocqia.mongodb.net/`
    - `JWT_SECRET` = koi bhi lamba random text (e.g. `office2026-secret-key-xyz`)
+   - `ADMIN_USERNAME` = admin ke liye reserved username (e.g. `officeadmin`)
    `DATABASE_URL` mein `<db_password>` ko apne MongoDB Atlas password se replace karein. Agar password mein special characters hon (`@`, `#`, `%` waghera), unhein URL-encode karein.
 5. Ya Vercel CLI se variables set karein:
    ```
    vercel env add DATABASE_URL production
    vercel env add JWT_SECRET production
+   vercel env add ADMIN_USERNAME production
    vercel --prod
    ```
+   `ADMIN_USERNAME` mein jo username set karein, us account se register/login karne wala user admin hoga. Baqi tamam accounts sirf tasks assign kar sakte hain.
 6. Deploy ke baad Vercel aapko ek URL dega jaisa:
    ```
    https://office-task-register.vercel.app
