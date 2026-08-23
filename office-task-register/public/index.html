@@ -61,6 +61,8 @@
   }
   .auth-card form button[type=submit]:hover{background:var(--teal-light);}
   .auth-card form button[type=submit]:disabled{opacity:0.6;cursor:not-allowed;}
+  .admin-link{display:block;margin:16px auto 0;border:none;background:none;color:var(--teal-light);font:600 12px 'IBM Plex Sans',sans-serif;text-decoration:underline;cursor:pointer;}
+  .admin-hint{margin:-4px 0 14px;color:var(--teal-light);font-size:12px;line-height:1.4;}
   .auth-err{
     background:rgba(166,64,43,0.08);color:var(--stamp-red);font-size:13px;
     padding:9px 12px;border-radius:4px;margin-bottom:14px;
@@ -184,6 +186,7 @@
         <button id="tabLogin" class="active">Log in</button>
         <button id="tabRegister">Create account</button>
       </div>
+      <button type="button" id="adminRegisterBtn" class="admin-link">Create admin account</button>
       <div id="authError" class="auth-err hidden"></div>
 
       <form id="loginForm">
@@ -199,6 +202,7 @@
       </form>
 
       <form id="registerForm" class="hidden">
+        <p id="adminHint" class="admin-hint hidden">Use the admin username configured in Vercel Environment Variables.</p>
         <div class="field">
           <label>Your name</label>
           <input type="text" id="regName" placeholder="e.g. Ahmed Khan" required>
@@ -290,16 +294,25 @@
   const loginForm = document.getElementById("loginForm");
   const registerForm = document.getElementById("registerForm");
   const authError = document.getElementById("authError");
+  const adminRegisterBtn = document.getElementById("adminRegisterBtn");
+  const adminHint = document.getElementById("adminHint");
 
   tabLogin.addEventListener("click", () => {
     tabLogin.classList.add("active"); tabRegister.classList.remove("active");
     loginForm.classList.remove("hidden"); registerForm.classList.add("hidden");
+    adminHint.classList.add("hidden");
     authError.classList.add("hidden");
   });
   tabRegister.addEventListener("click", () => {
     tabRegister.classList.add("active"); tabLogin.classList.remove("active");
     registerForm.classList.remove("hidden"); loginForm.classList.add("hidden");
+    adminHint.classList.add("hidden");
     authError.classList.add("hidden");
+  });
+  adminRegisterBtn.addEventListener("click", () => {
+    tabRegister.click();
+    adminHint.classList.remove("hidden");
+    document.getElementById("regUsername").focus();
   });
 
   function showAuthError(msg){
