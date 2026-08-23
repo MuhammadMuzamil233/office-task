@@ -141,7 +141,7 @@ app.post("/api/register", async (req, res) => {
       username: cleanUsername,
       name: name.trim(),
       passwordHash,
-      role: cleanUsername === ADMIN_USERNAME && !requestAdmin ? "admin" : "user"
+      role: cleanUsername === ADMIN_USERNAME ? "admin" : "user"
     });
     if (requestAdmin && user.role !== "admin") {
       await AdminRequest.create({ userId: user._id, username: user.username, name: user.name });
