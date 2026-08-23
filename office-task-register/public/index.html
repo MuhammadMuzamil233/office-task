@@ -306,7 +306,8 @@
     task.comments.forEach(comment => {
       const item = document.createElement("div");
       item.className = "task-comment";
-      item.innerHTML = `<b>Admin reply by ${escapeHtml(comment.added_by)}</b><small>${fmtDateTime(comment.created_at)}</small><span>${escapeHtml(comment.text)}</span>`;
+      const recipient = task.added_by || "the task assigner";
+      item.innerHTML = `<b>Admin reply to ${escapeHtml(recipient)}</b><small>${fmtDateTime(comment.created_at)}</small><span>${escapeHtml(comment.text)}</span>`;
       comments.appendChild(item);
     });
     parent.appendChild(comments);
