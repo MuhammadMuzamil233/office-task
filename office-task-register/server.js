@@ -15,6 +15,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 const MONGODB_URI = process.env.DATABASE_URL || process.env.MONGODB_URI;
+const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || "").toLowerCase().trim();
 
 if (!JWT_SECRET || !MONGODB_URI) {
   console.error("Missing JWT_SECRET or DATABASE_URL/MONGODB_URI environment variable.");
@@ -29,7 +30,8 @@ app.use(express.static(path.join(__dirname, "public")));
 const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true, lowercase: true, trim: true },
   name: { type: String, required: true, trim: true },
-  passwordHash: { type: String, required: true }
+  passwordHash: { type: String, required: true },
+  role: { type: String, enum: ["user", "admin"], default: "user" }
 }, { timestamps: true });
 
 const taskSchema = new mongoose.Schema({
@@ -60,7 +62,7 @@ function taskToJson(t) {
 
 // ---------- Auth helpers ----------
 function signToken(user) {
-  return jwt.sign({ id: user._id.toString(), username: user.username, name: user.name }, JWT_SECRET, { expiresIn: "30d" });
+  return jwt.sign({ id: user._id.toString(), username: user.username, name: user.name, role: user.role }, JWT_SECRET, { expiresIn: "30d" });
 }
 
 function authMiddleware(req, res, next) {
@@ -71,6 +73,18 @@ function authMiddleware(req, res, next) {
     next();
   } catch (e) {
     return res.status(401).json({ error: "Session expired, please log in again" });
+  }
+}
+
+async function adminMiddleware(req, res, next) {
+  try {
+    const user = await User.findById(req.user.id).select("role");
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ error: "Admin authority required" });
+    }
+    next();
+  } catch (e) {
+    res.status(500).json({ error: "Could not verify admin access" });
   }
 }
 
@@ -115,10 +129,15 @@ app.post("/api/register", async (req, res) => {
       return res.status(409).json({ error: "That username is already taken" });
     }
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.create({ username: cleanUsername, name: name.trim(), passwordHash });
+    const user = await User.create({
+      username: cleanUsername,
+      name: name.trim(),
+      passwordHash,
+      role: cleanUsername === ADMIN_USERNAME ? "admin" : "user"
+    });
     const token = signToken(user);
     res.cookie("token", token, COOKIE_OPTS);
-    res.json({ id: user._id.toString(), username: user.username, name: user.name });
+    res.json({ id: user._id.toString(), username: user.username, name: user.name, role: user.role });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not create account, please try again" });
@@ -139,9 +158,13 @@ app.post("/api/login", async (req, res) => {
     if (!match) {
       return res.status(401).json({ error: "Incorrect username or password" });
     }
+    if (user.username === ADMIN_USERNAME && user.role !== "admin") {
+      user.role = "admin";
+      await user.save();
+    }
     const token = signToken(user);
     res.cookie("token", token, COOKIE_OPTS);
-    res.json({ id: user._id.toString(), username: user.username, name: user.name });
+    res.json({ id: user._id.toString(), username: user.username, name: user.name, role: user.role });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not log in, please try again" });
@@ -154,7 +177,7 @@ app.post("/api/logout", (req, res) => {
 });
 
 app.get("/api/me", authMiddleware, (req, res) => {
-  res.json({ id: req.user.id, username: req.user.username, name: req.user.name });
+  res.json({ id: req.user.id, username: req.user.username, name: req.user.name, role: req.user.role || "user" });
 });
 
 // ---------- Task routes ----------
@@ -195,12 +218,18 @@ app.post("/api/tasks", authMiddleware, async (req, res) => {
   }
 });
 
-app.patch("/api/tasks/:id", authMiddleware, async (req, res) => {
+app.patch("/api/tasks/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { completed } = req.body;
+    const { completed, title } = req.body;
+    const updates = {};
+    if (typeof completed === "boolean") updates.completed = completed;
+    if (typeof title === "string" && title.trim()) updates.title = title.trim().slice(0, 500);
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ error: "A valid task update is required" });
+    }
     const task = await Task.findByIdAndUpdate(
       req.params.id,
-      { completed: !!completed },
+      updates,
       { new: true }
     );
     if (!task) return res.status(404).json({ error: "Task not found" });
@@ -211,7 +240,7 @@ app.patch("/api/tasks/:id", authMiddleware, async (req, res) => {
   }
 });
 
-app.delete("/api/tasks/:id", authMiddleware, async (req, res) => {
+app.delete("/api/tasks/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     await Task.findByIdAndDelete(req.params.id);
     res.json({ ok: true });
