@@ -5,10 +5,10 @@ Ye ek proper multi-user web app hai, **MongoDB** database ke sath:
 - Sab ka task list ek shared jagah save hota hai
 - Jo task complete na ho, agle din "carried over" reminder ki tarah upar dikhta hai
 
-Isay live karne ke liye 2 free cheezein chahiye:
+Isay live karne ke liye 3 free cheezein chahiye:
 1. **MongoDB Atlas** — free database (jahan tasks aur users save honge)
-2. **Render** — free hosting (jahan ye website chalegi)
-3. **GitHub** — free account (code upload karne ke liye, taake Render usay chala sake)
+2. **Vercel** — free hosting (jahan ye website chalegi)
+3. **GitHub** — free account (code upload karne ke liye, taake Vercel usay chala sake)
 
 Koi bhi paid card ki zaroorat nahi. Neeche steps follow karein.
 
@@ -20,7 +20,7 @@ Koi bhi paid card ki zaroorat nahi. Neeche steps follow karein.
 2. Sign up ke baad "Deploy a database" mein **M0 (Free)** tier select karein, koi bhi region choose karein (apne office se qareeb), aur "Create" dabayen.
 3. Jab "Security Quickstart" screen aaye:
    - Username/password wala method choose karein, ek username aur strong password set karein — safe jagah likh lein.
-   - "Where would you like to connect from" mein **0.0.0.0/0 (Allow access from anywhere)** add karein — kyunke Render ka server alag IP se connect karega. (Atlas ke "Network Access" section mein ye baad mein bhi add ho sakta hai.)
+   - "Where would you like to connect from" mein **0.0.0.0/0 (Allow access from anywhere)** add karein — kyunke Vercel ka server alag IP se connect karega. (Atlas ke "Network Access" section mein ye baad mein bhi add ho sakta hai.)
 4. Database ban jane ke baad, "Database" section mein apne cluster ke saamne **Connect** button dabayen → **Drivers** select karein.
 5. Wahan se connection string copy karein, ye kuch aisi dikhegi:
    ```
@@ -30,7 +30,7 @@ Koi bhi paid card ki zaroorat nahi. Neeche steps follow karein.
    ```
    mongodb+srv://myuser:mypassword@cluster0.xxxxx.mongodb.net/office-tasks?retryWrites=true&w=majority
    ```
-   Ye poori string safe jagah save kar lein — isay `MONGODB_URI` kehte hain, agle step mein iski zaroorat paray gi.
+   Ye poori string safe jagah save kar lein — Vercel mein isay `DATABASE_URL` ke naam se add karna hai.
 
 ---
 
@@ -42,25 +42,24 @@ Koi bhi paid card ki zaroorat nahi. Neeche steps follow karein.
 
 ---
 
-## Step 3 — Website host karein (Render)
+## Step 3 — Website host karein (Vercel)
 
-1. https://render.com par jayen aur free account banayen — GitHub account se sign in karna sab se aasan hai.
-2. Dashboard mein **New → Web Service** par click karein.
-3. Apni GitHub repository (`office-task-register`) select karein aur connect kar dein.
-4. Settings kuch is tarah rakhein:
-   - **Name:** office-task-register (ya kuch bhi)
-   - **Region:** apne office se qareeb tareen
-   - **Branch:** main
-   - **Build Command:** `npm install`
-   - **Start Command:** `npm start`
-   - **Instance Type:** Free
-5. Neeche **Environment Variables** section mein ye do variables add karein:
-   - `MONGODB_URI` = Step 1 mein banai hui poori connection string
+1. https://vercel.com par jayen aur GitHub se sign in karein.
+2. **Add New → Project** par click karein aur apni GitHub repository (`office-task-register`) import karein.
+3. **Root Directory** ko `office-task-register` set karein, phir **Deploy** dabayen.
+4. Vercel project ke **Settings → Environment Variables** mein ye variables add karein:
+   - `DATABASE_URL` = `mongodb+srv://zoiichaa1_db_user:<db_password>@cluster0.viocqia.mongodb.net/`
    - `JWT_SECRET` = koi bhi lamba random text (e.g. `office2026-secret-key-xyz`)
-6. **Create Web Service** par click karein. 2-3 minute mein deploy ho jayega.
-7. Jab status "Live" ho jaye, Render aapko ek URL dega jaisa:
+   `DATABASE_URL` mein `<db_password>` ko apne MongoDB Atlas password se replace karein. Agar password mein special characters hon (`@`, `#`, `%` waghera), unhein URL-encode karein.
+5. Ya Vercel CLI se variables set karein:
    ```
-   https://office-task-register.onrender.com
+   vercel env add DATABASE_URL production
+   vercel env add JWT_SECRET production
+   vercel --prod
+   ```
+6. Deploy ke baad Vercel aapko ek URL dega jaisa:
+   ```
+   https://office-task-register.vercel.app
    ```
    Yehi link office ke sab logon ko bhej dein — wahi is app ka pata (address) hai.
 
@@ -78,7 +77,7 @@ Koi bhi paid card ki zaroorat nahi. Neeche steps follow karein.
 
 ## Note (zaroori baatein)
 
-- Free Render service kaafi der (~15 minute) tak use na ho to "so" ja sakti hai, aur agli visit par khulne mein 20-30 second lag sakte hain — ye free tier ki normal baat hai. Agar hamesha turant khulni ho, Render ka paid plan ($7/month se) lagta hai.
+- Free Vercel deployment mein limits aur usage caps ho sakte hain; current limits Vercel dashboard mein check kar lein.
 - MongoDB Atlas ka free (M0) tier 512MB storage deta hai — office ke roz-marra tasks ke liye kaafi zyada hai.
 - Password hashed (encrypted) form mein save hota hai, plain text mein nahi.
 - Agar future mein zyada control chahiye (jaise admin panel, task categories, ya kisi employee ka access hataana), bata dein — is code mein add kiya ja sakta hai.
