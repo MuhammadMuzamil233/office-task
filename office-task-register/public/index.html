@@ -135,6 +135,15 @@
   .task .body{flex:1;}
   .task .title{font-weight:500;white-space:pre-wrap;}
   .task .meta{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8a9089;margin-top:2px;}
+  .history-tools{padding:14px 20px;background:#F1ECE0;border-bottom:1px solid var(--ledger-line);}
+  .history-tools input{width:100%;border:1px solid var(--ledger-line);background:#FBF9F3;border-radius:4px;padding:9px 11px;font:14px 'IBM Plex Sans',sans-serif;color:var(--ink);}
+  .history-tools input:focus{outline:2px solid var(--brass);outline-offset:1px;}
+  .history-task{display:flex;align-items:flex-start;gap:12px;padding:14px 20px;border-bottom:1px solid var(--ledger-line);}
+  .history-task:last-child{border-bottom:none;}
+  .history-task .body{flex:1;min-width:0;}
+  .history-task .title{font-weight:500;white-space:pre-wrap;}
+  .history-task .meta{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8a9089;margin-top:2px;}
+  .completed-mark{width:20px;height:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;border-radius:4px;background:var(--done-green);color:#fff;font-size:13px;font-weight:700;}
   .del{background:none;border:none;color:#a35c4a;cursor:pointer;font-size:16px;line-height:1;padding:4px;opacity:.5;transition:opacity .15s ease;}
   .del:hover{opacity:1;}
   .empty{padding:22px 20px;color:#8a9089;font-size:14px;font-style:italic;}
@@ -263,6 +272,14 @@
       <textarea id="taskInput" rows="3" placeholder="Write a task with separate points…" autocomplete="off" disabled></textarea>
       <button type="submit" disabled>Add</button>
     </form>
+  </section>
+
+  <section class="card" id="historySection">
+    <h2>Task History <span class="count" id="historyCount">0</span></h2>
+    <div class="history-tools">
+      <input type="search" id="historySearch" placeholder="Search completed tasks…" autocomplete="off">
+    </div>
+    <div id="historyList"><div class="loading">Loading history…</div></div>
   </section>
 
   <section class="card hidden" id="adminPanel">
@@ -417,6 +434,7 @@
   // ---------------- App screen logic ----------------
   const today = todayStr();
   let tasks = [];
+  let historyTasks = [];
   let me = null;
   let adminRequests = [];
 
@@ -440,6 +458,39 @@
       tasks = [];
     }
     render();
+  }
+
+  async function loadHistory(){
+    try{
+      const search = document.getElementById("historySearch").value.trim();
+      historyTasks = await api("/api/tasks/history" + (search ? "?search=" + encodeURIComponent(search) : ""));
+      renderHistory();
+    }catch(e){
+      showError(e.message);
+    }
+  }
+
+  function renderHistory(){
+    const list = document.getElementById("historyList");
+    document.getElementById("historyCount").textContent = historyTasks.length;
+    list.innerHTML = "";
+    if(historyTasks.length === 0){
+      list.innerHTML = `<div class="empty">No completed tasks found.</div>`;
+      return;
+    }
+    historyTasks.forEach(t => {
+      const row = document.createElement("div");
+      row.className = "history-task";
+      row.innerHTML = `
+        <span class="completed-mark" aria-label="Completed">✓</span>
+        <div class="body">
+          <div class="title">${escapeHtml(t.title)}</div>
+          <div class="meta">Completed ${fmtDateTime(t.completed_at || t.updated_at || t.created_at, t.date_added)}${t.added_by ? " · " + escapeHtml(t.added_by) : ""}</div>
+        </div>
+      `;
+      appendComments(row.querySelector(".body"), t);
+      list.appendChild(row);
+    });
   }
 
   async function loadAdminRequests(){
@@ -598,9 +649,9 @@
   }
   async function toggleComplete(id, completed){
     try{
-      const t = await api("/api/tasks/" + id, { method:"PATCH", body: JSON.stringify({ completed }) });
-      tasks = tasks.map(x => x.id === t.id ? t : x);
-      render();
+      await api("/api/tasks/" + id, { method:"PATCH", body: JSON.stringify({ completed }) });
+      await loadTasks();
+      await loadHistory();
     }catch(e){
       showError(e.message);
       loadTasks();
@@ -653,12 +704,15 @@
       document.getElementById("taskInput").disabled = false;
       document.querySelector("#addForm button").disabled = false;
       await loadTasks();
+      await loadHistory();
       await loadAdminRequests();
     }catch(e){
       document.getElementById("appScreen").classList.add("hidden");
       document.getElementById("authScreen").classList.remove("hidden");
     }
   }
+
+  document.getElementById("historySearch").addEventListener("input", loadHistory);
 
   boot();
 </script>
