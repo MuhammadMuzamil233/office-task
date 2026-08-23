@@ -147,9 +147,10 @@
   .admin-task button{border:1px solid var(--teal);background:var(--teal);color:#fff;border-radius:4px;padding:7px 10px;cursor:pointer;font-weight:600;}
   .admin-task button.delete{border-color:var(--stamp-red);background:transparent;color:var(--stamp-red);}
   .admin-empty{color:#64766b;font-size:13px;}
-  .task-comments{width:100%;margin-top:8px;border-left:3px solid var(--brass);padding-left:10px;}
+  .task-comments{width:100%;margin-top:10px;padding:9px 12px;background:#F6F1E5;border:1px solid var(--ledger-line);border-left:4px solid var(--teal-light);border-radius:3px;}
+  .task-comments::before{content:"ADMIN COMMENTS";display:block;margin-bottom:4px;color:var(--teal-light);font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.6px;}
   .task-comment{display:flex;flex-wrap:wrap;gap:4px 8px;padding:5px 0;font-size:12px;}
-  .task-comment b{color:var(--teal-light);}
+  .task-comment b{color:var(--teal-light);font-size:11px;}
   .task-comment span{white-space:pre-wrap;color:var(--ink);flex-basis:100%;}
   .task-comment small{color:#8a9089;font:10px 'IBM Plex Mono',monospace;}
   .admin-task .task-comments{flex-basis:100%;}
@@ -305,7 +306,8 @@
     task.comments.forEach(comment => {
       const item = document.createElement("div");
       item.className = "task-comment";
-      item.innerHTML = `<b>Admin reply by ${escapeHtml(comment.added_by)}</b><span>${escapeHtml(comment.text)}</span><small>${fmtDateTime(comment.created_at)}</small>`;
+      const recipient = task.added_by || "the task assigner";
+      item.innerHTML = `<b>Admin reply to ${escapeHtml(recipient)}</b><small>${fmtDateTime(comment.created_at)}</small><span>${escapeHtml(comment.text)}</span>`;
       comments.appendChild(item);
     });
     parent.appendChild(comments);
