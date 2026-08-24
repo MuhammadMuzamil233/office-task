@@ -172,6 +172,15 @@
   .admin-request .requester small{display:block;color:#8a9089;font:11px 'IBM Plex Mono',monospace;margin-top:2px;}
   .admin-request button{border:1px solid var(--done-green);background:var(--done-green);color:#fff;border-radius:4px;padding:6px 9px;cursor:pointer;font-weight:600;}
   .admin-request button.reject{border-color:var(--stamp-red);background:transparent;color:var(--stamp-red);}
+  .notice-tools{display:flex;align-items:center;gap:8px;padding:12px 20px;background:#F1ECE0;border-bottom:1px solid var(--ledger-line);}
+  .notice-tools button,.mention-tools button{border:1px solid var(--teal);background:var(--teal);color:#fff;border-radius:4px;padding:7px 10px;cursor:pointer;font-weight:600;font-size:12px;}
+  .notice-tools button:disabled{opacity:.6;cursor:default;}
+  .notice-item{display:block;padding:11px 20px;border-bottom:1px solid var(--ledger-line);font-size:13px;cursor:pointer;}
+  .notice-item:last-child{border-bottom:none;}
+  .notice-item.unread{border-left:4px solid var(--brass);background:#FFFDF7;}
+  .notice-item small{display:block;margin-top:3px;color:#8a9089;font:10px 'IBM Plex Mono',monospace;}
+  .mention-tools{display:flex;gap:8px;padding:10px 20px 0;background:#F1ECE0;}
+  .mention-tools select{flex:1;border:1px solid var(--ledger-line);background:#FBF9F3;border-radius:4px;padding:7px 9px;font:12px 'IBM Plex Sans',sans-serif;color:var(--ink);}
 
   form#addForm{display:flex;gap:10px;padding:16px 20px;background:#F1ECE0;border-top:2px solid var(--ledger-line);}
   form#addForm input[type="text"]{
@@ -260,6 +269,12 @@
     </div>
   </header>
 
+  <section class="card" id="notificationsSection">
+    <h2>Mentions <span class="count" id="notificationCount">0</span></h2>
+    <div class="notice-tools"><button type="button" id="enableNotificationsBtn">Enable browser notifications</button></div>
+    <div id="notificationList"><div class="empty">No mentions yet.</div></div>
+  </section>
+
   <section class="card" id="reminders" style="display:none;">
     <h2>Not done yet — carried over <span class="count" id="remCount">0</span></h2>
     <div id="remList"></div>
@@ -272,6 +287,10 @@
       <textarea id="taskInput" rows="3" placeholder="Write a task with separate points…" autocomplete="off" disabled></textarea>
       <button type="submit" disabled>Add</button>
     </form>
+    <div class="mention-tools">
+      <select id="taskMentionUser" aria-label="Mention user"><option value="">Mention user…</option></select>
+      <button type="button" id="insertTaskMention">Insert mention</button>
+    </div>
   </section>
 
   <section class="card" id="historySection">
@@ -437,6 +456,8 @@
   let historyTasks = [];
   let me = null;
   let adminRequests = [];
+  let users = [];
+  let notifications = [];
 
   function showError(msg){
     let el = document.getElementById("errBanner");
@@ -499,6 +520,72 @@
       adminRequests = await api("/api/admin-requests");
       renderAdminRequests();
     }catch(e){ showError(e.message); }
+  }
+
+  async function loadUsers(){
+    try{
+      users = await api("/api/users");
+      const select = document.getElementById("taskMentionUser");
+      select.innerHTML = '<option value="">Mention user…</option>' + users.map(user => `<option value="${escapeHtml(user.username)}">${escapeHtml(user.name)} (@${escapeHtml(user.username)})</option>`).join("");
+      render();
+    }catch(e){ showError(e.message); }
+  }
+
+  async function loadNotifications(){
+    try{
+      notifications = await api("/api/notifications");
+      renderNotifications();
+    }catch(e){ showError(e.message); }
+  }
+
+  function renderNotifications(){
+    const list = document.getElementById("notificationList");
+    const unread = notifications.filter(notification => !notification.read_at).length;
+    document.getElementById("notificationCount").textContent = unread;
+    list.innerHTML = notifications.length ? "" : '<div class="empty">No mentions yet.</div>';
+    notifications.forEach(notification => {
+      const item = document.createElement("div");
+      item.className = "notice-item" + (notification.read_at ? "" : " unread");
+      item.innerHTML = `${escapeHtml(notification.message)}<small>${fmtDateTime(notification.created_at)}</small>`;
+      item.addEventListener("click", async () => {
+        if(!notification.read_at){
+          await api("/api/notifications/" + notification.id + "/read", { method:"PATCH" });
+          notification.read_at = new Date().toISOString();
+          renderNotifications();
+        }
+        document.getElementById("todaySection").scrollIntoView({ behavior:"smooth" });
+      });
+      list.appendChild(item);
+    });
+  }
+
+  function insertMention(selectId, inputId){
+    const select = document.getElementById(selectId);
+    if(!select.value) return showError("Choose a user to mention");
+    const input = document.getElementById(inputId);
+    const mention = "@" + select.value + " ";
+    input.value += (input.value && !/\s$/.test(input.value) ? " " : "") + mention;
+    input.focus();
+    select.value = "";
+  }
+
+  async function enableNotifications(){
+    if(!("serviceWorker" in navigator) || !("PushManager" in window)) return showError("Browser notifications are not supported here");
+    const config = await api("/api/push-config");
+    if(!config.enabled) return showError("Browser notifications are not configured on the server yet");
+    const permission = await Notification.requestPermission();
+    if(permission !== "granted") return showError("Notification permission was not granted");
+    const registration = await navigator.serviceWorker.register("/service-worker.js");
+    const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(config.publicKey) });
+    await api("/api/push-subscriptions", { method:"POST", body: JSON.stringify(subscription.toJSON()) });
+    document.getElementById("enableNotificationsBtn").textContent = "Browser notifications enabled";
+    document.getElementById("enableNotificationsBtn").disabled = true;
+  }
+
+  function urlBase64ToUint8Array(value){
+    const padding = "=".repeat((4 - value.length % 4) % 4);
+    const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+    return Uint8Array.from(atob(base64), character => character.charCodeAt(0));
   }
 
   function renderAdminRequests(){
@@ -628,7 +715,12 @@
             const commentBtn = document.createElement("button");
             commentBtn.type = "button"; commentBtn.textContent = "Reply";
             commentBtn.addEventListener("click", () => addComment(t.id, commentInput.value));
-            row.append(commentInput, commentBtn);
+            const mentionSelect = document.createElement("select");
+            mentionSelect.innerHTML = '<option value="">Mention user…</option>' + users.map(user => `<option value="${escapeHtml(user.username)}">@${escapeHtml(user.username)}</option>`).join("");
+            mentionSelect.addEventListener("change", () => {
+              if(mentionSelect.value){ commentInput.value += (commentInput.value && !/\s$/.test(commentInput.value) ? " " : "") + "@" + mentionSelect.value + " "; mentionSelect.value = ""; commentInput.focus(); }
+            });
+            row.append(commentInput, mentionSelect, commentBtn);
           }
           adminList.appendChild(row);
         });
@@ -705,6 +797,8 @@
       document.querySelector("#addForm button").disabled = false;
       await loadTasks();
       await loadHistory();
+      await loadUsers();
+      await loadNotifications();
       await loadAdminRequests();
     }catch(e){
       document.getElementById("appScreen").classList.add("hidden");
@@ -713,6 +807,9 @@
   }
 
   document.getElementById("historySearch").addEventListener("input", loadHistory);
+  document.getElementById("insertTaskMention").addEventListener("click", () => insertMention("taskMentionUser", "taskInput"));
+  document.getElementById("enableNotificationsBtn").addEventListener("click", () => enableNotifications().catch(e => showError(e.message)));
+  if("serviceWorker" in navigator) navigator.serviceWorker.register("/service-worker.js").catch(() => {});
 
   boot();
 </script>

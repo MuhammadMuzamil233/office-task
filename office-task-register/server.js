@@ -10,12 +10,20 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
 const mongoose = require("mongoose");
+const webpush = require("web-push");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 const MONGODB_URI = process.env.DATABASE_URL || process.env.MONGODB_URI;
 const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || "").toLowerCase().trim();
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:admin@example.com";
+
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+}
 
 if (!JWT_SECRET || !MONGODB_URI) {
   console.error("Missing JWT_SECRET or DATABASE_URL/MONGODB_URI environment variable.");
@@ -56,9 +64,25 @@ const adminRequestSchema = new mongoose.Schema({
   status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" }
 }, { timestamps: true });
 
+const notificationSchema = new mongoose.Schema({
+  recipientId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+  actorName: { type: String, required: true },
+  message: { type: String, required: true, maxlength: 300 },
+  taskId: { type: mongoose.Schema.Types.ObjectId, ref: "Task", required: true },
+  readAt: { type: Date, default: null }
+}, { timestamps: true });
+
+const pushSubscriptionSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+  endpoint: { type: String, required: true, unique: true },
+  keys: { p256dh: { type: String, required: true }, auth: { type: String, required: true } }
+}, { timestamps: true });
+
 const User = mongoose.model("User", userSchema);
 const Task = mongoose.model("Task", taskSchema);
 const AdminRequest = mongoose.model("AdminRequest", adminRequestSchema);
+const Notification = mongoose.model("Notification", notificationSchema);
+const PushSubscription = mongoose.model("PushSubscription", pushSubscriptionSchema);
 
 function todayStr() {
   const d = new Date();
@@ -82,6 +106,28 @@ function taskToJson(t) {
       created_at: comment.createdAt
     }))
   };
+}
+
+function mentionedUsernames(text) {
+  return [...new Set((text.match(/@[a-zA-Z0-9_.-]{1,50}/g) || []).map(value => value.slice(1).toLowerCase()))];
+}
+
+async function notifyMentionedUsers(text, actor, task, messageType) {
+  const usernames = mentionedUsernames(text).filter(username => username !== actor.username);
+  if (!usernames.length) return;
+  const users = await User.find({ username: { $in: usernames } }).select("_id username");
+  if (!users.length) return;
+  const message = `${actor.name} mentioned you in ${messageType}: ${task.title.slice(0, 120)}`;
+  await Notification.insertMany(users.map(user => ({ recipientId: user._id, actorName: actor.name, message, taskId: task._id })));
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
+  const subscriptions = await PushSubscription.find({ userId: { $in: users.map(user => user._id) } });
+  await Promise.all(subscriptions.map(async subscription => {
+    try {
+      await webpush.sendNotification(subscription.toObject(), JSON.stringify({ title: "You were mentioned", body: message, url: `/?task=${task._id}` }));
+    } catch (error) {
+      if (error.statusCode === 404 || error.statusCode === 410) await PushSubscription.deleteOne({ _id: subscription._id });
+    }
+  }));
 }
 
 // ---------- Auth helpers ----------
@@ -207,6 +253,44 @@ app.get("/api/me", authMiddleware, (req, res) => {
   res.json({ id: req.user.id, username: req.user.username, name: req.user.name, role: req.user.role || "user" });
 });
 
+app.get("/api/users", authMiddleware, async (req, res) => {
+  try {
+    const users = await User.find({ _id: { $ne: req.user.id } }).select("username name").sort({ name: 1 });
+    res.json(users.map(user => ({ username: user.username, name: user.name })));
+  } catch (e) {
+    res.status(500).json({ error: "Could not load users" });
+  }
+});
+
+app.get("/api/notifications", authMiddleware, async (req, res) => {
+  try {
+    const notifications = await Notification.find({ recipientId: req.user.id }).sort({ createdAt: -1 }).limit(30);
+    res.json(notifications.map(notification => ({ id: notification._id.toString(), message: notification.message, task_id: notification.taskId.toString(), created_at: notification.createdAt, read_at: notification.readAt })));
+  } catch (e) {
+    res.status(500).json({ error: "Could not load notifications" });
+  }
+});
+
+app.patch("/api/notifications/:id/read", authMiddleware, async (req, res) => {
+  await Notification.findOneAndUpdate({ _id: req.params.id, recipientId: req.user.id }, { readAt: new Date() });
+  res.json({ ok: true });
+});
+
+app.get("/api/push-config", authMiddleware, (req, res) => {
+  res.json({ enabled: Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY), publicKey: VAPID_PUBLIC_KEY });
+});
+
+app.post("/api/push-subscriptions", authMiddleware, async (req, res) => {
+  try {
+    const { endpoint, keys } = req.body || {};
+    if (!endpoint || !keys || !keys.p256dh || !keys.auth) return res.status(400).json({ error: "Invalid push subscription" });
+    await PushSubscription.findOneAndUpdate({ endpoint }, { userId: req.user.id, endpoint, keys }, { upsert: true, new: true, setDefaultsOnInsert: true });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: "Could not save notification subscription" });
+  }
+});
+
 app.get("/api/admin-requests", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const requests = await AdminRequest.find({ status: "pending" }).sort({ createdAt: 1 });
@@ -292,6 +376,7 @@ app.post("/api/tasks", authMiddleware, async (req, res) => {
       addedBy: req.user.name,
       userId: req.user.id
     });
+    await notifyMentionedUsers(task.title, req.user, task, "a task");
     res.json(taskToJson(task));
   } catch (e) {
     console.error(e);
@@ -317,6 +402,7 @@ app.patch("/api/tasks/:id", authMiddleware, adminMiddleware, async (req, res) =>
       { new: true }
     );
     if (!task) return res.status(404).json({ error: "Task not found" });
+    await notifyMentionedUsers(text.trim(), req.user, task, "a task comment");
     res.json(taskToJson(task));
   } catch (e) {
     console.error(e);
