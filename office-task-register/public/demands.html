@@ -1,10 +1,356 @@
 <!doctype html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Employee Demands</title><style>:root{--ink:#1c2b27;--paper:#fbf9f3;--ledger:#f1ece0;--line:#d9cfb8;--teal:#0f3d3e;--red:#a6402b}*{box-sizing:border-box}body{margin:0;padding:32px 16px 80px;background:var(--ledger);font:14px Segoe UI,sans-serif;color:var(--ink)}main{max-width:1000px;margin:auto}.book{background:var(--teal);color:#fff;padding:22px 28px;border-bottom:4px solid #b08d3e;display:flex;justify-content:space-between;gap:12px}.book h1{margin:0;font:700 25px Georgia}.button,.submit{border:1px solid var(--teal);background:var(--teal);color:#fff;border-radius:4px;padding:9px 12px;cursor:pointer}.button{background:transparent;border-color:#fff}.card{margin-top:22px;background:var(--paper);border:1px solid var(--line);border-radius:4px;overflow:hidden}.card h2{margin:0;padding:14px 20px;border-bottom:1px solid var(--line);font:600 17px Georgia}.form{padding:16px 20px;background:var(--ledger)}.item{display:grid;grid-template-columns:1fr 130px auto;gap:10px;margin-bottom:10px}.item input,.form input[type=date]{width:100%;padding:10px;border:1px solid var(--line);border-radius:4px;background:#fff}.remove{border:1px solid var(--red);background:transparent;color:var(--red);border-radius:4px;padding:8px;cursor:pointer}.form-actions{display:flex;gap:10px;flex-wrap:wrap}.form-actions button{padding:9px 12px;border-radius:4px;cursor:pointer}.add{border:1px solid var(--teal);background:transparent;color:var(--teal)}.group{border-bottom:1px solid var(--line)}.group:last-child{border-bottom:0}.group h3{margin:0;padding:13px 20px 7px;color:var(--teal);font:600 15px Georgia}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:10px 20px;border-bottom:1px solid var(--line);text-align:left}.table th{background:var(--ledger);font-size:11px;text-transform:uppercase;color:#68766d}.table tr:last-child td{border-bottom:0}.status{font:600 11px monospace;text-transform:uppercase}.remarks{color:#68766d;font-size:12px}.empty,.error{padding:20px;color:#78827d}.error{color:var(--red)}@media(max-width:600px){.book{flex-direction:column}.item{grid-template-columns:1fr 100px}.item .remove{grid-column:1/-1;width:max-content}}</style></head><body><main><header class="book"><h1>Employee Demands</h1><button class="button" id="back">Back to tasks</button></header><section class="card"><h2>Submit Demand</h2><form class="form" id="form"><div id="items"><div class="item"><input class="product" maxlength="200" placeholder="Product name" required><input class="quantity" type="number" min="1" step="1" placeholder="Quantity" required></div></div><div class="form-actions"><input id="date" type="date" required><button class="add" type="button" id="add">Add another item</button><button class="submit" type="submit">Submit demand</button></div></form></section><section class="card"><h2>All Employee Demands</h2><div id="list"><div class="empty">Loading demands...</div></div></section></main><script>
-const api=async(path,opts={})=>{const response=await fetch(path,{...opts,headers:{"Content-Type":"application/json",...(opts.headers||{})},credentials:"include"});const data=await response.json();if(!response.ok)throw new Error(data.error||"Request failed");return data};
-const esc=value=>{const element=document.createElement("div");element.textContent=value??"";return element.innerHTML};
-const itemsOf=d=>Array.isArray(d.items)?d.items:String(d.products||"").split(",").map(value=>{const match=value.trim().match(/^(.*?)(?:\s*\((\d+)\))?$/);return{name:match[1].trim(),quantity:Number(match[2]||d.quantity||1),warehouse:""}}).filter(item=>item.name);
-async function load(){try{const demands=await api("/api/demands"),list=document.getElementById("list");list.innerHTML="";const groups=new Map();demands.forEach(demand=>{const key=demand.employee_name||"Unknown employee";if(!groups.has(key))groups.set(key,[]);groups.get(key).push(demand)});if(!groups.size){list.innerHTML='<div class="empty">No demands submitted yet.</div>';return}groups.forEach((employeeDemands,employee)=>{const group=document.createElement("section");group.className="group";group.innerHTML=`<h3>${esc(employee)}'s demands</h3>`;employeeDemands.forEach(demand=>{const table=document.createElement("table");table.className="table";table.innerHTML='<thead><tr><th>Date</th><th>Product</th><th>Quantity</th><th>Status</th><th>Admin Remarks</th><th>Submitted At</th></tr></thead><tbody></tbody>';const body=table.querySelector("tbody");itemsOf(demand).forEach(item=>{const row=document.createElement("tr");row.innerHTML=`<td>${esc(demand.date)}</td><td>${esc(item.name)}</td><td>${item.quantity}</td><td class="status">${esc(demand.status)}</td><td class="remarks">${esc(demand.admin_remarks||"-")}</td><td>${new Date(demand.submitted_at).toLocaleString("en-GB")}</td>`;body.appendChild(row)});group.appendChild(table)});list.appendChild(group)})}catch(error){document.getElementById("list").innerHTML=`<div class="error">${esc(error.message)}</div>`}}
-async function load(){try{const demands=await api("/api/demands"),list=document.getElementById("list");list.innerHTML="";const groups=new Map();demands.forEach(demand=>{const key=demand.employee_name||"Unknown employee";if(!groups.has(key))groups.set(key,[]);groups.get(key).push(demand)});if(!groups.size){list.innerHTML='<div class="empty">No demands submitted yet.</div>';return}groups.forEach((employeeDemands,employee)=>{const group=document.createElement("section");group.className="group";group.innerHTML=`<h3>${esc(employee)}'s demands</h3>`;employeeDemands.forEach(demand=>{const table=document.createElement("table");table.className="table";table.innerHTML='<thead><tr><th>Date</th><th>Product</th><th>Warehouse</th><th>Quantity</th><th>Status</th><th>Admin Remarks</th><th>Submitted At</th></tr></thead><tbody></tbody>';const body=table.querySelector("tbody");itemsOf(demand).forEach(item=>{const row=document.createElement("tr");row.innerHTML=`<td>${esc(demand.date)}</td><td>${esc(item.name)}</td><td>${esc(item.warehouse||"-")}</td><td>${item.quantity}</td><td class="status">${esc(demand.status)}</td><td class="remarks">${esc(demand.admin_remarks||"-")}</td><td>${new Date(demand.submitted_at).toLocaleString("en-GB")}</td>`;body.appendChild(row)});group.appendChild(table)});list.appendChild(group)})}catch(error){document.getElementById("list").innerHTML=`<div class="error">${esc(error.message)}</div>`}}
-document.getElementById("date").value=new Date().toISOString().slice(0,10);document.getElementById("back").onclick=()=>location.href="/";document.getElementById("add").onclick=()=>{const row=document.createElement("div");row.className="item";row.innerHTML='<input class="product" maxlength="200" placeholder="Product name" required><input class="quantity" type="number" min="1" step="1" placeholder="Quantity" required><button type="button" class="remove">Remove</button>';row.querySelector(".remove").onclick=()=>row.remove();document.getElementById("items").appendChild(row)};document.getElementById("form").onsubmit=async event=>{event.preventDefault();try{const products=[...document.querySelectorAll(".item")].map(row=>({name:row.querySelector(".product").value,quantity:Number(row.querySelector(".quantity").value)}));await api("/api/demands",{method:"POST",body:JSON.stringify({date:document.getElementById("date").value,products})});event.target.reset();document.getElementById("date").value=new Date().toISOString().slice(0,10);document.getElementById("items").innerHTML='<div class="item"><input class="product" maxlength="200" placeholder="Product name" required><input class="quantity" type="number" min="1" step="1" placeholder="Quantity" required></div>';load()}catch(error){alert(error.message)}};api("/api/me").catch(()=>location.href="/");load();
-document.getElementById("date").value=new Date().toISOString().slice(0,10);document.getElementById("back").onclick=()=>location.href="/";document.getElementById("add").onclick=()=>{const row=document.createElement("div");row.className="item";row.innerHTML='<input class="product" maxlength="200" placeholder="Product name" required><select class="warehouse" required><option value="">Select warehouse</option><option>FC Faizabad WH</option><option>FC I10 WH</option></select><input class="quantity" type="number" min="1" step="1" placeholder="Quantity" required><button type="button" class="remove">Remove</button>';row.querySelector(".remove").onclick=()=>row.remove();document.getElementById("items").appendChild(row)};document.getElementById("form").onsubmit=async event=>{event.preventDefault();try{const products=[...document.querySelectorAll(".item")].map(row=>({name:row.querySelector(".product").value,warehouse:row.querySelector(".warehouse").value,quantity:Number(row.querySelector(".quantity").value)}));await api("/api/demands",{method:"POST",body:JSON.stringify({date:document.getElementById("date").value,products})});event.target.reset();document.getElementById("date").value=new Date().toISOString().slice(0,10);document.getElementById("items").innerHTML='<div class="item"><input class="product" maxlength="200" placeholder="Product name" required><select class="warehouse" required><option value="">Select warehouse</option><option>FC Faizabad WH</option><option>FC I10 WH</option></select><input class="quantity" type="number" min="1" step="1" placeholder="Quantity" required></div>';load()}catch(error){alert(error.message)}};api("/api/me").catch(()=>location.href="/");load();
-</script></body></html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Employee Demands</title>
+  <style>
+    :root {
+      --ink: #1c2b27;
+      --paper: #fbf9f3;
+      --ledger: #f1ece0;
+      --line: #d9cfb8;
+      --teal: #0f3d3e;
+      --red: #a6402b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 32px 16px 80px;
+      background: var(--ledger);
+      font: 14px Segoe UI, sans-serif;
+      color: var(--ink);
+    }
+
+    main {
+      max-width: 1000px;
+      margin: auto;
+    }
+
+    .book {
+      background: var(--teal);
+      color: #fff;
+      padding: 22px 28px;
+      border-bottom: 4px solid #b08d3e;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .book h1 {
+      margin: 0;
+      font: 700 25px Georgia;
+    }
+
+    .button, .submit {
+      border: 1px solid var(--teal);
+      background: var(--teal);
+      color: #fff;
+      border-radius: 4px;
+      padding: 9px 12px;
+      cursor: pointer;
+    }
+
+    .button {
+      background: transparent;
+      border-color: #fff;
+    }
+
+    .card {
+      margin-top: 22px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .card h2 {
+      margin: 0;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--line);
+      font: 600 17px Georgia;
+    }
+
+    .form {
+      padding: 16px 20px;
+      background: var(--ledger);
+    }
+
+    .item {
+      display: grid;
+      grid-template-columns: 1fr 180px 100px auto;
+      gap: 10px;
+      margin-bottom: 10px;
+      align-items: center;
+    }
+
+    .item input, .item select, .form input[type=date] {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: #fff;
+    }
+
+    .remove {
+      border: 1px solid var(--red);
+      background: transparent;
+      color: var(--red);
+      border-radius: 4px;
+      padding: 8px;
+      cursor: pointer;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .form-actions button {
+      padding: 9px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .add {
+      border: 1px solid var(--teal);
+      background: transparent;
+      color: var(--teal);
+    }
+
+    .group {
+      border-bottom: 1px solid var(--line);
+    }
+
+    .group:last-child {
+      border-bottom: 0;
+    }
+
+    .group h3 {
+      margin: 0;
+      padding: 13px 20px 7px;
+      color: var(--teal);
+      font: 600 15px Georgia;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .table th, .table td {
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+    }
+
+    .table th {
+      background: var(--ledger);
+      font-size: 11px;
+      text-transform: uppercase;
+      color: #68766d;
+    }
+
+    .table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .status {
+      font: 600 11px monospace;
+      text-transform: uppercase;
+    }
+
+    .remarks {
+      color: #68766d;
+      font-size: 12px;
+    }
+
+    .empty, .error {
+      padding: 20px;
+      color: #78827d;
+    }
+
+    .error {
+      color: var(--red);
+    }
+
+    @media(max-width: 600px) {
+      .book {
+        flex-direction: column;
+      }
+      .item {
+        grid-template-columns: 1fr 100px;
+      }
+      .item .remove {
+        grid-column: 1/-1;
+        width: max-content;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="book">
+      <h1>Employee Demands</h1>
+      <button class="button" id="back">Back to tasks</button>
+    </header>
+    <section class="card">
+      <h2>Submit Demand</h2>
+      <form class="form" id="form">
+        <div id="items">
+          <div class="item">
+            <input class="product" maxlength="200" placeholder="Product name" required>
+            <select class="warehouse" required>
+              <option value="">Select warehouse</option>
+              <option>FC Faizabad WH</option>
+              <option>FC I10 WH</option>
+            </select>
+            <input class="quantity" type="number" min="1" step="1" placeholder="Quantity" required>
+          </div>
+        </div>
+        <div class="form-actions">
+          <input id="date" type="date" required>
+          <button class="add" type="button" id="add">Add another item</button>
+          <button class="submit" type="submit">Submit demand</button>
+        </div>
+      </form>
+    </section>
+    <section class="card">
+      <h2>All Employee Demands</h2>
+      <div id="list">
+        <div class="empty">Loading demands...</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const api = async (path, opts = {}) => {
+      const response = await fetch(path, {
+        ...opts,
+        headers: {
+          "Content-Type": "application/json",
+          ...(opts.headers || {})
+        },
+        credentials: "include"
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Request failed");
+      return data;
+    };
+
+    const esc = value => {
+      const element = document.createElement("div");
+      element.textContent = value ?? "";
+      return element.innerHTML;
+    };
+
+    const itemsOf = d => Array.isArray(d.items) ? d.items : String(d.products || "").split(",").map(value => {
+      const match = value.trim().match(/^(.*?)(?:\s*\((\d+)\))?$/);
+      return {
+        name: match[1].trim(),
+        quantity: Number(match[2] || d.quantity || 1),
+        warehouse: ""
+      };
+    }).filter(item => item.name);
+
+    async function load() {
+      try {
+        const demands = await api("/api/demands");
+        const list = document.getElementById("list");
+        list.innerHTML = "";
+        const groups = new Map();
+        demands.forEach(demand => {
+          const key = demand.employee_name || "Unknown employee";
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(demand);
+        });
+        if (!groups.size) {
+          list.innerHTML = '<div class="empty">No demands submitted yet.</div>';
+          return;
+        }
+        groups.forEach((employeeDemands, employee) => {
+          const group = document.createElement("section");
+          group.className = "group";
+          group.innerHTML = `<h3>${esc(employee)}'s demands</h3>`;
+          employeeDemands.forEach(demand => {
+            const table = document.createElement("table");
+            table.className = "table";
+            table.innerHTML = '<thead><tr><th>Date</th><th>Product</th><th>Warehouse</th><th>Quantity</th><th>Status</th><th>Admin Remarks</th><th>Submitted At</th></tr></thead><tbody></tbody>';
+            const body = table.querySelector("tbody");
+            itemsOf(demand).forEach(item => {
+              const row = document.createElement("tr");
+              row.innerHTML = `<td>${esc(demand.date)}</td><td>${esc(item.name)}</td><td>${esc(item.warehouse || "-")}</td><td>${item.quantity}</td><td class="status">${esc(demand.status)}</td><td class="remarks">${esc(demand.admin_remarks || "-")}</td><td>${new Date(demand.submitted_at).toLocaleString("en-GB")}</td>`;
+              body.appendChild(row);
+            });
+            group.appendChild(table);
+          });
+          list.appendChild(group);
+        });
+      } catch (error) {
+        document.getElementById("list").innerHTML = `<div class="error">${esc(error.message)}</div>`;
+      }
+    }
+
+    document.getElementById("date").value = new Date().toISOString().slice(0, 10);
+    document.getElementById("back").onclick = () => location.href = "/";
+    document.getElementById("add").onclick = () => {
+      const row = document.createElement("div");
+      row.className = "item";
+      row.innerHTML = `
+        <input class="product" maxlength="200" placeholder="Product name" required>
+        <select class="warehouse" required>
+          <option value="">Select warehouse</option>
+          <option>FC Faizabad WH</option>
+          <option>FC I10 WH</option>
+        </select>
+        <input class="quantity" type="number" min="1" step="1" placeholder="Quantity" required>
+        <button type="button" class="remove">Remove</button>
+      `;
+      row.querySelector(".remove").onclick = () => row.remove();
+      document.getElementById("items").appendChild(row);
+    };
+
+    document.getElementById("form").onsubmit = async event => {
+      event.preventDefault();
+      try {
+        const products = [...document.querySelectorAll(".item")].map(row => ({
+          name: row.querySelector(".product").value,
+          warehouse: row.querySelector(".warehouse").value,
+          quantity: Number(row.querySelector(".quantity").value)
+        }));
+        await api("/api/demands", {
+          method: "POST",
+          body: JSON.stringify({
+            date: document.getElementById("date").value,
+            products
+          })
+        });
+        event.target.reset();
+        document.getElementById("date").value = new Date().toISOString().slice(0, 10);
+        document.getElementById("items").innerHTML = `
+          <div class="item">
+            <input class="product" maxlength="200" placeholder="Product name" required>
+            <select class="warehouse" required>
+              <option value="">Select warehouse</option>
+              <option>FC Faizabad WH</option>
+              <option>FC I10 WH</option>
+            </select>
+            <input class="quantity" type="number" min="1" step="1" placeholder="Quantity" required>
+          </div>
+        `;
+        load();
+      } catch (error) {
+        alert(error.message);
+      }
+    };
+
+    api("/api/me").catch(() => location.href = "/");
+    load();
+  </script>
+</body>
+</html>
