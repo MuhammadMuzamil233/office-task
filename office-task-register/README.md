@@ -51,14 +51,20 @@ Koi bhi paid card ki zaroorat nahi. Neeche steps follow karein.
    - `DATABASE_URL` = `mongodb+srv://zoiichaa1_db_user:<db_password>@cluster0.viocqia.mongodb.net/`
    - `JWT_SECRET` = koi bhi lamba random text (e.g. `office2026-secret-key-xyz`)
    - `ADMIN_USERNAME` = admin ke liye reserved username (e.g. `officeadmin`)
+   - `VAPID_PUBLIC_KEY` aur `VAPID_PRIVATE_KEY` = Web Push keys (neeche command se generate karein)
+   - `VAPID_SUBJECT` = contact email, e.g. `mailto:admin@example.com`
    `DATABASE_URL` mein `<db_password>` ko apne MongoDB Atlas password se replace karein. Agar password mein special characters hon (`@`, `#`, `%` waghera), unhein URL-encode karein.
 5. Ya Vercel CLI se variables set karein:
    ```
    vercel env add DATABASE_URL production
    vercel env add JWT_SECRET production
    vercel env add ADMIN_USERNAME production
+   vercel env add VAPID_PUBLIC_KEY production
+   vercel env add VAPID_PRIVATE_KEY production
+   vercel env add VAPID_SUBJECT production
    vercel --prod
    ```
+   Web Push keys banane ke liye project folder mein `npx web-push generate-vapid-keys` chalayein. Public aur private values ko Vercel mein alag environment variables ke taur par add karein. Har user login ke baad **Enable browser notifications** dabaye; iske baad website band ho tab bhi supported browser mention notification dikha sakta hai.
    `ADMIN_USERNAME` wala account primary admin hota hai. Baqi users **Create admin account** se approval request bhej sakte hain; primary admin Admin Panel se Approve ya Reject karega.
 6. Deploy ke baad Vercel aapko ek URL dega jaisa:
    ```
@@ -75,6 +81,7 @@ Koi bhi paid card ki zaroorat nahi. Neeche steps follow karein.
 3. Agli baar se seedha "Log in" se andar aa jayega.
 4. Jo bhi task koi bhi add karega, sab ko wahi list dikhegi.
 5. Jo task us din complete na ho, agle din automatically "Not done yet — carried over" mein upar reminder ki tarah aa jayega.
+6. Task ya admin reply likhte waqt **Mention user** se username insert karein, jaise `@ahmed`. Mentioned user ko app ke andar notification milegi, aur browser notifications enabled hon to website band hone par bhi push notification milegi.
 
 ---
 
