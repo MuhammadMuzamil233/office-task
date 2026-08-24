@@ -341,10 +341,12 @@ app.patch("/api/admin-requests/:id", authMiddleware, adminMiddleware, async (req
 });
 
 // ---------- Demand routes ----------
+const demandWarehouses = ["FC Faizabad WH", "FC I10 WH"];
+
 function demandToJson(demand) {
   const items = Array.isArray(demand.products)
-    ? demand.products.map(item => ({ name: item.name, quantity: item.quantity }))
-    : [{ name: demand.products, quantity: demand.quantity || 1 }];
+    ? demand.products.map(item => ({ name: item.name, quantity: item.quantity, warehouse: item.warehouse || "" }))
+    : [{ name: demand.products, quantity: demand.quantity || 1, warehouse: "" }];
   return {
     id: demand._id.toString(),
     employee_name: demand.employeeName,
@@ -382,9 +384,9 @@ app.get("/api/admin/demands", authMiddleware, adminMiddleware, async (req, res) 
 app.post("/api/demands", authMiddleware, async (req, res) => {
   try {
     const { date, products } = req.body || {};
-    const items = Array.isArray(products) ? products.map(item => ({ name: String(item.name || "").trim().slice(0, 200), quantity: Number(item.quantity) })) : [];
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || !items.length || items.some(item => !item.name || !Number.isInteger(item.quantity) || item.quantity < 1)) {
-      return res.status(400).json({ error: "Date and at least one product with a valid quantity are required" });
+    const items = Array.isArray(products) ? products.map(item => ({ name: String(item.name || "").trim().slice(0, 200), quantity: Number(item.quantity), warehouse: String(item.warehouse || "").trim() })) : [];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || !items.length || items.some(item => !item.name || !Number.isInteger(item.quantity) || item.quantity < 1 || !demandWarehouses.includes(item.warehouse))) {
+      return res.status(400).json({ error: "Date, product, quantity, and a valid warehouse are required" });
     }
     const demand = await Demand.create({ employeeId: req.user.id, employeeName: req.user.name, date, products: items });
     res.json(demandToJson(demand));
@@ -404,8 +406,8 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
     }
     const updates = {};
     if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) updates.date = date;
-    if (Array.isArray(products) && products.length && products.every(item => item && String(item.name || "").trim() && Number.isInteger(Number(item.quantity)) && Number(item.quantity) >= 1)) {
-      updates.products = products.map(item => ({ name: String(item.name).trim().slice(0, 200), quantity: Number(item.quantity) }));
+    if (Array.isArray(products) && products.length && products.every(item => item && String(item.name || "").trim() && Number.isInteger(Number(item.quantity)) && Number(item.quantity) >= 1 && demandWarehouses.includes(String(item.warehouse || "")))) {
+      updates.products = products.map(item => ({ name: String(item.name).trim().slice(0, 200), quantity: Number(item.quantity), warehouse: String(item.warehouse).trim() }));
       updates.quantity = null;
     } else if (typeof products === "string" && products.trim() && Number.isInteger(Number(quantity)) && Number(quantity) >= 1) {
       updates.products = [{ name: products.trim().slice(0, 200), quantity: Number(quantity) }];

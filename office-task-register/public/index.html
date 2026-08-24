@@ -183,8 +183,9 @@
   .mention-tools{display:flex;gap:8px;padding:10px 20px 0;background:#F1ECE0;}
   .mention-tools select{flex:1;border:1px solid var(--ledger-line);background:#FBF9F3;border-radius:4px;padding:7px 9px;font:12px 'IBM Plex Sans',sans-serif;color:var(--ink);}
   .demand-form{padding:16px 20px;background:#F1ECE0;border-top:2px solid var(--ledger-line);}
-  .demand-item{display:grid;grid-template-columns:1fr 110px auto;gap:10px;margin-bottom:10px;}
-  .demand-form input{border:1px solid var(--ledger-line);background:#FBF9F3;border-radius:4px;padding:10px 12px;font:14px 'IBM Plex Sans',sans-serif;color:var(--ink);}
+  .demand-item{display:grid;grid-template-columns:1fr 180px 110px auto;gap:10px;margin-bottom:10px;}
+  @media(max-width:600px){.demand-item{grid-template-columns:1fr 1fr;}.demand-item .remove-item{grid-column:1/-1;width:max-content;}}
+  .demand-form input,.demand-form select{border:1px solid var(--ledger-line);background:#FBF9F3;border-radius:4px;padding:10px 12px;font:14px 'IBM Plex Sans',sans-serif;color:var(--ink);}
   .demand-form button{background:var(--teal);color:#fff;border:0;border-radius:4px;padding:10px 16px;font-weight:600;cursor:pointer;}
   .demand-form .remove-item{background:transparent;border:1px solid var(--stamp-red);color:var(--stamp-red);padding:8px 10px;}
   .demand-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.demand-actions button[type=button]{background:transparent;border:1px solid var(--teal);color:var(--teal)}
@@ -309,7 +310,7 @@
   <section class="card" id="demandSection">
     <h2>Submit a Demand</h2>
     <form class="demand-form" id="demandForm">
-      <div id="demandItems"><div class="demand-item"><input class="demand-product" type="text" maxlength="200" placeholder="Product name" required><input class="demand-quantity" type="number" min="1" step="1" placeholder="Quantity" required></div></div>
+      <div id="demandItems"><div class="demand-item"><input class="demand-product" type="text" maxlength="200" placeholder="Product name" required><select class="demand-warehouse" required><option value="">Select warehouse</option><option>FC Faizabad WH</option><option>FC I10 WH</option></select><input class="demand-quantity" type="number" min="1" step="1" placeholder="Quantity" required></div></div>
       <div class="demand-actions"><input id="demandDate" type="date" required><button type="button" id="addDemandItem">Add another item</button><button type="submit">Submit demand</button></div>
     </form>
     <div id="myDemands"><div class="loading">Loading your demands...</div></div>
@@ -554,16 +555,16 @@
         myDemands.forEach(demand => { const key = demand.employee_name || "Unknown employee"; if(!groups.has(key)) groups.set(key, []); groups.get(key).push(demand); });
         groups.forEach((demands, employeeName) => {
           const block = document.createElement("section"); block.className = "employee-demand-block";
-          block.innerHTML = `<div class="employee-demand-title">${escapeHtml(employeeName)}'s demands</div><div style="overflow-x:auto"><table class="demand-table"><thead><tr><th>Date</th><th>Product</th><th>Quantity</th><th>Status</th><th>Submitted At</th></tr></thead><tbody></tbody></table></div>`;
+          block.innerHTML = `<div class="employee-demand-title">${escapeHtml(employeeName)}'s demands</div><div style="overflow-x:auto"><table class="demand-table"><thead><tr><th>Date</th><th>Product</th><th>Warehouse</th><th>Quantity</th><th>Status</th><th>Submitted At</th></tr></thead><tbody></tbody></table></div>`;
           const body = block.querySelector("tbody");
           demands.forEach(demand => {
           const items = Array.isArray(demand.items) ? demand.items : String(demand.products || "").split(",").map(value => {
             const match = value.trim().match(/^(.*?)(?:\s*\((\d+)\))?$/);
-            return { name: match[1].trim(), quantity: Number(match[2] || demand.quantity || 1) };
+            return { name: match[1].trim(), quantity: Number(match[2] || demand.quantity || 1), warehouse: "" };
           }).filter(item => item.name);
           items.forEach(item => {
           const row = document.createElement("tr");
-          row.innerHTML = `<td>${escapeHtml(demand.date)}</td><td>${escapeHtml(item.name)}</td><td>${item.quantity}</td><td class="demand-status">${escapeHtml(demand.status)}</td><td>${fmtDateTime(demand.submitted_at, demand.date)}</td>`;
+          row.innerHTML = `<td>${escapeHtml(demand.date)}</td><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.warehouse || "-")}</td><td>${item.quantity}</td><td class="demand-status">${escapeHtml(demand.status)}</td><td>${fmtDateTime(demand.submitted_at, demand.date)}</td>`;
           body.appendChild(row);
           });
         });
@@ -783,13 +784,13 @@
   document.getElementById("demandDate").value = todayStr();
   document.getElementById("addDemandItem").addEventListener("click", () => {
     const row = document.createElement("div"); row.className = "demand-item";
-    row.innerHTML = '<input class="demand-product" type="text" maxlength="200" placeholder="Product name" required><input class="demand-quantity" type="number" min="1" step="1" placeholder="Quantity" required><button type="button" class="remove-item">Remove</button>';
+    row.innerHTML = '<input class="demand-product" type="text" maxlength="200" placeholder="Product name" required><select class="demand-warehouse" required><option value="">Select warehouse</option><option>FC Faizabad WH</option><option>FC I10 WH</option></select><input class="demand-quantity" type="number" min="1" step="1" placeholder="Quantity" required><button type="button" class="remove-item">Remove</button>';
     row.querySelector(".remove-item").onclick = () => row.remove(); document.getElementById("demandItems").appendChild(row);
   });
   document.getElementById("demandForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     try{
-      const products = [...document.querySelectorAll("#demandItems .demand-item")].map(row => ({ name:row.querySelector(".demand-product").value, quantity:Number(row.querySelector(".demand-quantity").value) }));
+      const products = [...document.querySelectorAll("#demandItems .demand-item")].map(row => ({ name:row.querySelector(".demand-product").value, warehouse:row.querySelector(".demand-warehouse").value, quantity:Number(row.querySelector(".demand-quantity").value) }));
       const demand = await api("/api/demands", { method:"POST", body: JSON.stringify({ date:document.getElementById("demandDate").value, products }) });
       myDemands.unshift(demand); e.target.reset(); document.getElementById("demandDate").value = todayStr(); await loadDemands();
     }catch(e){ showError(e.message); }
