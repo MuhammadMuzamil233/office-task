@@ -92,6 +92,7 @@
     background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:#fff;
     font-size:12.5px;padding:6px 12px;border-radius:4px;cursor:pointer;
   }
+  header.book .whoami button:hover{background:rgba(255,255,255,0.18);}
 
   section.card{
     background:#FBF9F3;border:1px solid var(--ledger-line);border-radius:4px;
@@ -265,7 +266,10 @@
     </div>
     <div class="whoami">
       <span class="greet">Signed in as <b id="myName"></b></span>
-      <button id="logoutBtn">Log out</button>
+      <span>
+        <button id="historyBtn" type="button" aria-expanded="false">History</button>
+        <button id="logoutBtn" type="button">Log out</button>
+      </span>
     </div>
   </header>
 
@@ -293,7 +297,7 @@
     </div>
   </section>
 
-  <section class="card" id="historySection">
+  <section class="card hidden" id="historySection">
     <h2>Task History <span class="count" id="historyCount">0</span></h2>
     <div class="history-tools">
       <input type="search" id="historySearch" placeholder="Search completed tasks…" autocomplete="off">
@@ -743,7 +747,7 @@
     try{
       await api("/api/tasks/" + id, { method:"PATCH", body: JSON.stringify({ completed }) });
       await loadTasks();
-      await loadHistory();
+      if(!document.getElementById("historySection").classList.contains("hidden")) await loadHistory();
     }catch(e){
       showError(e.message);
       loadTasks();
@@ -796,7 +800,6 @@
       document.getElementById("taskInput").disabled = false;
       document.querySelector("#addForm button").disabled = false;
       await loadTasks();
-      await loadHistory();
       await loadUsers();
       await loadNotifications();
       await loadAdminRequests();
@@ -806,6 +809,13 @@
     }
   }
 
+  document.getElementById("historyBtn").addEventListener("click", async () => {
+    const section = document.getElementById("historySection");
+    const button = document.getElementById("historyBtn");
+    const isOpening = section.classList.toggle("hidden") === false;
+    button.setAttribute("aria-expanded", String(isOpening));
+    if(isOpening) await loadHistory();
+  });
   document.getElementById("historySearch").addEventListener("input", loadHistory);
   document.getElementById("insertTaskMention").addEventListener("click", () => insertMention("taskMentionUser", "taskInput"));
   document.getElementById("enableNotificationsBtn").addEventListener("click", () => enableNotifications().catch(e => showError(e.message)));
