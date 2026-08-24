@@ -188,8 +188,7 @@
   .demand-form button{background:var(--teal);color:#fff;border:0;border-radius:4px;padding:10px 16px;font-weight:600;cursor:pointer;}
   .demand-form .remove-item{background:transparent;border:1px solid var(--stamp-red);color:var(--stamp-red);padding:8px 10px;}
   .demand-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.demand-actions button[type=button]{background:transparent;border:1px solid var(--teal);color:var(--teal)}
-  .demand-row{display:flex;justify-content:space-between;gap:12px;padding:12px 20px;border-bottom:1px solid var(--ledger-line);}
-  .demand-row:last-child{border-bottom:0}.demand-meta{color:#78827d;font-size:12px;margin-top:3px}.demand-status{font:600 11px 'IBM Plex Mono',monospace;text-transform:uppercase;color:var(--teal-light);white-space:nowrap}
+  .demand-table{width:100%;border-collapse:collapse;font-size:13px}.demand-table th,.demand-table td{padding:10px 20px;border-bottom:1px solid var(--ledger-line);text-align:left}.demand-table th{background:#F1ECE0;color:#68766d;font:600 11px 'IBM Plex Mono',monospace;text-transform:uppercase}.demand-table tr:last-child td{border-bottom:0}.demand-meta{color:#78827d;font-size:12px}.demand-status{font:600 11px 'IBM Plex Mono',monospace;text-transform:uppercase;color:var(--teal-light);white-space:nowrap}
 
   form#addForm{display:flex;gap:10px;padding:16px 20px;background:#F1ECE0;border-top:2px solid var(--ledger-line);}
   form#addForm input[type="text"]{
@@ -548,12 +547,15 @@
     try{
       myDemands = await api("/api/demands");
       const list = document.getElementById("myDemands");
-      list.innerHTML = myDemands.length ? "" : '<div class="empty">No demands submitted yet.</div>';
-      myDemands.forEach(demand => {
-        const row = document.createElement("div"); row.className = "demand-row";
-        row.innerHTML = `<div><b>${escapeHtml(demand.products)}</b><div class="demand-meta">${demand.quantity} · ${escapeHtml(demand.date)}</div></div><span class="demand-status">${escapeHtml(demand.status)}</span>`;
-        list.appendChild(row);
-      });
+      list.innerHTML = myDemands.length ? '<div style="overflow-x:auto"><table class="demand-table"><thead><tr><th>Date</th><th>Product</th><th>Quantity</th><th>Status</th></tr></thead><tbody></tbody></table></div>' : '<div class="empty">No demands submitted yet.</div>';
+      if(myDemands.length){
+        const body = list.querySelector("tbody");
+        myDemands.forEach(demand => demand.items.forEach(item => {
+          const row = document.createElement("tr");
+          row.innerHTML = `<td>${escapeHtml(demand.date)}</td><td>${escapeHtml(item.name)}</td><td>${item.quantity}</td><td class="demand-status">${escapeHtml(demand.status)}</td>`;
+          body.appendChild(row);
+        }));
+      }
     }catch(e){ showError(e.message); }
   }
 
