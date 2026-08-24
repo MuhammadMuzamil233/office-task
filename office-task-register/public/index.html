@@ -182,6 +182,11 @@
   .notice-item small{display:block;margin-top:3px;color:#8a9089;font:10px 'IBM Plex Mono',monospace;}
   .mention-tools{display:flex;gap:8px;padding:10px 20px 0;background:#F1ECE0;}
   .mention-tools select{flex:1;border:1px solid var(--ledger-line);background:#FBF9F3;border-radius:4px;padding:7px 9px;font:12px 'IBM Plex Sans',sans-serif;color:var(--ink);}
+  .demand-form{display:grid;grid-template-columns:1fr 110px 120px auto;gap:10px;padding:16px 20px;background:#F1ECE0;border-top:2px solid var(--ledger-line);}
+  .demand-form input{border:1px solid var(--ledger-line);background:#FBF9F3;border-radius:4px;padding:10px 12px;font:14px 'IBM Plex Sans',sans-serif;color:var(--ink);}
+  .demand-form button{background:var(--teal);color:#fff;border:0;border-radius:4px;padding:10px 16px;font-weight:600;cursor:pointer;}
+  .demand-row{display:flex;justify-content:space-between;gap:12px;padding:12px 20px;border-bottom:1px solid var(--ledger-line);}
+  .demand-row:last-child{border-bottom:0}.demand-meta{color:#78827d;font-size:12px;margin-top:3px}.demand-status{font:600 11px 'IBM Plex Mono',monospace;text-transform:uppercase;color:var(--teal-light);white-space:nowrap}
 
   form#addForm{display:flex;gap:10px;padding:16px 20px;background:#F1ECE0;border-top:2px solid var(--ledger-line);}
   form#addForm input[type="text"]{
@@ -296,6 +301,17 @@
       <select id="taskMentionUser" aria-label="Mention user"><option value="">Mention user…</option></select>
       <button type="button" id="insertTaskMention">Insert mention</button>
     </div>
+  </section>
+
+  <section class="card" id="demandSection">
+    <h2>Submit a Demand</h2>
+    <form class="demand-form" id="demandForm">
+      <input id="demandProducts" type="text" maxlength="1000" placeholder="Products (for example: paper, toner)" required>
+      <input id="demandQuantity" type="number" min="1" step="1" placeholder="Quantity" required>
+      <input id="demandDate" type="date" required>
+      <button type="submit">Submit</button>
+    </form>
+    <div id="myDemands"><div class="loading">Loading your demands...</div></div>
   </section>
 
   <footer class="note">Shared with everyone in the office who signs in.</footer>
@@ -446,6 +462,7 @@
   let adminRequests = [];
   let users = [];
   let notifications = [];
+  let myDemands = [];
 
   function showError(msg){
     let el = document.getElementById("errBanner");
@@ -523,6 +540,19 @@
     try{
       notifications = await api("/api/notifications");
       renderNotifications();
+    }catch(e){ showError(e.message); }
+  }
+
+  async function loadDemands(){
+    try{
+      myDemands = await api("/api/demands");
+      const list = document.getElementById("myDemands");
+      list.innerHTML = myDemands.length ? "" : '<div class="empty">No demands submitted yet.</div>';
+      myDemands.forEach(demand => {
+        const row = document.createElement("div"); row.className = "demand-row";
+        row.innerHTML = `<div><b>${escapeHtml(demand.products)}</b><div class="demand-meta">${demand.quantity} · ${escapeHtml(demand.date)}</div></div><span class="demand-status">${escapeHtml(demand.status)}</span>`;
+        list.appendChild(row);
+      });
     }catch(e){ showError(e.message); }
   }
 
@@ -733,6 +763,15 @@
     }
   });
 
+  document.getElementById("demandDate").value = todayStr();
+  document.getElementById("demandForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try{
+      const demand = await api("/api/demands", { method:"POST", body: JSON.stringify({ date:document.getElementById("demandDate").value, products:document.getElementById("demandProducts").value, quantity:Number(document.getElementById("demandQuantity").value) }) });
+      myDemands.unshift(demand); e.target.reset(); document.getElementById("demandDate").value = todayStr(); await loadDemands();
+    }catch(e){ showError(e.message); }
+  });
+
   async function boot(){
     try{
       me = await api("/api/me");
@@ -746,6 +785,7 @@
       await loadTasks();
       await loadUsers();
       await loadNotifications();
+      await loadDemands();
     }catch(e){
       document.getElementById("appScreen").classList.add("hidden");
       document.getElementById("authScreen").classList.remove("hidden");
