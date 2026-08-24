@@ -182,9 +182,12 @@
   .notice-item small{display:block;margin-top:3px;color:#8a9089;font:10px 'IBM Plex Mono',monospace;}
   .mention-tools{display:flex;gap:8px;padding:10px 20px 0;background:#F1ECE0;}
   .mention-tools select{flex:1;border:1px solid var(--ledger-line);background:#FBF9F3;border-radius:4px;padding:7px 9px;font:12px 'IBM Plex Sans',sans-serif;color:var(--ink);}
-  .demand-form{display:grid;grid-template-columns:1fr 110px 120px auto;gap:10px;padding:16px 20px;background:#F1ECE0;border-top:2px solid var(--ledger-line);}
+  .demand-form{padding:16px 20px;background:#F1ECE0;border-top:2px solid var(--ledger-line);}
+  .demand-item{display:grid;grid-template-columns:1fr 110px auto;gap:10px;margin-bottom:10px;}
   .demand-form input{border:1px solid var(--ledger-line);background:#FBF9F3;border-radius:4px;padding:10px 12px;font:14px 'IBM Plex Sans',sans-serif;color:var(--ink);}
   .demand-form button{background:var(--teal);color:#fff;border:0;border-radius:4px;padding:10px 16px;font-weight:600;cursor:pointer;}
+  .demand-form .remove-item{background:transparent;border:1px solid var(--stamp-red);color:var(--stamp-red);padding:8px 10px;}
+  .demand-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.demand-actions button[type=button]{background:transparent;border:1px solid var(--teal);color:var(--teal)}
   .demand-row{display:flex;justify-content:space-between;gap:12px;padding:12px 20px;border-bottom:1px solid var(--ledger-line);}
   .demand-row:last-child{border-bottom:0}.demand-meta{color:#78827d;font-size:12px;margin-top:3px}.demand-status{font:600 11px 'IBM Plex Mono',monospace;text-transform:uppercase;color:var(--teal-light);white-space:nowrap}
 
@@ -306,10 +309,8 @@
   <section class="card" id="demandSection">
     <h2>Submit a Demand</h2>
     <form class="demand-form" id="demandForm">
-      <input id="demandProducts" type="text" maxlength="1000" placeholder="Products (for example: paper, toner)" required>
-      <input id="demandQuantity" type="number" min="3" step="1" placeholder="Quantity (3+)" required>
-      <input id="demandDate" type="date" required>
-      <button type="submit">Submit</button>
+      <div id="demandItems"><div class="demand-item"><input class="demand-product" type="text" maxlength="200" placeholder="Product name" required><input class="demand-quantity" type="number" min="1" step="1" placeholder="Quantity" required></div></div>
+      <div class="demand-actions"><input id="demandDate" type="date" required><button type="button" id="addDemandItem">Add another item</button><button type="submit">Submit demand</button></div>
     </form>
     <div id="myDemands"><div class="loading">Loading your demands...</div></div>
   </section>
@@ -764,10 +765,16 @@
   });
 
   document.getElementById("demandDate").value = todayStr();
+  document.getElementById("addDemandItem").addEventListener("click", () => {
+    const row = document.createElement("div"); row.className = "demand-item";
+    row.innerHTML = '<input class="demand-product" type="text" maxlength="200" placeholder="Product name" required><input class="demand-quantity" type="number" min="1" step="1" placeholder="Quantity" required><button type="button" class="remove-item">Remove</button>';
+    row.querySelector(".remove-item").onclick = () => row.remove(); document.getElementById("demandItems").appendChild(row);
+  });
   document.getElementById("demandForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     try{
-      const demand = await api("/api/demands", { method:"POST", body: JSON.stringify({ date:document.getElementById("demandDate").value, products:document.getElementById("demandProducts").value, quantity:Number(document.getElementById("demandQuantity").value) }) });
+      const products = [...document.querySelectorAll("#demandItems .demand-item")].map(row => ({ name:row.querySelector(".demand-product").value, quantity:Number(row.querySelector(".demand-quantity").value) }));
+      const demand = await api("/api/demands", { method:"POST", body: JSON.stringify({ date:document.getElementById("demandDate").value, products }) });
       myDemands.unshift(demand); e.target.reset(); document.getElementById("demandDate").value = todayStr(); await loadDemands();
     }catch(e){ showError(e.message); }
   });

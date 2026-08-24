@@ -61,8 +61,8 @@ const demandSchema = new mongoose.Schema({
   employeeId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   employeeName: { type: String, required: true, trim: true },
   date: { type: String, required: true },
-  products: { type: String, required: true, trim: true, maxlength: 1000 },
-  quantity: { type: Number, required: true, min: 3 },
+  products: { type: mongoose.Schema.Types.Mixed, required: true },
+  quantity: { type: mongoose.Schema.Types.Mixed, default: null },
   status: { type: String, enum: ["pending", "approved", "rejected", "completed", "cancelled"], default: "pending" },
   adminRemarks: { type: String, default: "", trim: true, maxlength: 2000 },
   submittedAt: { type: Date, default: Date.now }
@@ -342,12 +342,16 @@ app.patch("/api/admin-requests/:id", authMiddleware, adminMiddleware, async (req
 
 // ---------- Demand routes ----------
 function demandToJson(demand) {
+  const items = Array.isArray(demand.products)
+    ? demand.products.map(item => ({ name: item.name, quantity: item.quantity }))
+    : [{ name: demand.products, quantity: demand.quantity || 1 }];
   return {
     id: demand._id.toString(),
     employee_name: demand.employeeName,
     date: demand.date,
-    products: demand.products,
-    quantity: demand.quantity,
+    products: items.map(item => `${item.name} (${item.quantity})`).join(", "),
+    quantity: items.reduce((total, item) => total + item.quantity, 0),
+    items,
     status: demand.status,
     admin_remarks: demand.adminRemarks,
     submitted_at: demand.submittedAt,
@@ -377,13 +381,12 @@ app.get("/api/admin/demands", authMiddleware, adminMiddleware, async (req, res) 
 
 app.post("/api/demands", authMiddleware, async (req, res) => {
   try {
-    const { date, products, quantity } = req.body || {};
-    const cleanProducts = typeof products === "string" ? products.trim().slice(0, 1000) : "";
-    const numericQuantity = Number(quantity);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || !cleanProducts || !Number.isInteger(numericQuantity) || numericQuantity < 3) {
-      return res.status(400).json({ error: "Date, products and a quantity greater than 2 are required" });
+    const { date, products } = req.body || {};
+    const items = Array.isArray(products) ? products.map(item => ({ name: String(item.name || "").trim().slice(0, 200), quantity: Number(item.quantity) })) : [];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || !items.length || items.some(item => !item.name || !Number.isInteger(item.quantity) || item.quantity < 1)) {
+      return res.status(400).json({ error: "Date and at least one product with a valid quantity are required" });
     }
-    const demand = await Demand.create({ employeeId: req.user.id, employeeName: req.user.name, date, products: cleanProducts, quantity: numericQuantity });
+    const demand = await Demand.create({ employeeId: req.user.id, employeeName: req.user.name, date, products: items });
     res.json(demandToJson(demand));
   } catch (e) {
     console.error(e);
@@ -396,8 +399,13 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
     const { date, products, quantity, status, adminRemarks } = req.body || {};
     const updates = {};
     if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) updates.date = date;
-    if (typeof products === "string" && products.trim()) updates.products = products.trim().slice(0, 1000);
-    if (quantity !== undefined && Number.isInteger(Number(quantity)) && Number(quantity) >= 3) updates.quantity = Number(quantity);
+    if (Array.isArray(products) && products.length && products.every(item => item && String(item.name || "").trim() && Number.isInteger(Number(item.quantity)) && Number(item.quantity) >= 1)) {
+      updates.products = products.map(item => ({ name: String(item.name).trim().slice(0, 200), quantity: Number(item.quantity) }));
+      updates.quantity = null;
+    } else if (typeof products === "string" && products.trim() && Number.isInteger(Number(quantity)) && Number(quantity) >= 1) {
+      updates.products = [{ name: products.trim().slice(0, 200), quantity: Number(quantity) }];
+      updates.quantity = null;
+    }
     if (["pending", "approved", "rejected", "completed", "cancelled"].includes(status)) updates.status = status;
     if (typeof adminRemarks === "string") updates.adminRemarks = adminRemarks.trim().slice(0, 2000);
     if (!Object.keys(updates).length) return res.status(400).json({ error: "A valid demand update is required" });
