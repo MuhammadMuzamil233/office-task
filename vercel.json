@@ -1,6 +1,9 @@
 {
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/admin.html", "destination": "/office-task-register/public/admin.html" },
+    { "source": "/history.html", "destination": "/office-task-register/public/history.html" },
+    { "source": "/service-worker.js", "destination": "/office-task-register/public/service-worker.js" },
     { "source": "/(.*)", "destination": "/office-task-register/public/index.html" }
   ]
 }
