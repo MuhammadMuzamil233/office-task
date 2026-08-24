@@ -397,6 +397,11 @@ app.post("/api/demands", authMiddleware, async (req, res) => {
 app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { date, products, quantity, status, adminRemarks } = req.body || {};
+    if (status === "cancelled") {
+      const deletedDemand = await Demand.findByIdAndDelete(req.params.id);
+      if (!deletedDemand) return res.status(404).json({ error: "Demand not found" });
+      return res.json({ ok: true, deleted: true });
+    }
     const updates = {};
     if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) updates.date = date;
     if (Array.isArray(products) && products.length && products.every(item => item && String(item.name || "").trim() && Number.isInteger(Number(item.quantity)) && Number(item.quantity) >= 1)) {
