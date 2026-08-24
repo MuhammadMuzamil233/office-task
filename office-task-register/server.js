@@ -57,6 +57,17 @@ const taskSchema = new mongoose.Schema({
   }]
 }, { timestamps: true });
 
+const demandSchema = new mongoose.Schema({
+  employeeId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  employeeName: { type: String, required: true, trim: true },
+  date: { type: String, required: true },
+  products: { type: String, required: true, trim: true, maxlength: 1000 },
+  quantity: { type: Number, required: true, min: 1 },
+  status: { type: String, enum: ["pending", "approved", "rejected", "completed", "cancelled"], default: "pending" },
+  adminRemarks: { type: String, default: "", trim: true, maxlength: 2000 },
+  submittedAt: { type: Date, default: Date.now }
+}, { timestamps: true });
+
 const adminRequestSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   username: { type: String, required: true },
@@ -80,6 +91,7 @@ const pushSubscriptionSchema = new mongoose.Schema({
 
 const User = mongoose.model("User", userSchema);
 const Task = mongoose.model("Task", taskSchema);
+const Demand = mongoose.model("Demand", demandSchema);
 const AdminRequest = mongoose.model("AdminRequest", adminRequestSchema);
 const Notification = mongoose.model("Notification", notificationSchema);
 const PushSubscription = mongoose.model("PushSubscription", pushSubscriptionSchema);
@@ -328,6 +340,87 @@ app.patch("/api/admin-requests/:id", authMiddleware, adminMiddleware, async (req
   }
 });
 
+// ---------- Demand routes ----------
+function demandToJson(demand) {
+  return {
+    id: demand._id.toString(),
+    employee_name: demand.employeeName,
+    date: demand.date,
+    products: demand.products,
+    quantity: demand.quantity,
+    status: demand.status,
+    admin_remarks: demand.adminRemarks,
+    submitted_at: demand.submittedAt,
+    updated_at: demand.updatedAt
+  };
+}
+
+app.get("/api/demands", authMiddleware, async (req, res) => {
+  try {
+    const demands = await Demand.find({ employeeId: req.user.id }).sort({ submittedAt: -1 });
+    res.json(demands.map(demandToJson));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not load demands" });
+  }
+});
+
+app.get("/api/admin/demands", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const demands = await Demand.find().sort({ submittedAt: -1 });
+    res.json(demands.map(demandToJson));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not load demands" });
+  }
+});
+
+app.post("/api/demands", authMiddleware, async (req, res) => {
+  try {
+    const { date, products, quantity } = req.body || {};
+    const cleanProducts = typeof products === "string" ? products.trim().slice(0, 1000) : "";
+    const numericQuantity = Number(quantity);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || !cleanProducts || !Number.isInteger(numericQuantity) || numericQuantity < 1) {
+      return res.status(400).json({ error: "Date, products and a valid quantity are required" });
+    }
+    const demand = await Demand.create({ employeeId: req.user.id, employeeName: req.user.name, date, products: cleanProducts, quantity: numericQuantity });
+    res.json(demandToJson(demand));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not add demand" });
+  }
+});
+
+app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { date, products, quantity, status, adminRemarks } = req.body || {};
+    const updates = {};
+    if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) updates.date = date;
+    if (typeof products === "string" && products.trim()) updates.products = products.trim().slice(0, 1000);
+    if (quantity !== undefined && Number.isInteger(Number(quantity)) && Number(quantity) > 0) updates.quantity = Number(quantity);
+    if (["pending", "approved", "rejected", "completed", "cancelled"].includes(status)) updates.status = status;
+    if (typeof adminRemarks === "string") updates.adminRemarks = adminRemarks.trim().slice(0, 2000);
+    if (!Object.keys(updates).length) return res.status(400).json({ error: "A valid demand update is required" });
+    const demand = await Demand.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true });
+    if (!demand) return res.status(404).json({ error: "Demand not found" });
+    res.json(demandToJson(demand));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not update demand" });
+  }
+});
+
+app.delete("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const demand = await Demand.findByIdAndUpdate(req.params.id, { status: "cancelled" }, { new: true });
+    if (!demand) return res.status(404).json({ error: "Demand not found" });
+    res.json(demandToJson(demand));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not cancel demand" });
+  }
+});
+
 // ---------- Task routes ----------
 // Returns all incomplete tasks from before today (overdue reminders)
 // plus incomplete tasks added today, for the whole office.
@@ -402,7 +495,6 @@ app.patch("/api/tasks/:id", authMiddleware, adminMiddleware, async (req, res) =>
       { new: true }
     );
     if (!task) return res.status(404).json({ error: "Task not found" });
-    await notifyMentionedUsers(text.trim(), req.user, task, "a task comment");
     res.json(taskToJson(task));
   } catch (e) {
     console.error(e);
