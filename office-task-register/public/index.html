@@ -267,7 +267,8 @@
     <div class="whoami">
       <span class="greet">Signed in as <b id="myName"></b></span>
       <span>
-        <button id="historyBtn" type="button" aria-expanded="false">History</button>
+          <button id="historyBtn" type="button">History</button>
+          <button id="adminBtn" type="button" class="hidden">Admin Panel</button>
         <button id="logoutBtn" type="button">Log out</button>
       </span>
     </div>
@@ -294,23 +295,6 @@
     <div class="mention-tools">
       <select id="taskMentionUser" aria-label="Mention user"><option value="">Mention user…</option></select>
       <button type="button" id="insertTaskMention">Insert mention</button>
-    </div>
-  </section>
-
-  <section class="card hidden" id="historySection">
-    <h2>Task History <span class="count" id="historyCount">0</span></h2>
-    <div class="history-tools">
-      <input type="search" id="historySearch" placeholder="Search completed tasks…" autocomplete="off">
-    </div>
-    <div id="historyList"><div class="loading">Loading history…</div></div>
-  </section>
-
-  <section class="card hidden" id="adminPanel">
-    <h2>Admin Panel <span class="count">Admin only</span></h2>
-    <div class="admin-tools" id="adminTaskList"></div>
-    <div class="admin-requests" id="adminRequests">
-      <h3>Admin approval requests</h3>
-      <div id="adminRequestList"><div class="admin-empty">No pending requests.</div></div>
     </div>
   </section>
 
@@ -692,46 +676,6 @@
       list.appendChild(ul);
     }
 
-    const adminPanel = document.getElementById("adminPanel");
-    if(me.role === "admin"){
-      adminPanel.classList.remove("hidden");
-      const adminList = document.getElementById("adminTaskList");
-      adminList.innerHTML = "";
-      if(tasks.length === 0){
-        adminList.innerHTML = `<div class="admin-empty">No visible tasks to manage.</div>`;
-      } else {
-        tasks.forEach(t => {
-          const row = document.createElement("div");
-          row.className = "admin-task";
-          const input = document.createElement("textarea");
-          input.value = t.title; input.maxLength = 500; input.rows = 2; input.setAttribute("aria-label", "Task title");
-          const saveBtn = document.createElement("button");
-          saveBtn.type = "button"; saveBtn.textContent = "Save";
-          const deleteBtn = document.createElement("button");
-          deleteBtn.type = "button"; deleteBtn.className = "delete"; deleteBtn.textContent = "Delete";
-          saveBtn.addEventListener("click", () => updateTask(t.id, input.value));
-          deleteBtn.addEventListener("click", () => removeTask(t.id));
-          row.append(input, saveBtn, deleteBtn);
-          appendComments(row, t);
-          if(me.role === "admin"){
-            const commentInput = document.createElement("textarea");
-            commentInput.rows = 2; commentInput.maxLength = 1000; commentInput.placeholder = "Write an admin reply…"; commentInput.setAttribute("aria-label", "Admin reply");
-            const commentBtn = document.createElement("button");
-            commentBtn.type = "button"; commentBtn.textContent = "Reply";
-            commentBtn.addEventListener("click", () => addComment(t.id, commentInput.value));
-            const mentionSelect = document.createElement("select");
-            mentionSelect.innerHTML = '<option value="">Mention user…</option>' + users.map(user => `<option value="${escapeHtml(user.username)}">@${escapeHtml(user.username)}</option>`).join("");
-            mentionSelect.addEventListener("change", () => {
-              if(mentionSelect.value){ commentInput.value += (commentInput.value && !/\s$/.test(commentInput.value) ? " " : "") + "@" + mentionSelect.value + " "; mentionSelect.value = ""; commentInput.focus(); }
-            });
-            row.append(commentInput, mentionSelect, commentBtn);
-          }
-          adminList.appendChild(row);
-        });
-      }
-    } else {
-      adminPanel.classList.add("hidden");
-    }
   }
 
   async function addTask(title){
@@ -747,7 +691,6 @@
     try{
       await api("/api/tasks/" + id, { method:"PATCH", body: JSON.stringify({ completed }) });
       await loadTasks();
-      if(!document.getElementById("historySection").classList.contains("hidden")) await loadHistory();
     }catch(e){
       showError(e.message);
       loadTasks();
@@ -795,6 +738,7 @@
       me = await api("/api/me");
       document.getElementById("myName").textContent = me.name;
       document.querySelector(".greet").firstChild.textContent = me.role === "admin" ? "Admin signed in as " : "Signed in as ";
+      document.getElementById("adminBtn").classList.toggle("hidden", me.role !== "admin");
       document.getElementById("authScreen").classList.add("hidden");
       document.getElementById("appScreen").classList.remove("hidden");
       document.getElementById("taskInput").disabled = false;
@@ -802,21 +746,14 @@
       await loadTasks();
       await loadUsers();
       await loadNotifications();
-      await loadAdminRequests();
     }catch(e){
       document.getElementById("appScreen").classList.add("hidden");
       document.getElementById("authScreen").classList.remove("hidden");
     }
   }
 
-  document.getElementById("historyBtn").addEventListener("click", async () => {
-    const section = document.getElementById("historySection");
-    const button = document.getElementById("historyBtn");
-    const isOpening = section.classList.toggle("hidden") === false;
-    button.setAttribute("aria-expanded", String(isOpening));
-    if(isOpening) await loadHistory();
-  });
-  document.getElementById("historySearch").addEventListener("input", loadHistory);
+  document.getElementById("historyBtn").addEventListener("click", () => { window.location.href = "/history.html"; });
+  document.getElementById("adminBtn").addEventListener("click", () => { window.location.href = "/admin.html"; });
   document.getElementById("insertTaskMention").addEventListener("click", () => insertMention("taskMentionUser", "taskInput"));
   document.getElementById("enableNotificationsBtn").addEventListener("click", () => enableNotifications().catch(e => showError(e.message)));
   if("serviceWorker" in navigator) navigator.serviceWorker.register("/service-worker.js").catch(() => {});
