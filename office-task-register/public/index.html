@@ -815,7 +815,7 @@
   }
 
   document.getElementById("historyBtn").addEventListener("click", () => { window.location.href = "/history.html"; });
-  document.getElementById("adminBtn").addEventListener("click", () => { window.location.href = "/admin.html"; });
+  document.getElementById("adminBtn").addEventListener("click", () => { window.location.href = "/demands-admin.html"; });
   document.getElementById("insertTaskMention").addEventListener("click", () => insertMention("taskMentionUser", "taskInput"));
   document.getElementById("enableNotificationsBtn").addEventListener("click", () => enableNotifications().catch(e => showError(e.message)));
   if("serviceWorker" in navigator) navigator.serviceWorker.register("/service-worker.js").catch(() => {});
