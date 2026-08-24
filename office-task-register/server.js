@@ -62,7 +62,7 @@ const demandSchema = new mongoose.Schema({
   employeeName: { type: String, required: true, trim: true },
   date: { type: String, required: true },
   products: { type: String, required: true, trim: true, maxlength: 1000 },
-  quantity: { type: Number, required: true, min: 1 },
+  quantity: { type: Number, required: true, min: 3 },
   status: { type: String, enum: ["pending", "approved", "rejected", "completed", "cancelled"], default: "pending" },
   adminRemarks: { type: String, default: "", trim: true, maxlength: 2000 },
   submittedAt: { type: Date, default: Date.now }
@@ -380,8 +380,8 @@ app.post("/api/demands", authMiddleware, async (req, res) => {
     const { date, products, quantity } = req.body || {};
     const cleanProducts = typeof products === "string" ? products.trim().slice(0, 1000) : "";
     const numericQuantity = Number(quantity);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || !cleanProducts || !Number.isInteger(numericQuantity) || numericQuantity < 1) {
-      return res.status(400).json({ error: "Date, products and a valid quantity are required" });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || !cleanProducts || !Number.isInteger(numericQuantity) || numericQuantity < 3) {
+      return res.status(400).json({ error: "Date, products and a quantity greater than 2 are required" });
     }
     const demand = await Demand.create({ employeeId: req.user.id, employeeName: req.user.name, date, products: cleanProducts, quantity: numericQuantity });
     res.json(demandToJson(demand));
@@ -397,7 +397,7 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
     const updates = {};
     if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) updates.date = date;
     if (typeof products === "string" && products.trim()) updates.products = products.trim().slice(0, 1000);
-    if (quantity !== undefined && Number.isInteger(Number(quantity)) && Number(quantity) > 0) updates.quantity = Number(quantity);
+    if (quantity !== undefined && Number.isInteger(Number(quantity)) && Number(quantity) >= 3) updates.quantity = Number(quantity);
     if (["pending", "approved", "rejected", "completed", "cancelled"].includes(status)) updates.status = status;
     if (typeof adminRemarks === "string") updates.adminRemarks = adminRemarks.trim().slice(0, 2000);
     if (!Object.keys(updates).length) return res.status(400).json({ error: "A valid demand update is required" });
