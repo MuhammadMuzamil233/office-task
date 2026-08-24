@@ -188,7 +188,7 @@
   .demand-form button{background:var(--teal);color:#fff;border:0;border-radius:4px;padding:10px 16px;font-weight:600;cursor:pointer;}
   .demand-form .remove-item{background:transparent;border:1px solid var(--stamp-red);color:var(--stamp-red);padding:8px 10px;}
   .demand-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.demand-actions button[type=button]{background:transparent;border:1px solid var(--teal);color:var(--teal)}
-  .demand-table{width:100%;border-collapse:collapse;font-size:13px}.demand-table th,.demand-table td{padding:10px 20px;border-bottom:1px solid var(--ledger-line);text-align:left}.demand-table th{background:#F1ECE0;color:#68766d;font:600 11px 'IBM Plex Mono',monospace;text-transform:uppercase}.demand-table tr:last-child td{border-bottom:0}.demand-meta{color:#78827d;font-size:12px}.demand-status{font:600 11px 'IBM Plex Mono',monospace;text-transform:uppercase;color:var(--teal-light);white-space:nowrap}
+  .employee-demand-block{border-bottom:1px solid var(--ledger-line)}.employee-demand-block:last-child{border-bottom:0}.employee-demand-title{padding:12px 20px 6px;font:600 14px 'IBM Plex Serif',serif;color:var(--teal)}.demand-table{width:100%;border-collapse:collapse;font-size:13px}.demand-table th,.demand-table td{padding:10px 20px;border-bottom:1px solid var(--ledger-line);text-align:left}.demand-table th{background:#F1ECE0;color:#68766d;font:600 11px 'IBM Plex Mono',monospace;text-transform:uppercase}.demand-table tr:last-child td{border-bottom:0}.demand-meta{color:#78827d;font-size:12px}.demand-status{font:600 11px 'IBM Plex Mono',monospace;text-transform:uppercase;color:var(--teal-light);white-space:nowrap}
 
   form#addForm{display:flex;gap:10px;padding:16px 20px;background:#F1ECE0;border-top:2px solid var(--ledger-line);}
   form#addForm input[type="text"]{
@@ -547,19 +547,26 @@
     try{
       myDemands = await api("/api/demands");
       const list = document.getElementById("myDemands");
-      list.innerHTML = myDemands.length ? '<div style="overflow-x:auto"><table class="demand-table"><thead><tr><th>Employee</th><th>Date</th><th>Product</th><th>Quantity</th><th>Status</th><th>Submitted At</th></tr></thead><tbody></tbody></table></div>' : '<div class="empty">No demands submitted yet.</div>';
+      list.innerHTML = myDemands.length ? "" : '<div class="empty">No demands submitted yet.</div>';
       if(myDemands.length){
-        const body = list.querySelector("tbody");
-        myDemands.forEach(demand => {
+        const groups = new Map();
+        myDemands.forEach(demand => { const key = demand.employee_name || "Unknown employee"; if(!groups.has(key)) groups.set(key, []); groups.get(key).push(demand); });
+        groups.forEach((demands, employeeName) => {
+          const block = document.createElement("section"); block.className = "employee-demand-block";
+          block.innerHTML = `<div class="employee-demand-title">${escapeHtml(employeeName)}'s demands</div><div style="overflow-x:auto"><table class="demand-table"><thead><tr><th>Date</th><th>Product</th><th>Quantity</th><th>Status</th><th>Submitted At</th></tr></thead><tbody></tbody></table></div>`;
+          const body = block.querySelector("tbody");
+          demands.forEach(demand => {
           const items = Array.isArray(demand.items) ? demand.items : String(demand.products || "").split(",").map(value => {
             const match = value.trim().match(/^(.*?)(?:\s*\((\d+)\))?$/);
             return { name: match[1].trim(), quantity: Number(match[2] || demand.quantity || 1) };
           }).filter(item => item.name);
           items.forEach(item => {
           const row = document.createElement("tr");
-          row.innerHTML = `<td>${escapeHtml(demand.employee_name)}</td><td>${escapeHtml(demand.date)}</td><td>${escapeHtml(item.name)}</td><td>${item.quantity}</td><td class="demand-status">${escapeHtml(demand.status)}</td><td>${fmtDateTime(demand.submitted_at, demand.date)}</td>`;
+          row.innerHTML = `<td>${escapeHtml(demand.date)}</td><td>${escapeHtml(item.name)}</td><td>${item.quantity}</td><td class="demand-status">${escapeHtml(demand.status)}</td><td>${fmtDateTime(demand.submitted_at, demand.date)}</td>`;
           body.appendChild(row);
           });
+        });
+          list.appendChild(block);
         });
       }
     }catch(e){ showError(e.message); }
