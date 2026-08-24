@@ -361,7 +361,7 @@ function demandToJson(demand) {
 
 app.get("/api/demands", authMiddleware, async (req, res) => {
   try {
-    const demands = await Demand.find({ employeeId: req.user.id }).sort({ submittedAt: -1 });
+    const demands = await Demand.find().sort({ submittedAt: -1 });
     res.json(demands.map(demandToJson));
   } catch (e) {
     console.error(e);

@@ -547,7 +547,7 @@
     try{
       myDemands = await api("/api/demands");
       const list = document.getElementById("myDemands");
-      list.innerHTML = myDemands.length ? '<div style="overflow-x:auto"><table class="demand-table"><thead><tr><th>Date</th><th>Product</th><th>Quantity</th><th>Status</th></tr></thead><tbody></tbody></table></div>' : '<div class="empty">No demands submitted yet.</div>';
+      list.innerHTML = myDemands.length ? '<div style="overflow-x:auto"><table class="demand-table"><thead><tr><th>Employee</th><th>Date</th><th>Product</th><th>Quantity</th><th>Status</th><th>Submitted At</th></tr></thead><tbody></tbody></table></div>' : '<div class="empty">No demands submitted yet.</div>';
       if(myDemands.length){
         const body = list.querySelector("tbody");
         myDemands.forEach(demand => {
@@ -557,7 +557,7 @@
           }).filter(item => item.name);
           items.forEach(item => {
           const row = document.createElement("tr");
-          row.innerHTML = `<td>${escapeHtml(demand.date)}</td><td>${escapeHtml(item.name)}</td><td>${item.quantity}</td><td class="demand-status">${escapeHtml(demand.status)}</td>`;
+          row.innerHTML = `<td>${escapeHtml(demand.employee_name)}</td><td>${escapeHtml(demand.date)}</td><td>${escapeHtml(item.name)}</td><td>${item.quantity}</td><td class="demand-status">${escapeHtml(demand.status)}</td><td>${fmtDateTime(demand.submitted_at, demand.date)}</td>`;
           body.appendChild(row);
           });
         });
