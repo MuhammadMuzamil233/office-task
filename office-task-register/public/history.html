@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task History</title>
+<style>
+:root{--ink:#1C2B27;--paper:#FBF9F3;--ledger:#F1ECE0;--line:#D9CFB8;--teal:#0F3D3E;--brass:#B08D3E;}
+*{box-sizing:border-box}body{margin:0;padding:32px 16px 80px;background:radial-gradient(circle at 15% 10%,rgba(176,141,62,.07),transparent 40%),var(--ledger);font:14px 'Segoe UI',sans-serif;color:var(--ink)}.wrap{max-width:780px;margin:auto}.book{background:var(--teal);color:#F1ECE0;padding:22px 28px;border-bottom:4px solid var(--brass);border-radius:6px 6px 2px 2px;display:flex;align-items:center;justify-content:space-between;gap:16px}.book h1{margin:0;font:700 25px Georgia,serif}.button{border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.1);color:#fff;border-radius:4px;padding:8px 12px;cursor:pointer}.card{margin-top:22px;background:var(--paper);border:1px solid var(--line);border-radius:4px;overflow:hidden;box-shadow:0 6px 16px rgba(28,43,39,.12)}.card h2{margin:0;padding:14px 20px;border-bottom:1px solid var(--line);font:600 17px Georgia,serif;display:flex;justify-content:space-between}.tools{padding:14px 20px;background:var(--ledger);border-bottom:1px solid var(--line)}input{width:100%;padding:10px;border:1px solid var(--line);background:var(--paper);border-radius:4px;font-size:14px}.row{padding:14px 20px;border-bottom:1px solid var(--line)}.row:last-child{border:0}.title{font-weight:600;white-space:pre-wrap}.meta{margin-top:4px;color:#78827d;font-size:12px}.empty,.error{padding:22px 20px;color:#78827d}.error{color:#A6402B}@media(max-width:480px){.book{padding:18px;align-items:flex-start;flex-direction:column}.card h2,.tools,.row{padding-left:16px;padding-right:16px}}
+</style>
+</head>
+<body><main class="wrap"><header class="book"><h1>Task History</h1><button class="button" id="backBtn">Back to tasks</button></header><section class="card"><h2>Completed Tasks <span id="count">0</span></h2><div class="tools"><input id="search" type="search" placeholder="Search completed tasks..." autocomplete="off"></div><div id="list"><div class="empty">Loading history...</div></div></section></main>
+<script>
+const api=async(path,opts={})=>{const res=await fetch(path,{...opts,headers:{"Content-Type":"application/json",...(opts.headers||{})},credentials:"include"});let data=null;try{data=await res.json()}catch(e){}if(!res.ok)throw new Error(data&&data.error||"Something went wrong");return data};
+const escapeHtml=value=>{const div=document.createElement("div");div.textContent=value;return div.innerHTML};
+const date=(value,fallback)=>value?new Date(value).toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):fallback;
+async function load(){try{const query=document.getElementById("search").value.trim();const tasks=await api("/api/tasks/history"+(query?"?search="+encodeURIComponent(query):""));document.getElementById("count").textContent=tasks.length;const list=document.getElementById("list");list.innerHTML=tasks.length?"":"<div class=\"empty\">No completed tasks found.</div>";tasks.forEach(task=>{const row=document.createElement("div");row.className="row";row.innerHTML="<div class=\"title\">"+escapeHtml(task.title)+"</div><div class=\"meta\">Completed "+date(task.completed_at||task.updated_at||task.created_at,task.date_added)+(task.added_by?" by "+escapeHtml(task.added_by):"")+"</div>";list.appendChild(row)})}catch(error){document.getElementById("list").innerHTML="<div class=\"error\">"+escapeHtml(error.message)+"</div>"}}
+api("/api/me").catch(()=>{location.href="/"});document.getElementById("backBtn").onclick=()=>location.href="/";document.getElementById("search").oninput=load;load();
+</script></body></html>

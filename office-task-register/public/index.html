@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="ur-PK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akbar Eleectronics demand</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1C2B27;
+    --ledger:#F1ECE0;
+    --ledger-line:#D9CFB8;
+    --brass:#B08D3E;
+    --teal:#0F3D3E;
+    --teal-light:#1B5C5A;
+    --stamp-red:#A6402B;
+    --done-green:#3F6B4C;
+    --paper-shadow:rgba(28,43,39,0.12);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;min-height:100vh;
+    background:radial-gradient(circle at 15% 10%, rgba(176,141,62,0.07), transparent 40%), var(--ledger);
+    font-family:'IBM Plex Sans', sans-serif;color:var(--ink);
+    padding:32px 16px 80px;
+  }
+  .wrap{max-width:780px;margin:0 auto;}
+  .hidden{display:none !important;}
+
+  /* ---------- Auth screen ---------- */
+  #authScreen{max-width:420px;margin:60px auto;}
+  .auth-card{
+    background:#FBF9F3;border:1px solid var(--ledger-line);border-radius:6px;
+    box-shadow:0 10px 24px var(--paper-shadow);overflow:hidden;
+  }
+  .auth-card .top{
+    background:var(--teal);color:#F1ECE0;padding:24px 28px 18px;
+    border-bottom:4px solid var(--brass);
+  }
+  .auth-card .top h1{font-family:'IBM Plex Serif',serif;font-size:23px;margin:0 0 4px;}
+  .auth-card .top p{margin:0;font-size:13px;color:#CFE3DD;font-family:'IBM Plex Mono',monospace;}
+  .auth-card .body{padding:24px 28px 28px;}
+  .tabs{display:flex;gap:8px;margin-bottom:18px;}
+  .tabs button{
+    flex:1;padding:8px;border:1px solid var(--ledger-line);background:var(--ledger);
+    font-family:'IBM Plex Sans',sans-serif;font-weight:600;font-size:13px;color:#8a7550;
+    border-radius:4px;cursor:pointer;
+  }
+  .tabs button.active{background:var(--teal);color:#fff;border-color:var(--teal);}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12.5px;font-weight:600;margin-bottom:5px;color:#5c6b62;}
+  .field input{
+    width:100%;border:1px solid var(--ledger-line);background:#fff;border-radius:4px;
+    padding:10px 12px;font-size:14px;font-family:'IBM Plex Sans',sans-serif;color:var(--ink);
+  }
+  .field input:focus{outline:2px solid var(--brass);outline-offset:1px;}
+  .auth-card form button[type=submit]{
+    width:100%;background:var(--teal);color:#fff;border:none;border-radius:4px;
+    padding:11px;font-weight:600;font-size:14px;cursor:pointer;margin-top:4px;
+  }
+  .auth-card form button[type=submit]:hover{background:var(--teal-light);}
+  .auth-card form button[type=submit]:disabled{opacity:0.6;cursor:not-allowed;}
+  .admin-link{display:block;margin:16px auto 0;border:none;background:none;color:var(--teal-light);font:600 12px 'IBM Plex Sans',sans-serif;text-decoration:underline;cursor:pointer;}
+  .admin-hint{margin:-4px 0 14px;color:var(--teal-light);font-size:12px;line-height:1.4;}
+  .auth-err{
+    background:rgba(166,64,43,0.08);color:var(--stamp-red);font-size:13px;
+    padding:9px 12px;border-radius:4px;margin-bottom:14px;
+  }
+
+  /* ---------- App screen (same ledger look) ---------- */
+  header.book{
+    background:var(--teal);color:#F1ECE0;border-radius:6px 6px 2px 2px;
+    padding:28px 32px 22px;position:relative;box-shadow:0 10px 24px var(--paper-shadow);
+    border-bottom:4px solid var(--brass);
+  }
+  header.book::before{
+    content:"";position:absolute;left:0;top:0;bottom:0;width:10px;
+    background:repeating-linear-gradient(180deg, var(--brass) 0 6px, transparent 6px 14px);
+    border-radius:6px 0 0 2px;
+  }
+  header.book h1{font-family:'IBM Plex Serif',serif;font-weight:700;font-size:26px;margin:0 0 4px;}
+  header.book .sub{
+    font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#CFE3DD;
+    display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;
+  }
+  header.book .sub span.tag{background:rgba(255,255,255,0.08);padding:2px 8px;border-radius:3px;}
+  header.book .whoami{margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+  header.book .whoami .greet{font-size:13px;color:#CFE3DD;}
+  header.book .whoami .greet b{color:#fff;}
+  header.book .whoami button{
+    background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:#fff;
+    font-size:12.5px;padding:6px 12px;border-radius:4px;cursor:pointer;
+  }
+  header.book .whoami button:hover{background:rgba(255,255,255,0.18);}
+
+  section.card{
+    background:#FBF9F3;border:1px solid var(--ledger-line);border-radius:4px;
+    margin-top:22px;box-shadow:0 6px 16px var(--paper-shadow);overflow:hidden;
+  }
+  section.card h2{
+    font-family:'IBM Plex Serif',serif;font-size:16px;font-weight:600;margin:0;
+    padding:14px 20px;border-bottom:1px solid var(--ledger-line);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  section.card h2 .count{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--teal-light);
+    background:rgba(15,61,61,0.08);padding:2px 8px;border-radius:10px;
+  }
+  #reminders.card h2{color:var(--stamp-red);}
+  #reminders.card h2 .count{color:var(--stamp-red);background:rgba(166,64,43,0.1);}
+  .reminder-row{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px dashed var(--ledger-line);}
+  .reminder-row:last-child{border-bottom:none;}
+  .stamp{
+    font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:11px;color:var(--stamp-red);
+    border:2px solid var(--stamp-red);border-radius:4px;padding:3px 8px;transform:rotate(-6deg);
+    letter-spacing:1px;white-space:nowrap;opacity:0.85;flex-shrink:0;
+  }
+  .reminder-row .rtext{flex:1;}
+  .reminder-row .rtext .title{font-weight:600;white-space:pre-wrap;}
+  .reminder-row .rtext .meta{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8a7550;margin-top:2px;}
+
+  ul.tasks{list-style:none;margin:0;padding:0;}
+  li.task{display:flex;align-items:flex-start;gap:12px;padding:14px 20px;border-bottom:1px solid var(--ledger-line);}
+  li.task:last-child{border-bottom:none;}
+  li.task.done .title{text-decoration:line-through;color:#8a9089;}
+  .checkbox{
+    appearance:none;-webkit-appearance:none;width:20px;height:20px;border:2px solid var(--teal);
+    border-radius:4px;flex-shrink:0;margin-top:2px;cursor:pointer;position:relative;transition:background .15s ease;
+  }
+  .checkbox:checked{background:var(--done-green);border-color:var(--done-green);}
+  .checkbox:checked::after{
+    content:"✓";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:13px;font-weight:700;
+  }
+  .task .body{flex:1;}
+  .task .title{font-weight:500;white-space:pre-wrap;}
+  .task .meta{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8a9089;margin-top:2px;}
+  .history-tools{padding:14px 20px;background:#F1ECE0;border-bottom:1px solid var(--ledger-line);}
+  .history-tools input{width:100%;border:1px solid var(--ledger-line);background:#FBF9F3;border-radius:4px;padding:9px 11px;font:14px 'IBM Plex Sans',sans-serif;color:var(--ink);}
+  .history-tools input:focus{outline:2px solid var(--brass);outline-offset:1px;}
+  .history-task{display:flex;align-items:flex-start;gap:12px;padding:14px 20px;border-bottom:1px solid var(--ledger-line);}
+  .history-task:last-child{border-bottom:none;}
+  .history-task .body{flex:1;min-width:0;}
+  .history-task .title{font-weight:500;white-space:pre-wrap;}
+  .history-task .meta{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8a9089;margin-top:2px;}
+  .completed-mark{width:20px;height:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;border-radius:4px;background:var(--done-green);color:#fff;font-size:13px;font-weight:700;}
+  .del{background:none;border:none;color:#a35c4a;cursor:pointer;font-size:16px;line-height:1;padding:4px;opacity:.5;transition:opacity .15s ease;}
+  .del:hover{opacity:1;}
+  .empty{padding:22px 20px;color:#8a9089;font-size:14px;font-style:italic;}
+  .loading{padding:22px 20px;color:#8a9089;font-size:13px;font-family:'IBM Plex Mono',monospace;}
+  .err{padding:14px 20px;color:var(--stamp-red);font-size:13px;background:rgba(166,64,43,0.06);}
+  .admin-tools{padding:16px 20px;background:#E7EFE9;border-top:2px solid #B7CDBE;}
+  .admin-task{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #C9D9CE;}
+  .admin-task:last-child{border-bottom:none;}
+  .admin-task textarea{flex:1;min-width:0;min-height:42px;resize:vertical;border:1px solid var(--ledger-line);background:#fff;border-radius:4px;padding:8px 10px;font:14px 'IBM Plex Sans',sans-serif;color:var(--ink);}
+  .admin-task button{border:1px solid var(--teal);background:var(--teal);color:#fff;border-radius:4px;padding:7px 10px;cursor:pointer;font-weight:600;}
+  .admin-task button.delete{border-color:var(--stamp-red);background:transparent;color:var(--stamp-red);}
+  .admin-empty{color:#64766b;font-size:13px;}
+  .task-comments{width:100%;margin-top:10px;padding:9px 12px;background:#F6F1E5;border:1px solid var(--ledger-line);border-left:4px solid var(--teal-light);border-radius:3px;}
+  .task-comments::before{content:"ADMIN COMMENTS";display:block;margin-bottom:4px;color:var(--teal-light);font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.6px;}
+  .task-comment{display:flex;flex-wrap:wrap;gap:4px 8px;padding:5px 0;font-size:12px;}
+  .task-comment b{color:var(--teal-light);font-size:11px;}
+  .task-comment span{white-space:pre-wrap;color:var(--ink);flex-basis:100%;}
+  .task-comment small{color:#8a9089;font:10px 'IBM Plex Mono',monospace;}
+  .admin-task .task-comments{flex-basis:100%;}
+  .admin-task > textarea[aria-label="Admin reply"]{flex-basis:100%;}
+  .admin-requests{padding:16px 20px;background:#F6F1E5;border-top:1px solid var(--ledger-line);}
+  .admin-requests h3{font:600 13px 'IBM Plex Sans',sans-serif;margin:0 0 8px;color:var(--teal);}
+  .admin-request{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--ledger-line);}
+  .admin-request:last-child{border-bottom:none;}
+  .admin-request .requester{flex:1;min-width:0;font-size:13px;}
+  .admin-request .requester small{display:block;color:#8a9089;font:11px 'IBM Plex Mono',monospace;margin-top:2px;}
+  .admin-request button{border:1px solid var(--done-green);background:var(--done-green);color:#fff;border-radius:4px;padding:6px 9px;cursor:pointer;font-weight:600;}
+  .admin-request button.reject{border-color:var(--stamp-red);background:transparent;color:var(--stamp-red);}
+  .notice-tools{display:flex;align-items:center;gap:8px;padding:12px 20px;background:#F1ECE0;border-bottom:1px solid var(--ledger-line);}
+  .notice-tools button,.mention-tools button{border:1px solid var(--teal);background:var(--teal);color:#fff;border-radius:4px;padding:7px 10px;cursor:pointer;font-weight:600;font-size:12px;}
+  .notice-tools button:disabled{opacity:.6;cursor:default;}
+  .notice-item{display:block;padding:11px 20px;border-bottom:1px solid var(--ledger-line);font-size:13px;cursor:pointer;}
+  .notice-item:last-child{border-bottom:none;}
+  .notice-item.unread{border-left:4px solid var(--brass);background:#FFFDF7;}
+  .notice-item small{display:block;margin-top:3px;color:#8a9089;font:10px 'IBM Plex Mono',monospace;}
+  .mention-tools{display:flex;gap:8px;padding:10px 20px 0;background:#F1ECE0;}
+  .mention-tools select{flex:1;border:1px solid var(--ledger-line);background:#FBF9F3;border-radius:4px;padding:7px 9px;font:12px 'IBM Plex Sans',sans-serif;color:var(--ink);}
+  .demand-form{padding:16px 20px;background:#F1ECE0;border-top:2px solid var(--ledger-line);}
+  .demand-item{display:grid;grid-template-columns:1fr 180px 110px auto;gap:10px;margin-bottom:10px;}
+  @media(max-width:600px){.demand-item{grid-template-columns:1fr 1fr;}.demand-item .remove-item{grid-column:1/-1;width:max-content;}}
+  .demand-form input,.demand-form select{border:1px solid var(--ledger-line);background:#FBF9F3;border-radius:4px;padding:10px 12px;font:14px 'IBM Plex Sans',sans-serif;color:var(--ink);}
+  .demand-form button{background:var(--teal);color:#fff;border:0;border-radius:4px;padding:10px 16px;font-weight:600;cursor:pointer;}
+  .demand-form .remove-item{background:transparent;border:1px solid var(--stamp-red);color:var(--stamp-red);padding:8px 10px;}
+  .demand-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.demand-actions button[type=button]{background:transparent;border:1px solid var(--teal);color:var(--teal)}
+  .employee-demand-block{border-bottom:1px solid var(--ledger-line)}.employee-demand-block:last-child{border-bottom:0}.employee-demand-title{padding:12px 20px 6px;font:600 14px 'IBM Plex Serif',serif;color:var(--teal)}.demand-table{width:100%;border-collapse:collapse;font-size:13px}.demand-table th,.demand-table td{padding:10px 20px;border-bottom:1px solid var(--ledger-line);text-align:left}.demand-table th{background:#F1ECE0;color:#68766d;font:600 11px 'IBM Plex Mono',monospace;text-transform:uppercase}.demand-table tr:last-child td{border-bottom:0}.demand-meta{color:#78827d;font-size:12px}.demand-status{font:600 11px 'IBM Plex Mono',monospace;text-transform:uppercase;color:var(--teal-light);white-space:nowrap}
+
+  form#addForm{display:flex;gap:10px;padding:16px 20px;background:#F1ECE0;border-top:2px solid var(--ledger-line);}
+  form#addForm input[type="text"]{
+    flex:1;border:1px solid var(--ledger-line);background:#FBF9F3;border-radius:4px;
+    padding:10px 12px;font-size:14px;font-family:'IBM Plex Sans',sans-serif;color:var(--ink);
+  }
+  form#addForm input[type="text"]:focus{outline:2px solid var(--brass);outline-offset:1px;}
+  form#addForm button{
+    background:var(--teal);color:#fff;border:none;border-radius:4px;padding:10px 20px;
+    font-weight:600;font-size:14px;cursor:pointer;transition:background .15s ease;
+  }
+  form#addForm button:hover{background:var(--teal-light);}
+  form#addForm button:disabled{opacity:.5;cursor:not-allowed;}
+
+  footer.note{text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8a9089;margin-top:24px;}
+
+  @media (max-width:480px){
+    header.book{padding:22px 18px 18px;}
+    header.book h1{font-size:21px;}
+    section.card h2{padding:12px 16px;}
+    li.task, .reminder-row, form#addForm{padding-left:16px;padding-right:16px;}
+  }
+  @media (prefers-reduced-motion: reduce){ *{transition:none !important;} }
+</style>
+</head>
+<body>
+
+<!-- ================= AUTH SCREEN ================= -->
+<div class="wrap" id="authScreen">
+  <div class="auth-card">
+    <div class="top">
+      <h1></h1>
+      <p>Sign in to see and add today's tasks</p>
+    </div>
+    <div class="body">
+      <div class="tabs">
+        <button id="tabLogin" class="active">Log in</button>
+        <button id="tabRegister">Create account</button>
+      </div>
+      <button type="button" id="adminRegisterBtn" class="admin-link">Create admin account</button>
+      <div id="authError" class="auth-err hidden"></div>
+
+      <form id="loginForm">
+        <div class="field">
+          <label>Username</label>
+          <input type="text" id="loginUsername" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="loginPassword" autocomplete="current-password" required>
+        </div>
+        <button type="submit">Log in</button>
+      </form>
+
+      <form id="registerForm" class="hidden">
+        <p id="adminHint" class="admin-hint hidden">Use the admin username configured in Vercel Environment Variables.</p>
+        <div class="field">
+          <label>Your name</label>
+          <input type="text" id="regName" placeholder="e.g. Ahmed Khan" required>
+        </div>
+        <div class="field">
+          <label>Choose a username</label>
+          <input type="text" id="regUsername" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label>Choose a password</label>
+          <input type="password" id="regPassword" autocomplete="new-password" required minlength="4">
+        </div>
+        <button type="submit">Create account</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ================= APP SCREEN ================= -->
+<div class="wrap hidden" id="appScreen">
+  <header class="book">
+    <h1>Add demand and if you want unit without deliver order from akbar warehouse add it </h1>
+    <div class="sub">
+      <span id="todayLabel"></span>
+      <span class="tag" id="pendingTag">…</span>
+    </div>
+    <div class="whoami">
+      <span class="greet">Signed in as <b id="myName"></b></span>
+      <span>
+          <button id="historyBtn" type="button">History</button>
+          <button id="demandBtn" type="button">Demand Page</button>
+          <button id="logisticsBtn" type="button" class="hidden">Logistics</button>
+          <button id="adminBtn" type="button" class="hidden">Admin Panel</button>
+        <button id="logoutBtn" type="button">Log out</button>
+      </span>
+    </div>
+  </header>
+
+  <section class="card" id="notificationsSection">
+    <h2>Mentions <span class="count" id="notificationCount">0</span></h2>
+    <div class="notice-tools"><button type="button" id="enableNotificationsBtn">Enable browser notifications</button></div>
+    <div id="notificationList"><div class="empty">No mentions yet.</div></div>
+  </section>
+
+  <section class="card" id="reminders" style="display:none;">
+    <h2>Not done yet — carried over <span class="count" id="remCount">0</span></h2>
+    <div id="remList"></div>
+  </section>
+
+  <section class="card" id="todaySection">
+    <h2>Today's Tasks <span class="count" id="todayCount">0</span></h2>
+    <div id="todayList"></div>
+    <form id="addForm">
+      <textarea id="taskInput" rows="3" placeholder="Write a task with separate points…" autocomplete="off" disabled></textarea>
+      <button type="submit" disabled>Add</button>
+    </form>
+    <div class="mention-tools">
+      <select id="taskMentionUser" aria-label="Mention user"><option value="">Mention user…</option></select>
+      <button type="button" id="insertTaskMention">Insert mention</button>
+    </div>
+  </section>
+
+  <section class="card" id="demandSection">
+    <h2>Submit a Demand</h2>
+    <form class="demand-form" id="demandForm">
+      <div id="demandItems"><div class="demand-item"><input class="demand-product" type="text" maxlength="200" placeholder="Product name" required><select class="demand-warehouse" required><option value="">Select warehouse</option><option>FC Faizabad WH</option><option>FC I10 WH</option></select><input class="demand-quantity" type="number" min="1" step="1" placeholder="Quantity" required></div></div>
+      <div class="demand-actions"><input id="demandDate" type="date" required><button type="button" id="addDemandItem">Add another item</button><button type="submit">Submit demand</button></div>
+    </form>
+    <div id="myDemands"><div class="loading">Loading your demands...</div></div>
+  </section>
+
+  <footer class="note">Shared with everyone in the office who signs in.</footer>
+</div>
+
+<script>
+  const todayStr = () => {
+    const d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  };
+  const fmtDate = (isoStr) => {
+    const d = new Date(isoStr + "T00:00:00");
+    return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+  };
+  const fmtDateTime = (isoStr, fallbackDate) => isoStr ? new Date(isoStr).toLocaleString('en-GB', {
+    day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'
+  }) : fmtDate(fallbackDate);
+  const daysAgo = (isoStr) => {
+    const d1 = new Date(isoStr + "T00:00:00");
+    const d2 = new Date(todayStr() + "T00:00:00");
+    return Math.round((d2 - d1) / 86400000);
+  };
+  function escapeHtml(str){
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+  function appendComments(parent, task){
+    if(!task.comments || task.comments.length === 0) return;
+    const comments = document.createElement("div");
+    comments.className = "task-comments";
+    task.comments.forEach(comment => {
+      const item = document.createElement("div");
+      item.className = "task-comment";
+      const recipient = task.added_by || "the task assigner";
+      item.innerHTML = `<b>Admin reply to ${escapeHtml(recipient)}</b><small>${fmtDateTime(comment.created_at)}</small><span>${escapeHtml(comment.text)}</span>`;
+      comments.appendChild(item);
+    });
+    parent.appendChild(comments);
+  }
+  async function api(path, opts={}){
+    const res = await fetch(path, {
+      ...opts,
+      headers: { "Content-Type": "application/json", ...(opts.headers||{}) },
+      credentials: "include"
+    });
+    let data = null;
+    try{ data = await res.json(); }catch(e){}
+    if(!res.ok){ throw new Error((data && data.error) || "Something went wrong"); }
+    return data;
+  }
+
+  // ---------------- Auth screen logic ----------------
+  const tabLogin = document.getElementById("tabLogin");
+  const tabRegister = document.getElementById("tabRegister");
+  const loginForm = document.getElementById("loginForm");
+  const registerForm = document.getElementById("registerForm");
+  const authError = document.getElementById("authError");
+  const adminRegisterBtn = document.getElementById("adminRegisterBtn");
+  const adminHint = document.getElementById("adminHint");
+  let adminRequestMode = false;
+
+  tabLogin.addEventListener("click", () => {
+    tabLogin.classList.add("active"); tabRegister.classList.remove("active");
+    loginForm.classList.remove("hidden"); registerForm.classList.add("hidden");
+    adminRequestMode = false;
+    adminHint.classList.add("hidden");
+    authError.classList.add("hidden");
+  });
+  tabRegister.addEventListener("click", () => {
+    tabRegister.classList.add("active"); tabLogin.classList.remove("active");
+    registerForm.classList.remove("hidden"); loginForm.classList.add("hidden");
+    adminRequestMode = false;
+    adminHint.classList.add("hidden");
+    authError.classList.add("hidden");
+  });
+  adminRegisterBtn.addEventListener("click", () => {
+    tabRegister.click();
+    adminRequestMode = true;
+    adminHint.classList.remove("hidden");
+    document.getElementById("regUsername").focus();
+  });
+
+  function showAuthError(msg){
+    authError.textContent = msg;
+    authError.classList.remove("hidden");
+  }
+
+  loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    authError.classList.add("hidden");
+    const btn = loginForm.querySelector("button");
+    btn.disabled = true;
+    try{
+      await api("/api/login", {
+        method:"POST",
+        body: JSON.stringify({
+          username: document.getElementById("loginUsername").value,
+          password: document.getElementById("loginPassword").value
+        })
+      });
+      await boot();
+    }catch(err){
+      showAuthError(err.message);
+    }finally{
+      btn.disabled = false;
+    }
+  });
+
+  registerForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    authError.classList.add("hidden");
+    const btn = registerForm.querySelector("button");
+    btn.disabled = true;
+    try{
+      const account = await api("/api/register", {
+        method:"POST",
+        body: JSON.stringify({
+          name: document.getElementById("regName").value,
+          username: document.getElementById("regUsername").value,
+          password: document.getElementById("regPassword").value,
+          requestAdmin: adminRequestMode
+        })
+      });
+      await boot();
+      if(account.adminRequestPending) showError("Admin request sent. An existing admin must approve it before you get admin authority.");
+    }catch(err){
+      showAuthError(err.message);
+    }finally{
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById("logoutBtn").addEventListener("click", async () => {
+    await api("/api/logout", { method:"POST" });
+    document.getElementById("appScreen").classList.add("hidden");
+    document.getElementById("authScreen").classList.remove("hidden");
+    tabLogin.click();
+    loginForm.reset();
+    registerForm.reset();
+  });
+
+  // ---------------- App screen logic ----------------
+  const today = todayStr();
+  let tasks = [];
+  let historyTasks = [];
+  let me = null;
+  let adminRequests = [];
+  let users = [];
+  let notifications = [];
+  let myDemands = [];
+
+  function showError(msg){
+    let el = document.getElementById("errBanner");
+    if(!el){
+      el = document.createElement("div");
+      el.id = "errBanner";
+      el.className = "err";
+      document.getElementById("todaySection").insertBefore(el, document.getElementById("todayList"));
+    }
+    el.textContent = msg;
+    setTimeout(()=>{ if(el) el.remove(); }, 5000);
+  }
+
+  async function loadTasks(){
+    try{
+      tasks = await api("/api/tasks");
+    }catch(e){
+      showError(e.message);
+      tasks = [];
+    }
+    render();
+  }
+
+  async function loadHistory(){
+    try{
+      const search = document.getElementById("historySearch").value.trim();
+      historyTasks = await api("/api/tasks/history" + (search ? "?search=" + encodeURIComponent(search) : ""));
+      renderHistory();
+    }catch(e){
+      showError(e.message);
+    }
+  }
+
+  function renderHistory(){
+    const list = document.getElementById("historyList");
+    document.getElementById("historyCount").textContent = historyTasks.length;
+    list.innerHTML = "";
+    if(historyTasks.length === 0){
+      list.innerHTML = `<div class="empty">No completed tasks found.</div>`;
+      return;
+    }
+    historyTasks.forEach(t => {
+      const row = document.createElement("div");
+      row.className = "history-task";
+      row.innerHTML = `
+        <span class="completed-mark" aria-label="Completed">✓</span>
+        <div class="body">
+          <div class="title">${escapeHtml(t.title)}</div>
+          <div class="meta">Completed ${fmtDateTime(t.completed_at || t.updated_at || t.created_at, t.date_added)}${t.added_by ? " · " + escapeHtml(t.added_by) : ""}</div>
+        </div>
+      `;
+      appendComments(row.querySelector(".body"), t);
+      list.appendChild(row);
+    });
+  }
+
+  async function loadAdminRequests(){
+    if(!me || me.role !== "admin") return;
+    try{
+      adminRequests = await api("/api/admin-requests");
+      renderAdminRequests();
+    }catch(e){ showError(e.message); }
+  }
+
+  async function loadUsers(){
+    try{
+      users = await api("/api/users");
+      const select = document.getElementById("taskMentionUser");
+      select.innerHTML = '<option value="">Mention user…</option>' + users.map(user => `<option value="${escapeHtml(user.username)}">${escapeHtml(user.name)} (@${escapeHtml(user.username)})</option>`).join("");
+      render();
+    }catch(e){ showError(e.message); }
+  }
+
+  async function loadNotifications(){
+    try{
+      notifications = await api("/api/notifications");
+      renderNotifications();
+    }catch(e){ showError(e.message); }
+  }
+
+  async function loadDemands(){
+    try{
+      myDemands = await api("/api/demands");
+      const list = document.getElementById("myDemands");
+      list.innerHTML = myDemands.length ? "" : '<div class="empty">No demands submitted yet.</div>';
+      if(myDemands.length){
+        const groups = new Map();
+        myDemands.forEach(demand => { const key = demand.employee_name || "Unknown employee"; if(!groups.has(key)) groups.set(key, []); groups.get(key).push(demand); });
+        groups.forEach((demands, employeeName) => {
+          const block = document.createElement("section"); block.className = "employee-demand-block";
+          block.innerHTML = `<div class="employee-demand-title">${escapeHtml(employeeName)}'s demands</div><div style="overflow-x:auto"><table class="demand-table"><thead><tr><th>Date</th><th>Product</th><th>Warehouse</th><th>Quantity</th><th>Status</th><th>Submitted At</th></tr></thead><tbody></tbody></table></div>`;
+          const body = block.querySelector("tbody");
+          demands.forEach(demand => {
+          const items = Array.isArray(demand.items) ? demand.items : String(demand.products || "").split(",").map(value => {
+            const match = value.trim().match(/^(.*?)(?:\s*\((\d+)\))?$/);
+            return { name: match[1].trim(), quantity: Number(match[2] || demand.quantity || 1), warehouse: "" };
+          }).filter(item => item.name);
+          items.forEach(item => {
+          const row = document.createElement("tr");
+          row.innerHTML = `<td>${escapeHtml(demand.date)}</td><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.warehouse || "-")}</td><td>${item.quantity}</td><td class="demand-status">${escapeHtml(item.status || demand.status)}</td><td>${fmtDateTime(demand.submitted_at, demand.date)}</td>`;
+          body.appendChild(row);
+          });
+        });
+          list.appendChild(block);
+        });
+      }
+    }catch(e){ showError(e.message); }
+  }
+
+  function renderNotifications(){
+    const list = document.getElementById("notificationList");
+    const unread = notifications.filter(notification => !notification.read_at).length;
+    document.getElementById("notificationCount").textContent = unread;
+    list.innerHTML = notifications.length ? "" : '<div class="empty">No mentions yet.</div>';
+    notifications.forEach(notification => {
+      const item = document.createElement("div");
+      item.className = "notice-item" + (notification.read_at ? "" : " unread");
+      item.innerHTML = `${escapeHtml(notification.message)}<small>${fmtDateTime(notification.created_at)}</small>`;
+      item.addEventListener("click", async () => {
+        if(!notification.read_at){
+          await api("/api/notifications/" + notification.id + "/read", { method:"PATCH" });
+          notification.read_at = new Date().toISOString();
+          renderNotifications();
+        }
+        document.getElementById("todaySection").scrollIntoView({ behavior:"smooth" });
+      });
+      list.appendChild(item);
+    });
+  }
+
+  function insertMention(selectId, inputId){
+    const select = document.getElementById(selectId);
+    if(!select.value) return showError("Choose a user to mention");
+    const input = document.getElementById(inputId);
+    const mention = "@" + select.value + " ";
+    input.value += (input.value && !/\s$/.test(input.value) ? " " : "") + mention;
+    input.focus();
+    select.value = "";
+  }
+
+  async function enableNotifications(){
+    if(!("serviceWorker" in navigator) || !("PushManager" in window)) return showError("Browser notifications are not supported here");
+    const config = await api("/api/push-config");
+    if(!config.enabled) return showError("Browser notifications are not configured on the server yet");
+    const permission = await Notification.requestPermission();
+    if(permission !== "granted") return showError("Notification permission was not granted");
+    const registration = await navigator.serviceWorker.register("/service-worker.js");
+    const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(config.publicKey) });
+    await api("/api/push-subscriptions", { method:"POST", body: JSON.stringify(subscription.toJSON()) });
+    document.getElementById("enableNotificationsBtn").textContent = "Browser notifications enabled";
+    document.getElementById("enableNotificationsBtn").disabled = true;
+  }
+
+  function urlBase64ToUint8Array(value){
+    const padding = "=".repeat((4 - value.length % 4) % 4);
+    const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+    return Uint8Array.from(atob(base64), character => character.charCodeAt(0));
+  }
+
+  function renderAdminRequests(){
+    const list = document.getElementById("adminRequestList");
+    list.innerHTML = "";
+    if(adminRequests.length === 0){
+      list.innerHTML = `<div class="admin-empty">No pending requests.</div>`;
+      return;
+    }
+    adminRequests.forEach(request => {
+      const row = document.createElement("div");
+      row.className = "admin-request";
+      row.innerHTML = `<div class="requester"><b>${escapeHtml(request.name)}</b><small>@${escapeHtml(request.username)}</small></div>`;
+      const approveBtn = document.createElement("button");
+      approveBtn.type = "button"; approveBtn.textContent = "Approve";
+      const rejectBtn = document.createElement("button");
+      rejectBtn.type = "button"; rejectBtn.className = "reject"; rejectBtn.textContent = "Reject";
+      approveBtn.addEventListener("click", () => processAdminRequest(request.id, "approved"));
+      rejectBtn.addEventListener("click", () => processAdminRequest(request.id, "rejected"));
+      row.append(approveBtn, rejectBtn);
+      list.appendChild(row);
+    });
+  }
+
+  async function processAdminRequest(id, status){
+    try{
+      await api("/api/admin-requests/" + id, { method:"PATCH", body: JSON.stringify({ status }) });
+      adminRequests = adminRequests.filter(request => request.id !== id);
+      renderAdminRequests();
+    }catch(e){ showError(e.message); }
+  }
+
+  function render(){
+    document.getElementById("todayLabel").textContent =
+      new Date().toLocaleDateString('en-GB', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+
+    const overdue = tasks.filter(t => !t.completed && t.date_added < today);
+    const todays  = tasks.filter(t => t.date_added === today);
+
+    document.getElementById("pendingTag").textContent = overdue.length + " pending from before";
+
+    const remSection = document.getElementById("reminders");
+    const remList = document.getElementById("remList");
+    document.getElementById("remCount").textContent = overdue.length;
+    remList.innerHTML = "";
+    if(overdue.length === 0){
+      remSection.style.display = "none";
+    } else {
+      remSection.style.display = "block";
+      overdue.sort((a,b)=> a.date_added.localeCompare(b.date_added));
+      overdue.forEach(t => {
+        const row = document.createElement("div");
+        row.className = "reminder-row";
+        const age = daysAgo(t.date_added);
+        row.innerHTML = `
+          <span class="stamp">${age} day${age>1?'s':''} late</span>
+          <div class="rtext">
+            <div class="title">${escapeHtml(t.title)}</div>
+            <div class="meta">Added ${fmtDateTime(t.created_at, t.date_added)}${t.added_by ? " by " + escapeHtml(t.added_by) : ""}</div>
+          </div>
+        `;
+        appendComments(row.querySelector(".rtext"), t);
+        const doneBtn = document.createElement("input");
+        doneBtn.type = "checkbox"; doneBtn.className = "checkbox"; doneBtn.title = "Mark as done";
+        doneBtn.disabled = me.role !== "admin";
+        doneBtn.addEventListener("change", () => toggleComplete(t.id, doneBtn.checked));
+        const delBtn = document.createElement("button");
+        delBtn.className = "del"; delBtn.innerHTML = "✕"; delBtn.title = "Remove task";
+        delBtn.classList.toggle("hidden", me.role !== "admin");
+        delBtn.addEventListener("click", () => removeTask(t.id));
+        row.appendChild(doneBtn); row.appendChild(delBtn);
+        remList.appendChild(row);
+      });
+    }
+
+    const list = document.getElementById("todayList");
+    document.getElementById("todayCount").textContent = todays.length;
+    list.innerHTML = "";
+    if(todays.length === 0){
+      list.innerHTML = `<div class="empty">No tasks added today yet. Add the first one below.</div>`;
+    } else {
+      const ul = document.createElement("ul");
+      ul.className = "tasks";
+      todays.forEach(t => {
+        const li = document.createElement("li");
+        li.className = "task" + (t.completed ? " done" : "");
+        li.innerHTML = `
+          <input type="checkbox" class="checkbox" ${t.completed ? "checked":""} ${me.role === "admin" ? "" : "disabled"} title="Mark as done">
+          <div class="body">
+            <div class="title">${escapeHtml(t.title)}</div>
+            <div class="meta">${t.completed ? "Completed" : "Added"} ${fmtDateTime(t.created_at, t.date_added)}${t.added_by ? " · " + escapeHtml(t.added_by) : ""}</div>
+          </div>
+          <button class="del ${me.role === "admin" ? "" : "hidden"}" title="Remove task">✕</button>
+        `;
+        li.querySelector(".checkbox").addEventListener("change", (e) => toggleComplete(t.id, e.target.checked));
+        li.querySelector(".del").addEventListener("click", () => removeTask(t.id));
+        appendComments(li.querySelector(".body"), t);
+        ul.appendChild(li);
+      });
+      list.appendChild(ul);
+    }
+
+  }
+
+  async function addTask(title){
+    try{
+      const t = await api("/api/tasks", { method:"POST", body: JSON.stringify({ title }) });
+      tasks.push(t);
+      render();
+    }catch(e){
+      showError(e.message);
+    }
+  }
+  async function toggleComplete(id, completed){
+    try{
+      await api("/api/tasks/" + id, { method:"PATCH", body: JSON.stringify({ completed }) });
+      await loadTasks();
+    }catch(e){
+      showError(e.message);
+      loadTasks();
+    }
+  }
+  async function updateTask(id, title){
+    if(!title.trim()) return showError("Task text is required");
+    try{
+      const t = await api("/api/tasks/" + id, { method:"PATCH", body: JSON.stringify({ title: title.trim() }) });
+      tasks = tasks.map(x => x.id === t.id ? t : x);
+      render();
+    }catch(e){ showError(e.message); }
+  }
+  async function addComment(id, text){
+    if(!text.trim()) return showError("Comment text is required");
+    try{
+      const t = await api("/api/tasks/" + id + "/comments", { method:"POST", body: JSON.stringify({ text: text.trim() }) });
+      tasks = tasks.map(x => x.id === t.id ? t : x);
+      render();
+    }catch(e){ showError(e.message); }
+  }
+  async function removeTask(id){
+    try{
+      await api("/api/tasks/" + id, { method:"DELETE" });
+      tasks = tasks.filter(x => x.id !== id);
+      render();
+    }catch(e){
+      showError(e.message);
+    }
+  }
+
+  document.getElementById("addForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = document.getElementById("taskInput");
+    const val = input.value.trim();
+    if(val){
+      input.value = "";
+      await addTask(val);
+      input.focus();
+    }
+  });
+
+  document.getElementById("demandDate").value = todayStr();
+  document.getElementById("addDemandItem").addEventListener("click", () => {
+    const row = document.createElement("div"); row.className = "demand-item";
+    row.innerHTML = '<input class="demand-product" type="text" maxlength="200" placeholder="Product name" required><select class="demand-warehouse" required><option value="">Select warehouse</option><option>FC Faizabad WH</option><option>FC I10 WH</option></select><input class="demand-quantity" type="number" min="1" step="1" placeholder="Quantity" required><button type="button" class="remove-item">Remove</button>';
+    row.querySelector(".remove-item").onclick = () => row.remove(); document.getElementById("demandItems").appendChild(row);
+  });
+  document.getElementById("demandForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try{
+      const products = [...document.querySelectorAll("#demandItems .demand-item")].map(row => ({ name:row.querySelector(".demand-product").value, warehouse:row.querySelector(".demand-warehouse").value, quantity:Number(row.querySelector(".demand-quantity").value) }));
+      const demand = await api("/api/demands", { method:"POST", body: JSON.stringify({ date:document.getElementById("demandDate").value, products }) });
+      myDemands.unshift(demand); e.target.reset(); document.getElementById("demandDate").value = todayStr(); await loadDemands();
+    }catch(e){ showError(e.message); }
+  });
+
+  async function boot(){
+    try{
+      me = await api("/api/me");
+      document.getElementById("myName").textContent = me.name;
+      document.querySelector(".greet").firstChild.textContent = me.role === "admin" ? "Admin signed in as " : "Signed in as ";
+      document.getElementById("adminBtn").classList.toggle("hidden", me.role !== "admin");
+      document.getElementById("logisticsBtn").classList.toggle("hidden", !["admin", "logistics"].includes(me.role));
+      document.getElementById("authScreen").classList.add("hidden");
+      document.getElementById("appScreen").classList.remove("hidden");
+      document.getElementById("taskInput").disabled = false;
+      document.querySelector("#addForm button").disabled = false;
+      await loadTasks();
+      await loadUsers();
+      await loadNotifications();
+      await loadDemands();
+    }catch(e){
+      document.getElementById("appScreen").classList.add("hidden");
+      document.getElementById("authScreen").classList.remove("hidden");
+    }
+  }
+
+  document.getElementById("historyBtn").addEventListener("click", () => { window.location.href = "/history.html"; });
+  document.getElementById("demandBtn").addEventListener("click", () => { window.location.href = "/demands.html"; });
+  document.getElementById("adminBtn").addEventListener("click", () => { window.location.href = "/demands-admin.html"; });
+  document.getElementById("logisticsBtn").addEventListener("click", () => { window.location.href = "/logistics.html"; });
+  document.getElementById("insertTaskMention").addEventListener("click", () => insertMention("taskMentionUser", "taskInput"));
+  document.getElementById("enableNotificationsBtn").addEventListener("click", () => enableNotifications().catch(e => showError(e.message)));
+  if("serviceWorker" in navigator) navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+
+  boot();
+</script>
+</body>
+</html>
