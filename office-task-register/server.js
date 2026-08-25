@@ -97,6 +97,8 @@ const notificationSchema = new mongoose.Schema({
   readAt: { type: Date, default: null }
 }, { timestamps: true });
 
+notificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 24 * 60 * 60 });
+
 const pushSubscriptionSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
   endpoint: { type: String, required: true, unique: true },
@@ -307,7 +309,9 @@ app.get("/api/users", authMiddleware, async (req, res) => {
 
 app.get("/api/notifications", authMiddleware, async (req, res) => {
   try {
-    const notifications = await Notification.find({ recipientId: req.user.id }).sort({ createdAt: -1 }).limit(30);
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    await Notification.deleteMany({ createdAt: { $lt: cutoff } });
+    const notifications = await Notification.find({ recipientId: req.user.id, createdAt: { $gte: cutoff } }).sort({ createdAt: -1 }).limit(30);
     res.json(notifications.map(notification => ({ id: notification._id.toString(), message: notification.message, task_id: notification.taskId.toString(), created_at: notification.createdAt, read_at: notification.readAt })));
   } catch (e) {
     res.status(500).json({ error: "Could not load notifications" });
