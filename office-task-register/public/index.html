@@ -645,7 +645,7 @@
     adminRequests.forEach(request => {
       const row = document.createElement("div");
       row.className = "admin-request";
-      row.innerHTML = `<div class="requester"><b>${escapeHtml(request.name)}</b><small>@${escapeHtml(request.username)}</small></div>`;
+      row.innerHTML = `<div class="requester"><b>${escapeHtml(request.name)}</b><small>@${escapeHtml(request.username)} · Request: ${escapeHtml(request.requested_role || "admin")}</small></div>`;
       const approveBtn = document.createElement("button");
       approveBtn.type = "button"; approveBtn.textContent = "Approve";
       const rejectBtn = document.createElement("button");
@@ -812,6 +812,10 @@
       me = await api("/api/me");
       document.getElementById("myName").textContent = me.name;
       document.querySelector(".greet").firstChild.textContent = me.role === "admin" ? "Admin signed in as " : "Signed in as ";
+      const logisticsOnly = me.role === "logistics";
+      document.getElementById("historyBtn").classList.toggle("hidden", logisticsOnly);
+      document.getElementById("demandBtn").classList.toggle("hidden", logisticsOnly);
+      document.getElementById("demandSection").classList.toggle("hidden", logisticsOnly);
       document.getElementById("adminBtn").classList.toggle("hidden", me.role !== "admin");
       document.getElementById("logisticsBtn").classList.toggle("hidden", !["admin", "logistics"].includes(me.role));
       document.getElementById("authScreen").classList.add("hidden");

@@ -349,7 +349,9 @@
       }
     };
 
-    api("/api/me").catch(() => location.href = "/");
+    api("/api/me").then(me => {
+      if (me.role === "logistics") location.href = "/logistics.html";
+    }).catch(() => location.href = "/");
     load();
   </script>
 </body>
