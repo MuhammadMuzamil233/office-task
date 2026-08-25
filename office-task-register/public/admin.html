@@ -1,3 +1,4 @@
+requests.forEach(request=>{const row=document.createElement("div");row.className="row";row.innerHTML="<div class=\"requester\"><b>"+esc(request.name)+"</b><small>"+esc(request.username)+" · Request: "+esc(request.requested_role||"admin")+"</small></div><button class=\"action\">Approve</button><button class=\"action reject\">Reject</button>";row.querySelector(".action").onclick=()=>processRequest(request.id,"approved");row.querySelector(".reject").onclick=()=>processRequest(request.id,"rejected");requestList.appendChild(row)})}catch(error){document.getElementById("demands").innerHTML=`<tr><td colspan="7" class="error">${esc(error.message)}</td></tr>`}}
 <!DOCTYPE html>
 <html lang="en">
 <head>

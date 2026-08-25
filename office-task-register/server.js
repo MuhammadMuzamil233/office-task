@@ -17,7 +17,6 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 const MONGODB_URI = process.env.DATABASE_URL || process.env.MONGODB_URI;
 const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || "").toLowerCase().trim();
-const LOGISTICS_USERNAME = (process.env.LOGISTICS_USERNAME || "").toLowerCase().trim();
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:admin@example.com";
@@ -86,6 +85,7 @@ const adminRequestSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   username: { type: String, required: true },
   name: { type: String, required: true },
+  requestedRole: { type: String, enum: ["admin", "logistics"], default: "admin" },
   status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" }
 }, { timestamps: true });
 
@@ -188,7 +188,10 @@ async function adminMiddleware(req, res, next) {
 async function logisticsMiddleware(req, res, next) {
   try {
     const user = await User.findById(req.user.id).select("role");
-    if (!user || !["admin", "logistics"].includes(user.role)) {
+    const approvedRequest = user && user.role === "logistics"
+      ? await AdminRequest.findOne({ userId: user._id, requestedRole: "logistics", status: "approved" })
+      : null;
+    if (!user || (user.role !== "admin" && !approvedRequest)) {
       return res.status(403).json({ error: "Logistics access required" });
     }
     next();
@@ -225,7 +228,7 @@ app.use(async (req, res, next) => {
 // ---------- Auth routes ----------
 app.post("/api/register", async (req, res) => {
   try {
-    const { username, password, name, requestAdmin } = req.body;
+    const { username, password, name, requestAdmin, requestLogistics } = req.body;
     if (!username || !password || !name) {
       return res.status(400).json({ error: "Name, username and password are all required" });
     }
@@ -242,14 +245,15 @@ app.post("/api/register", async (req, res) => {
       username: cleanUsername,
       name: name.trim(),
       passwordHash,
-      role: cleanUsername === ADMIN_USERNAME ? "admin" : cleanUsername === LOGISTICS_USERNAME ? "logistics" : "user"
+      role: cleanUsername === ADMIN_USERNAME ? "admin" : "user"
     });
-    if (requestAdmin && user.role !== "admin") {
-      await AdminRequest.create({ userId: user._id, username: user.username, name: user.name });
+    const requestedRole = requestLogistics ? "logistics" : requestAdmin ? "admin" : null;
+    if (requestedRole && user.role !== "admin") {
+      await AdminRequest.create({ userId: user._id, username: user.username, name: user.name, requestedRole });
     }
     const token = signToken(user);
     res.cookie("token", token, COOKIE_OPTS);
-    res.json({ id: user._id.toString(), username: user.username, name: user.name, role: user.role, adminRequestPending: requestAdmin && user.role !== "admin" });
+    res.json({ id: user._id.toString(), username: user.username, name: user.name, role: user.role, approvalRequestPending: Boolean(requestedRole && user.role !== "admin"), requestedRole });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not create account, please try again" });
@@ -272,9 +276,6 @@ app.post("/api/login", async (req, res) => {
     }
     if (user.username === ADMIN_USERNAME && user.role !== "admin") {
       user.role = "admin";
-      await user.save();
-    } else if (user.username === LOGISTICS_USERNAME && user.role !== "logistics") {
-      user.role = "logistics";
       await user.save();
     }
     const token = signToken(user);
@@ -340,6 +341,7 @@ app.get("/api/admin-requests", authMiddleware, adminMiddleware, async (req, res)
       id: request._id.toString(),
       username: request.username,
       name: request.name,
+      requested_role: request.requestedRole,
       created_at: request.createdAt
     })));
   } catch (e) {
@@ -361,7 +363,7 @@ app.patch("/api/admin-requests/:id", authMiddleware, adminMiddleware, async (req
     );
     if (!request) return res.status(404).json({ error: "Admin request not found" });
     if (status === "approved") {
-      await User.findByIdAndUpdate(request.userId, { role: "admin" });
+      await User.findByIdAndUpdate(request.userId, { role: request.requestedRole || "admin" });
     }
     res.json({ ok: true, status: request.status });
   } catch (e) {

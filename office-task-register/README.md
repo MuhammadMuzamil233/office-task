@@ -51,7 +51,6 @@ Koi bhi paid card ki zaroorat nahi. Neeche steps follow karein.
    - `DATABASE_URL` = `mongodb+srv://zoiichaa1_db_user:<db_password>@cluster0.viocqia.mongodb.net/`
    - `JWT_SECRET` = koi bhi lamba random text (e.g. `office2026-secret-key-xyz`)
    - `ADMIN_USERNAME` = admin ke liye reserved username (e.g. `officeadmin`)
-   - `LOGISTICS_USERNAME` = logistics user ke liye reserved username (e.g. `logisticsuser`)
    - `VAPID_PUBLIC_KEY` aur `VAPID_PRIVATE_KEY` = Web Push keys (neeche command se generate karein)
    - `VAPID_SUBJECT` = contact email, e.g. `mailto:admin@example.com`
    `DATABASE_URL` mein `<db_password>` ko apne MongoDB Atlas password se replace karein. Agar password mein special characters hon (`@`, `#`, `%` waghera), unhein URL-encode karein.
@@ -67,7 +66,7 @@ Koi bhi paid card ki zaroorat nahi. Neeche steps follow karein.
    ```
    Web Push keys banane ke liye project folder mein `npx web-push generate-vapid-keys` chalayein. Public aur private values ko Vercel mein alag environment variables ke taur par add karein. Har user login ke baad **Enable browser notifications** dabaye; iske baad website band ho tab bhi supported browser mention notification dikha sakta hai.
    `ADMIN_USERNAME` wala account primary admin hota hai. Baqi users **Create admin account** se approval request bhej sakte hain; primary admin Admin Panel se Approve ya Reject karega.
-   `LOGISTICS_USERNAME` wala account login ke baad Logistics page dekh sakta hai, warehouse filter se overall demand dekh sakta hai, aur selected items ko **on the way** mark kar sakta hai.
+   User registration screen se **Request logistics access** select kiya ja sakta hai. Admin approval ke baad hi us user ko Logistics page, warehouse overview, aur **on the way** status update ka access milta hai.
 6. Deploy ke baad Vercel aapko ek URL dega jaisa:
    ```
    https://office-task-register.vercel.app

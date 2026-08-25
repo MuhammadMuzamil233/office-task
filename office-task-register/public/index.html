@@ -230,6 +230,7 @@
         <button id="tabRegister">Create account</button>
       </div>
       <button type="button" id="adminRegisterBtn" class="admin-link">Create admin account</button>
+      <button type="button" id="logisticsRegisterBtn" class="admin-link">Request logistics access</button>
       <div id="authError" class="auth-err hidden"></div>
 
       <form id="loginForm">
@@ -346,7 +347,7 @@
     if(!task.comments || task.comments.length === 0) return;
     const comments = document.createElement("div");
     comments.className = "task-comments";
-    task.comments.forEach(comment => {
+      task.comments.forEach(comment => {
       const item = document.createElement("div");
       item.className = "task-comment";
       const recipient = task.added_by || "the task assigner";
@@ -375,25 +376,33 @@
   const authError = document.getElementById("authError");
   const adminRegisterBtn = document.getElementById("adminRegisterBtn");
   const adminHint = document.getElementById("adminHint");
-  let adminRequestMode = false;
+  const logisticsRegisterBtn = document.getElementById("logisticsRegisterBtn");
+  let requestedRole = null;
 
   tabLogin.addEventListener("click", () => {
     tabLogin.classList.add("active"); tabRegister.classList.remove("active");
     loginForm.classList.remove("hidden"); registerForm.classList.add("hidden");
-    adminRequestMode = false;
+    requestedRole = null;
     adminHint.classList.add("hidden");
     authError.classList.add("hidden");
   });
   tabRegister.addEventListener("click", () => {
     tabRegister.classList.add("active"); tabLogin.classList.remove("active");
     registerForm.classList.remove("hidden"); loginForm.classList.add("hidden");
-    adminRequestMode = false;
+    requestedRole = null;
     adminHint.classList.add("hidden");
     authError.classList.add("hidden");
   });
   adminRegisterBtn.addEventListener("click", () => {
     tabRegister.click();
-    adminRequestMode = true;
+    requestedRole = "admin";
+    adminHint.classList.remove("hidden");
+    document.getElementById("regUsername").focus();
+  });
+  logisticsRegisterBtn.addEventListener("click", () => {
+    tabRegister.click();
+    requestedRole = "logistics";
+    adminHint.textContent = "Your logistics access request must be approved by an admin.";
     adminHint.classList.remove("hidden");
     document.getElementById("regUsername").focus();
   });
@@ -436,11 +445,12 @@
           name: document.getElementById("regName").value,
           username: document.getElementById("regUsername").value,
           password: document.getElementById("regPassword").value,
-          requestAdmin: adminRequestMode
+          requestAdmin: requestedRole === "admin",
+          requestLogistics: requestedRole === "logistics"
         })
       });
       await boot();
-      if(account.adminRequestPending) showError("Admin request sent. An existing admin must approve it before you get admin authority.");
+      if(account.approvalRequestPending) showError(`${account.requestedRole === "logistics" ? "Logistics" : "Admin"} access request sent. An existing admin must approve it first.`);
     }catch(err){
       showAuthError(err.message);
     }finally{
