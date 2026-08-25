@@ -444,7 +444,32 @@ app.post("/api/demands", authMiddleware, async (req, res) => {
 
 app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { date, products, quantity, status, adminRemarks } = req.body || {};
+    const { date, products, quantity, status, adminRemarks, completeItemIndex } = req.body || {};
+    if (Number.isInteger(completeItemIndex)) {
+      const demand = await Demand.findById(req.params.id);
+      if (!demand || !Array.isArray(demand.products)) return res.status(404).json({ error: "Demand item not found" });
+      if (completeItemIndex < 0 || completeItemIndex >= demand.products.length) return res.status(400).json({ error: "Invalid demand item" });
+      const completedItem = demand.products[completeItemIndex];
+      await DemandHistory.create({
+        originalDemandId: demand._id,
+        employeeId: demand.employeeId,
+        employeeName: demand.employeeName,
+        date: demand.date,
+        products: [{ ...completedItem.toObject?.() || completedItem, status: "completed" }],
+        quantity: completedItem.quantity,
+        status: "completed",
+        adminRemarks: demand.adminRemarks,
+        submittedAt: demand.submittedAt,
+        completedAt: new Date()
+      });
+      demand.products.splice(completeItemIndex, 1);
+      if (!demand.products.length) {
+        await Demand.deleteOne({ _id: demand._id });
+        return res.json({ ok: true, archived: true, demandDeleted: true });
+      }
+      await demand.save();
+      return res.json(demandToJson(demand));
+    }
     if (status === "completed") {
       const demand = await Demand.findById(req.params.id);
       if (!demand) return res.status(404).json({ error: "Demand not found" });

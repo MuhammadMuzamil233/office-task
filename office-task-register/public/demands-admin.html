@@ -239,6 +239,11 @@
     </section>
 
     <section class="card">
+      <h2>Access Approval Requests</h2>
+      <div id="access-requests" class="requests"><div class="empty">Loading requests...</div></div>
+    </section>
+
+    <section class="card">
       <h2>Total Demands Summary</h2>
       <div class="scroll">
         <table class="table" id="summary-list-table">
@@ -305,8 +310,36 @@
         if (me.role !== "admin") throw new Error("Admin access required");
         allDemands = await api("/api/admin/demands");
         render();
+        await loadAccessRequests();
       } catch (error) {
         document.getElementById("list").innerHTML = `<tr><td colspan="9" class="error">${esc(error.message)}</td></tr>`;
+      }
+    }
+
+    async function loadAccessRequests() {
+      const list = document.getElementById("access-requests");
+      try {
+        const requests = await api("/api/admin-requests");
+        list.innerHTML = requests.length ? "" : '<div class="empty">No pending access requests.</div>';
+        requests.forEach(request => {
+          const row = document.createElement("div");
+          row.className = "admin-request";
+          row.innerHTML = `<span><b>${esc(request.name)}</b><small> @${esc(request.username)} · Request: ${esc(request.requested_role || "admin")}</small></span><span class="actions"><button class="action approve">Approve</button><button class="action reject">Reject</button></span>`;
+          row.querySelector(".approve").onclick = () => processAccessRequest(request.id, "approved");
+          row.querySelector(".reject").onclick = () => processAccessRequest(request.id, "rejected");
+          list.appendChild(row);
+        });
+      } catch (error) {
+        list.innerHTML = `<div class="error">${esc(error.message)}</div>`;
+      }
+    }
+
+    async function processAccessRequest(id, status) {
+      try {
+        await api("/api/admin-requests/" + id, { method: "PATCH", body: JSON.stringify({ status }) });
+        await loadAccessRequests();
+      } catch (error) {
+        alert(error.message);
       }
     }
 
@@ -325,7 +358,7 @@
           return;
         }
 
-        const items = itemList(demand);
+        const items = itemList(demand).map((item, index) => ({ ...item, index }));
         // Warehouse filter on items
         const matchingItems = items.filter(item => {
           if (warehouseFilter === "all") return true;
@@ -368,14 +401,14 @@
             <td>${esc(item.warehouse || "-")}</td>
             <td>${item.quantity}</td>
             <td>${index === 0 ? total : ""}</td>
-            <td>${index === 0 ? esc(demand.status) : ""}</td>
+            <td>${esc(item.status || demand.status)}</td>
             <td>${index === 0 ? date(demand.submitted_at) : ""}</td>
             <td>
               ${index === 0 ? `
                 <div class="actions">
                   <button class="action approve">Approve</button>
                   <button class="action reject">Reject</button>
-                  <button class="action complete">Completed</button>
+                  <button class="action complete">Complete all</button>
                   <button class="action cancel">Cancel</button>
                 </div>
               ` : ""}
@@ -394,6 +427,20 @@
             row.querySelector(".reject").onclick = () => update("rejected");
             row.querySelector(".complete").onclick = () => update("completed");
             row.querySelector(".cancel").onclick = () => update("cancelled");
+          }
+
+          if (item.status !== "completed") {
+            const completeItem = document.createElement("button");
+            completeItem.className = "action complete-item";
+            completeItem.textContent = "Complete item";
+            row.querySelector("td:last-child").appendChild(completeItem);
+            completeItem.onclick = async () => {
+              await api("/api/admin/demands/" + demand.id, {
+                method: "PATCH",
+                body: JSON.stringify({ completeItemIndex: item.index })
+              });
+              load();
+            };
           }
 
           list.appendChild(row);
