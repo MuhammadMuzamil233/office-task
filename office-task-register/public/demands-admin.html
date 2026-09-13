@@ -597,18 +597,26 @@
 
           if (index === 0) {
             const update = async (status) => {
-              await api("/api/admin/demands/" + demand.id, {
-                method: "PATCH",
-                body: JSON.stringify({ status })
-              });
-              load();
+              try {
+                await api("/api/admin/demands/" + demand.id, {
+                  method: "PATCH",
+                  body: JSON.stringify({ status })
+                });
+                load();
+              } catch (err) {
+                alert("❌ " + (err.message || "Failed to update demand"));
+              }
             };
             row.querySelector(".urgent-btn").onclick = async () => {
-              await api("/api/admin/demands/" + demand.id, {
-                method: "PATCH",
-                body: JSON.stringify({ isUrgent: !demand.is_urgent })
-              });
-              load();
+              try {
+                await api("/api/admin/demands/" + demand.id, {
+                  method: "PATCH",
+                  body: JSON.stringify({ isUrgent: !demand.is_urgent })
+                });
+                load();
+              } catch (err) {
+                alert("❌ " + (err.message || "Failed to update urgent status"));
+              }
             };
             row.querySelector(".approve").onclick = () => update("approved");
             row.querySelector(".reject").onclick = () => update("rejected");
@@ -622,11 +630,15 @@
             completeItem.textContent = "Complete item";
             row.querySelector("td:last-child").appendChild(completeItem);
             completeItem.onclick = async () => {
-              await api("/api/admin/demands/" + demand.id, {
-                method: "PATCH",
-                body: JSON.stringify({ completeItemIndex: item.index })
-              });
-              load();
+              try {
+                await api("/api/admin/demands/" + demand.id, {
+                  method: "PATCH",
+                  body: JSON.stringify({ completeItemIndex: item.index })
+                });
+                load();
+              } catch (err) {
+                alert("❌ " + (err.message || "Failed to complete item"));
+              }
             };
           }
 

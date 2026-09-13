@@ -519,9 +519,9 @@ async function syncInventoryFromServer(){
           qty: Number(item.quantity !== undefined && item.quantity !== null ? item.quantity : (item.qty !== undefined ? item.qty : 0)) || 0
         }));
         localStorage.setItem(KEY, JSON.stringify(rows));
-      } else if (rows && rows.length) {
-        // Seed MongoDB from local inventory so server always has the latest data
-        await InventoryAPI.saveInventory(rows);
+      } else {
+        rows = [];
+        localStorage.setItem(KEY, '[]');
       }
     }
   } catch (e) {
@@ -537,9 +537,12 @@ async function initInventory(){
 }
 
 window.addEventListener("DOMContentLoaded", initInventory);
-window.addEventListener("focus", () => { syncInventoryFromServer(); });
-document.addEventListener("visibilitychange", () => { if (!document.hidden) syncInventoryFromServer(); });
-setInterval(() => { if (!document.hidden) syncInventoryFromServer(); }, 8000);
+window.addEventListener("focus", () => {
+  const activeTag = document.activeElement ? document.activeElement.tagName : '';
+  if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA') {
+    syncInventoryFromServer();
+  }
+});
 
 function normalize(value){return String(value??'').trim().toLocaleLowerCase()}
 function hasDuplicateModel(index, candidate){
@@ -2212,7 +2215,19 @@ function exportCSV(filtered=false){
  a.href=URL.createObjectURL(blob);a.download=filtered?'inventory-filtered.csv':'inventory.csv';a.click();URL.revokeObjectURL(a.href);
 }
 
-function clearAll(){if(confirm('Delete all inventory data?')){rows=[];save();toast('Inventory cleared')}}
+async function clearAll(){
+  if(!confirm('Delete all inventory data? This will permanently delete all models and stock from the database.')) return;
+  try {
+    rows = [];
+    localStorage.setItem(KEY, '[]');
+    render();
+    await InventoryAPI.request("/api/inventory/clear-all", { method: "DELETE" });
+    toast('Inventory cleared completely from database');
+  } catch (e) {
+    console.error("Clear inventory error:", e);
+    toast('Clear error: ' + (e.message || e));
+  }
+}
 function toast(t){const x=document.getElementById('toast');x.textContent=t;x.classList.add('show');setTimeout(()=>x.classList.remove('show'),2800)}
 
 // Global Paste Event Listener (Support text AND direct screenshot image paste via Ctrl+V!)

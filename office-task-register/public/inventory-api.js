@@ -46,21 +46,9 @@ const InventoryAPI = {
       let rows = Array.isArray(res.rows) ? res.rows : [];
       let extraFields = Array.isArray(res.extraFields) ? res.extraFields : [];
 
-      // One-time auto-migration: If MongoDB is empty, check localStorage
+      // If MongoDB has rows, update cache; if empty, cache is also empty
       if (rows.length === 0) {
-        try {
-          const localRaw = localStorage.getItem('office_inventory_v1');
-          if (localRaw) {
-            const localRows = JSON.parse(localRaw);
-            if (Array.isArray(localRows) && localRows.length > 0) {
-              console.log("Migrating", localRows.length, "rows from localStorage to MongoDB...");
-              await this.saveInventory(localRows);
-              rows = localRows;
-            }
-          }
-        } catch (mErr) {
-          console.warn("Migration warning:", mErr);
-        }
+        localStorage.setItem('office_inventory_v1', '[]');
       }
 
       // Check extra fields migration

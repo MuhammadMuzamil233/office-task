@@ -691,107 +691,98 @@ function escapeRegex(text) {
   return String(text || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-async function autoStockInInventoryItem(item, actorName) {
-  try {
-    if (!item) return;
-    const addQty = Number.isInteger(item.pickedQuantity) && item.pickedQuantity > 0 ? item.pickedQuantity : Number(item.quantity) || 0;
-    if (addQty <= 0) return;
-
-    let invItem = null;
-    if (item.inventoryItemId && mongoose.Types.ObjectId.isValid(item.inventoryItemId)) {
-      invItem = await InventoryItem.findById(item.inventoryItemId);
-    }
-    const cleanModel = String(item.inventoryModel || "").trim();
-    const cleanName = String(item.name || "").trim();
-
-    if (!invItem && cleanModel) {
-      invItem = await InventoryItem.findOne({
-        model: { $regex: new RegExp("^" + escapeRegex(cleanModel) + "$", "i") }
-      });
-    }
-    if (!invItem && cleanName) {
-      // 1. Exact model match
-      invItem = await InventoryItem.findOne({
-        model: { $regex: new RegExp("^" + escapeRegex(cleanName) + "$", "i") }
-      });
-      // 2. Substring model or product match
-      if (!invItem) {
-        invItem = await InventoryItem.findOne({
-          $or: [
-            { model: { $regex: new RegExp(escapeRegex(cleanName), "i") } },
-            { product: { $regex: new RegExp(escapeRegex(cleanName), "i") } }
-          ]
-        });
-      }
-      // 3. Search by individual words (e.g. model code inside product name)
-      if (!invItem) {
-        const words = cleanName.split(/\s+/).filter(w => w.length >= 3);
-        for (const w of words) {
-          invItem = await InventoryItem.findOne({
-            model: { $regex: new RegExp("^" + escapeRegex(w) + "$", "i") }
-          });
-          if (invItem) break;
-        }
-      }
-      // 4. Check if any existing inventory model is contained inside cleanName
-      if (!invItem) {
-        const allItems = await InventoryItem.find({ model: { $ne: "" } });
-        for (const it of allItems) {
-          const m = String(it.model || "").trim().toLowerCase();
-          if (m && m.length >= 3 && cleanName.toLowerCase().includes(m)) {
-            invItem = it;
-            break;
-          }
-        }
-      }
-    }
-
-    if (invItem) {
-      invItem.quantity = (Number(invItem.quantity) || 0) + addQty;
-      if (item.warehouse) {
-        if (!invItem.extra) invItem.extra = {};
-        invItem.extra.warehouseName = item.warehouse;
-      }
-      if (invItem.extra && invItem.extra.qty !== undefined) {
-        delete invItem.extra.qty;
-      }
-      invItem.markModified("extra");
-      await invItem.save();
-      console.log("Auto stock-in updated qty for", invItem.model, "new qty:", invItem.quantity);
-    } else {
-      // Create new inventory item if not found so stock is tracked
-      const finalModel = cleanModel || cleanName || "Standard Item";
-      invItem = await InventoryItem.create({
-        product: cleanName || cleanModel || "Demand Item",
-        brand: "",
-        model: finalModel,
-        quantity: addQty,
-        extra: {
-          warehouseName: item.warehouse || ""
-        }
-      });
-      console.log("Auto stock-in created new inventory item", finalModel, "qty:", addQty);
-    }
-
-    // Always create StockTransaction
-    await StockTransaction.create({
-      type: "in",
-      date: todayStr(),
-      invoiceNo: item.invoiceNumber || "",
-      sourceDestination: item.warehouse || "Completed Demand Auto-Stock",
-      items: [{
-        product: (invItem && invItem.product) || cleanName || "",
-        brand: (invItem && invItem.brand) || "",
-        model: (invItem && invItem.model) || cleanModel || cleanName || "",
-        quantity: addQty,
-        remarks: "Auto stock-in from completed demand (" + (actorName || "Admin") + ")"
-      }],
-      createdBy: actorName || "Admin"
-    });
-    console.log("Auto stock-in transaction created with warehouse:", item.warehouse || "Completed Demand Auto-Stock", "qty:", addQty);
-  } catch (err) {
-    console.error("Auto stock-in error:", err);
+async function findMatchingInventoryItem(item) {
+  if (!item) return null;
+  let invItem = null;
+  if (item.inventoryItemId && mongoose.Types.ObjectId.isValid(item.inventoryItemId)) {
+    invItem = await InventoryItem.findById(item.inventoryItemId);
   }
+  const cleanModel = String(item.inventoryModel || "").trim();
+  const cleanName = String(item.name || "").trim();
+
+  if (!invItem && cleanModel) {
+    invItem = await InventoryItem.findOne({
+      model: { $regex: new RegExp("^" + escapeRegex(cleanModel) + "$", "i") }
+    });
+  }
+  if (!invItem && cleanName) {
+    // 1. Exact model match
+    invItem = await InventoryItem.findOne({
+      model: { $regex: new RegExp("^" + escapeRegex(cleanName) + "$", "i") }
+    });
+    // 2. Substring model or product match
+    if (!invItem) {
+      invItem = await InventoryItem.findOne({
+        $or: [
+          { model: { $regex: new RegExp(escapeRegex(cleanName), "i") } },
+          { product: { $regex: new RegExp(escapeRegex(cleanName), "i") } }
+        ]
+      });
+    }
+    // 3. Search by individual words
+    if (!invItem) {
+      const words = cleanName.split(/\s+/).filter(w => w.length >= 3);
+      for (const w of words) {
+        invItem = await InventoryItem.findOne({
+          model: { $regex: new RegExp("^" + escapeRegex(w) + "$", "i") }
+        });
+        if (invItem) break;
+      }
+    }
+    // 4. Check if any existing inventory model is contained inside cleanName
+    if (!invItem) {
+      const allItems = await InventoryItem.find({ model: { $ne: "" } });
+      for (const it of allItems) {
+        const m = String(it.model || "").trim().toLowerCase();
+        if (m && m.length >= 3 && cleanName.toLowerCase().includes(m)) {
+          invItem = it;
+          break;
+        }
+      }
+    }
+  }
+  return invItem;
+}
+
+async function autoStockInInventoryItem(item, actorName) {
+  if (!item) return;
+  const addQty = Number.isInteger(item.pickedQuantity) && item.pickedQuantity > 0 ? item.pickedQuantity : Number(item.quantity) || 0;
+  if (addQty <= 0) return;
+
+  const invItem = await findMatchingInventoryItem(item);
+  if (!invItem) {
+    const modelName = item.inventoryModel || item.name || "Item";
+    throw new Error("Model '" + modelName + "' inventory mein mojood nahi hai! Pehle inventory mein model add karein.");
+  }
+
+  invItem.quantity = (Number(invItem.quantity) || 0) + addQty;
+  if (item.warehouse) {
+    if (!invItem.extra) invItem.extra = {};
+    invItem.extra.warehouseName = item.warehouse;
+  }
+  if (invItem.extra && invItem.extra.qty !== undefined) {
+    delete invItem.extra.qty;
+  }
+  invItem.markModified("extra");
+  await invItem.save();
+  console.log("Auto stock-in updated qty for", invItem.model, "new qty:", invItem.quantity);
+
+  // Create StockTransaction
+  await StockTransaction.create({
+    type: "in",
+    date: todayStr(),
+    invoiceNo: item.invoiceNumber || "",
+    sourceDestination: item.warehouse || "Completed Demand Auto-Stock",
+    items: [{
+      product: invItem.product || item.name || "",
+      brand: invItem.brand || "",
+      model: invItem.model || item.inventoryModel || item.name || "",
+      quantity: addQty,
+      remarks: "Auto stock-in from completed demand (" + (actorName || "Admin") + ")"
+    }],
+    createdBy: actorName || "Admin"
+  });
+  console.log("Auto stock-in transaction created with warehouse:", item.warehouse || "Completed Demand Auto-Stock", "qty:", addQty);
 }
 
 app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req, res) => {
@@ -802,6 +793,15 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
       if (!demand || !Array.isArray(demand.products)) return res.status(404).json({ error: "Demand item not found" });
       if (completeItemIndex < 0 || completeItemIndex >= demand.products.length) return res.status(400).json({ error: "Invalid demand item" });
       const completedItem = demand.products[completeItemIndex];
+
+      // Check if model exists in inventory BEFORE completing
+      const match = await findMatchingInventoryItem(completedItem);
+      if (!match) {
+        return res.status(400).json({
+          error: "Model '" + (completedItem.inventoryModel || completedItem.name) + "' inventory mein mojood nahi hai! Pehle inventory mein model add karein."
+        });
+      }
+
       await DemandHistory.create({
         originalDemandId: demand._id,
         employeeId: demand.employeeId,
@@ -829,6 +829,25 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
     if (status === "completed") {
       const demand = await Demand.findById(req.params.id);
       if (!demand) return res.status(404).json({ error: "Demand not found" });
+
+      const prods = Array.isArray(demand.products) && demand.products.length
+        ? demand.products
+        : [{ name: demand.products, quantity: demand.quantity, warehouse: "FC Faizabad WH" }];
+
+      // Validate ALL models exist in inventory BEFORE completing
+      const missing = [];
+      for (const p of prods) {
+        if (p) {
+          const m = await findMatchingInventoryItem(p);
+          if (!m) missing.push(p.inventoryModel || p.name || "Item");
+        }
+      }
+      if (missing.length > 0) {
+        return res.status(400).json({
+          error: "Yeh model(s) inventory mein mojood nahi hain: " + missing.join(", ") + "! Pehle inventory mein model add karein."
+        });
+      }
+
       await DemandHistory.create({
         originalDemandId: demand._id,
         employeeId: demand.employeeId,
@@ -843,11 +862,9 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         submittedAt: demand.submittedAt,
         completedAt: new Date()
       });
-      if (Array.isArray(demand.products)) {
-        for (const p of demand.products) {
-          if (p) {
-            await autoStockInInventoryItem(p, req.user.name);
-          }
+      for (const p of prods) {
+        if (p) {
+          await autoStockInInventoryItem(p, req.user.name);
         }
       }
       await Demand.deleteOne({ _id: demand._id });
