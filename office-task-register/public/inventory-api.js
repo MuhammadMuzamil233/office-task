@@ -198,6 +198,11 @@ const InventoryAPI = {
   },
 
   injectNavbar(activeTab) {
+    const existing = document.querySelectorAll(".office-global-nav");
+    if (existing.length > 0) {
+      for (let i = 1; i < existing.length; i++) existing[i].remove();
+      return;
+    }
     const nav = document.createElement("nav");
     nav.className = "office-global-nav";
     nav.innerHTML = `

@@ -509,9 +509,7 @@ function demandRowFromInventory(i) {
   window.open('/demands.html?' + params.toString(), '_blank');
 }
 
-async function initInventory(){
-  InventoryAPI.injectNavbar('inventory');
-  await InventoryAPI.checkAdmin();
+async function syncInventoryFromServer(){
   try {
     const data = await InventoryAPI.loadInventory();
     if (data && Array.isArray(data.rows)) {
@@ -527,14 +525,21 @@ async function initInventory(){
       }
     }
   } catch (e) {
-    console.error("Failed to load inventory from server:", e);
+    console.error("Failed to sync inventory from server:", e);
   }
   render();
 }
+
+async function initInventory(){
+  InventoryAPI.injectNavbar('inventory');
+  await InventoryAPI.checkAdmin();
+  await syncInventoryFromServer();
+}
+
 window.addEventListener("DOMContentLoaded", initInventory);
-window.addEventListener("focus", () => { initInventory(); });
-document.addEventListener("visibilitychange", () => { if (!document.hidden) initInventory(); });
-setInterval(() => { if (!document.hidden) initInventory(); }, 8000);
+window.addEventListener("focus", () => { syncInventoryFromServer(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) syncInventoryFromServer(); });
+setInterval(() => { if (!document.hidden) syncInventoryFromServer(); }, 8000);
 
 function normalize(value){return String(value??'').trim().toLocaleLowerCase()}
 function hasDuplicateModel(index, candidate){
