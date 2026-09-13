@@ -298,6 +298,46 @@ app.get("/api/me", authMiddleware, (req, res) => {
   res.json({ id: req.user.id, username: req.user.username, name: req.user.name, role: req.user.role || "user" });
 });
 
+// Admin can reset any user's password
+app.post("/api/admin/reset-password", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { username, newPassword } = req.body;
+    if (!username || !newPassword || newPassword.length < 4) {
+      return res.status(400).json({ error: "Username and new password (min 4 chars) are required" });
+    }
+    const user = await User.findOne({ username: username.toLowerCase().trim() });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    await user.save();
+    res.json({ ok: true, message: `Password reset for ${user.username}` });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not reset password" });
+  }
+});
+
+// Emergency: Reset admin password using master key (no login needed)
+// POST /api/master-reset  { masterKey: ADMIN_USERNAME, newPassword: "..." }
+app.post("/api/master-reset", async (req, res) => {
+  try {
+    const { masterKey, newPassword } = req.body;
+    if (!masterKey || !newPassword || newPassword.length < 4) {
+      return res.status(400).json({ error: "Master key and new password (min 4 chars) are required" });
+    }
+    if (masterKey.toLowerCase().trim() !== ADMIN_USERNAME) {
+      return res.status(403).json({ error: "Invalid master key" });
+    }
+    const admin = await User.findOne({ username: ADMIN_USERNAME });
+    if (!admin) return res.status(404).json({ error: "Admin account not found" });
+    admin.passwordHash = await bcrypt.hash(newPassword, 10);
+    await admin.save();
+    res.json({ ok: true, message: "Admin password has been reset. You can now log in." });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not reset password" });
+  }
+});
+
 app.get("/api/users", authMiddleware, async (req, res) => {
   try {
     const users = await User.find({ _id: { $ne: req.user.id } }).select("username name").sort({ name: 1 });
