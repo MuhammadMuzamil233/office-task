@@ -230,8 +230,7 @@ function clearHistory() {
 }
 
 InventoryAPI.injectNavbar('transactions');
-window.addEventListener("DOMContentLoaded", async () => {
-  await InventoryAPI.checkAdmin();
+async function loadTransactionsData() {
   try {
     const txs = await InventoryAPI.getTransactions();
     if (Array.isArray(txs) && txs.length) {
@@ -268,9 +267,15 @@ window.addEventListener("DOMContentLoaded", async () => {
     console.error("Failed to load server transactions:", e);
   }
   render();
-});
+}
 
-render();
+window.addEventListener("DOMContentLoaded", async () => {
+  await InventoryAPI.checkAdmin();
+  await loadTransactionsData();
+});
+window.addEventListener("focus", () => { loadTransactionsData(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) loadTransactionsData(); });
+setInterval(() => { if (!document.hidden) loadTransactionsData(); }, 8000);
 </script>
 </body>
 </html>

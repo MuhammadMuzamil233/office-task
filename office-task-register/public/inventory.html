@@ -518,7 +518,7 @@ async function initInventory(){
       if (data.rows.length) {
         rows = data.rows.map(item => ({
           ...item,
-          qty: item.qty !== undefined ? item.qty : (item.quantity !== undefined ? item.quantity : 0)
+          qty: Number(item.quantity !== undefined && item.quantity !== null ? item.quantity : (item.qty !== undefined ? item.qty : 0)) || 0
         }));
         localStorage.setItem(KEY, JSON.stringify(rows));
       } else if (rows && rows.length) {
@@ -532,6 +532,9 @@ async function initInventory(){
   render();
 }
 window.addEventListener("DOMContentLoaded", initInventory);
+window.addEventListener("focus", () => { initInventory(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) initInventory(); });
+setInterval(() => { if (!document.hidden) initInventory(); }, 8000);
 
 function normalize(value){return String(value??'').trim().toLocaleLowerCase()}
 function hasDuplicateModel(index, candidate){

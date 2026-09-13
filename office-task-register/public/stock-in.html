@@ -140,8 +140,7 @@ const MAIN_INVENTORY_KEY = 'office_inventory_v1';
 let stockInList = JSON.parse(localStorage.getItem(STOCK_IN_KEY) || '[]');
 
 InventoryAPI.injectNavbar('stock-in');
-window.addEventListener("DOMContentLoaded", async () => {
-  await InventoryAPI.checkAdmin();
+async function loadStockInData() {
   try {
     const inv = await InventoryAPI.loadInventory();
     if (inv.rows && inv.rows.length) {
@@ -183,7 +182,15 @@ window.addEventListener("DOMContentLoaded", async () => {
     console.error("Failed to load stock in transactions:", e);
   }
   render();
+}
+
+window.addEventListener("DOMContentLoaded", async () => {
+  await InventoryAPI.checkAdmin();
+  await loadStockInData();
 });
+window.addEventListener("focus", () => { loadStockInData(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) loadStockInData(); });
+setInterval(() => { if (!document.hidden) loadStockInData(); }, 8000);
 
 let rowCounter = 0;
 

@@ -723,6 +723,27 @@ async function autoStockInInventoryItem(item, actorName) {
           ]
         });
       }
+      // 3. Search by individual words (e.g. model code inside product name)
+      if (!invItem) {
+        const words = cleanName.split(/\s+/).filter(w => w.length >= 3);
+        for (const w of words) {
+          invItem = await InventoryItem.findOne({
+            model: { $regex: new RegExp("^" + escapeRegex(w) + "$", "i") }
+          });
+          if (invItem) break;
+        }
+      }
+      // 4. Check if any existing inventory model is contained inside cleanName
+      if (!invItem) {
+        const allItems = await InventoryItem.find({ model: { $ne: "" } });
+        for (const it of allItems) {
+          const m = String(it.model || "").trim().toLowerCase();
+          if (m && m.length >= 3 && cleanName.toLowerCase().includes(m)) {
+            invItem = it;
+            break;
+          }
+        }
+      }
     }
 
     if (invItem) {
@@ -730,8 +751,11 @@ async function autoStockInInventoryItem(item, actorName) {
       if (item.warehouse) {
         if (!invItem.extra) invItem.extra = {};
         invItem.extra.warehouseName = item.warehouse;
-        invItem.markModified("extra");
       }
+      if (invItem.extra && invItem.extra.qty !== undefined) {
+        delete invItem.extra.qty;
+      }
+      invItem.markModified("extra");
       await invItem.save();
       console.log("Auto stock-in updated qty for", invItem.model, "new qty:", invItem.quantity);
     } else {
@@ -1044,13 +1068,23 @@ app.delete("/api/tasks/:id", authMiddleware, adminMiddleware, async (req, res) =
 
 // ---------- Inventory routes ----------
 function inventoryItemToJson(item) {
+  const extra = { ...(item.extra || {}) };
+  delete extra.qty;
+  delete extra.quantity;
+  delete extra.product;
+  delete extra.brand;
+  delete extra.model;
+  delete extra._id;
+  delete extra.id;
+  const q = Number(item.quantity !== undefined && item.quantity !== null ? item.quantity : (item.extra && item.extra.qty)) || 0;
   return {
     id: item._id.toString(),
     product: item.product || "",
     brand: item.brand || "",
     model: item.model || "",
-    quantity: Number(item.quantity) || 0,
-    ...(item.extra || {})
+    quantity: q,
+    qty: q,
+    ...extra
   };
 }
 
@@ -1095,6 +1129,9 @@ app.get("/api/inventory", authMiddleware, async (req, res) => {
     });
 
     const rows = items.map(it => {
+      if ((!it.quantity || it.quantity === 0) && it.extra && Number(it.extra.qty) > 0) {
+        it.quantity = Number(it.extra.qty);
+      }
       const json = inventoryItemToJson(it);
       const mKey = String(json.model || "").trim().toLowerCase();
       json.onTheWayQty = onTheWayMapById[json.id] || onTheWayMapByModel[mKey] || 0;
