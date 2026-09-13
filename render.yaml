@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: office-task
+    runtime: node
+    rootDir: office-task-register
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production
