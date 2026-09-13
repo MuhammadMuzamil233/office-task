@@ -221,19 +221,25 @@ function exportTransactionCSV() {
   toast('✓ History exported to CSV');
 }
 
-function clearHistory() {
+async function clearHistory() {
   if (!confirm('Delete ALL transaction history? This cannot be undone.')) return;
-  localStorage.setItem(STOCK_IN_KEY, '[]');
-  localStorage.setItem(STOCK_OUT_KEY, '[]');
-  render();
-  toast('All transaction history cleared');
+  try {
+    await InventoryAPI.clearTransactions();
+    localStorage.setItem(STOCK_IN_KEY, '[]');
+    localStorage.setItem(STOCK_OUT_KEY, '[]');
+    render();
+    toast('✓ All transaction history cleared');
+  } catch (err) {
+    console.error("Clear transactions error:", err);
+    toast('❌ Error clearing history: ' + (err.message || 'Server error'));
+  }
 }
 
 InventoryAPI.injectNavbar('transactions');
 async function loadTransactionsData() {
   try {
     const txs = await InventoryAPI.getTransactions();
-    if (Array.isArray(txs) && txs.length) {
+    if (Array.isArray(txs)) {
       const inList = [];
       const outList = [];
       txs.forEach(tx => {
@@ -260,8 +266,8 @@ async function loadTransactionsData() {
           });
         }
       });
-      if (inList.length) localStorage.setItem(STOCK_IN_KEY, JSON.stringify(inList));
-      if (outList.length) localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(outList));
+      localStorage.setItem(STOCK_IN_KEY, JSON.stringify(inList));
+      localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(outList));
     }
   } catch (e) {
     console.error("Failed to load server transactions:", e);

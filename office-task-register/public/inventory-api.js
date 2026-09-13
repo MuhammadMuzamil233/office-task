@@ -178,6 +178,20 @@ const InventoryAPI = {
     });
   },
 
+  async deleteTransaction(txId, itemIndex) {
+    const q = itemIndex !== undefined ? '?itemIndex=' + encodeURIComponent(itemIndex) : '';
+    return await this.request('/api/inventory/transactions/' + encodeURIComponent(txId) + q, {
+      method: 'DELETE'
+    });
+  },
+
+  async clearTransactions(type) {
+    const q = type ? '?type=' + encodeURIComponent(type) : '';
+    return await this.request('/api/inventory/transactions' + q, {
+      method: 'DELETE'
+    });
+  },
+
   async createDemandFromInventory(demandData) {
     return await this.request("/api/demands", {
       method: "POST",

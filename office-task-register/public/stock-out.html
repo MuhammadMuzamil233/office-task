@@ -140,8 +140,8 @@ const MAIN_INVENTORY_KEY = 'office_inventory_v1';
 let stockOutList = JSON.parse(localStorage.getItem(STOCK_OUT_KEY) || '[]');
 
 InventoryAPI.injectNavbar('stock-out');
-window.addEventListener("DOMContentLoaded", async () => {
-  await InventoryAPI.checkAdmin();
+
+async function loadStockOutData() {
   try {
     const inv = await InventoryAPI.loadInventory();
     if (inv.rows && inv.rows.length) {
@@ -153,7 +153,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
   try {
     const txs = await InventoryAPI.getTransactions('out');
-    if (Array.isArray(txs) && txs.length) {
+    if (Array.isArray(txs)) {
       const flatList = [];
       txs.forEach(tx => {
         const invNo = tx.invoiceNo || tx.sourceDestination || '-';
@@ -163,6 +163,7 @@ window.addEventListener("DOMContentLoaded", async () => {
             flatList.push({
               id: tx.id ? String(tx.id) + '_' + idx : String(Date.now() + idx),
               txId: tx.id,
+              itemIndex: idx,
               date: dStr,
               invoice: invNo,
               product: it.product || it.name || '-',
@@ -173,16 +174,22 @@ window.addEventListener("DOMContentLoaded", async () => {
           });
         }
       });
-      if (flatList.length) {
-        stockOutList = flatList;
-        localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(flatList));
-      }
+      stockOutList = flatList;
+      localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(flatList));
     }
   } catch (e) {
     console.error("Failed to load stock out transactions:", e);
   }
   render();
+}
+
+window.addEventListener("DOMContentLoaded", async () => {
+  await InventoryAPI.checkAdmin();
+  await loadStockOutData();
 });
+window.addEventListener("focus", () => { loadStockOutData(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) loadStockOutData(); });
+setInterval(() => { if (!document.hidden) loadStockOutData(); }, 8000);
 
 let rowCounter = 0;
 
@@ -534,8 +541,19 @@ function saveStockOut() {
 
   localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(mainInventory));
   localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(stockOutList));
-  InventoryAPI.saveInventory(mainInventory).catch(()=>{});
-  InventoryAPI.addTransaction({ type: "out", date: record.date, invoiceNo: record.invoiceNo, sourceDestination: record.receiver, items: record.items }).catch(()=>{});
+  InventoryAPI.saveInventory(mainInventory).catch(e => console.error("Save inv err:", e));
+  InventoryAPI.addTransaction({
+    type: "out",
+    date: date,
+    invoiceNo: invoice,
+    sourceDestination: invoice,
+    items: itemsToIssue.map(i => ({
+      product: i.product,
+      brand: i.brand,
+      model: i.model,
+      quantity: i.qty
+    }))
+  }).then(() => loadStockOutData()).catch(e => console.error("Add tx err:", e));
 
   closeAddModal();
   render();
@@ -584,8 +602,12 @@ function render() {
         <td>${escapeHtml(item.brand || '-')}</td>
         <td><span class="model-badge">${escapeHtml(item.model)}</span></td>
         <td><strong>${item.qty}</strong></td>
-        <td class="actions"><button class="secondary" style="color:#b42318;border-color:#fca5a5" onclick="deleteStockOut(${item.id})">Delete</button></td>
+        <td class="actions"><button class="secondary delete-btn" style="color:#b42318;border-color:#fca5a5">Delete</button></td>
       `;
+      const delBtn = tr.querySelector('.delete-btn');
+      if (delBtn) {
+        delBtn.addEventListener('click', () => deleteStockOut(item.id));
+      }
       body.appendChild(tr);
     });
   }
@@ -598,32 +620,59 @@ function render() {
   updateFilterSuggestions();
 }
 
-function deleteStockOut(id) {
+async function deleteStockOut(id) {
   if (!confirm('Delete this stock OUT record? This will restore the stock to Main Inventory.')) return;
-  const entry = stockOutList.find(e => e.id === id);
-  if (!entry) return;
-
-  // Reverse from main inventory
-  const mainInventory = JSON.parse(localStorage.getItem(MAIN_INVENTORY_KEY) || '[]');
-  const idx = mainInventory.findIndex(r => 
-    (r.model || '').trim().toLowerCase() === entry.model.trim().toLowerCase()
-  );
-  if (idx >= 0) {
-    mainInventory[idx].qty = (Number(mainInventory[idx].qty) || 0) + entry.qty;
-  } else {
-    mainInventory.push({
-      product: entry.product,
-      brand: entry.brand,
-      model: entry.model,
-      qty: entry.qty
-    });
+  const entry = stockOutList.find(e => String(e.id) === String(id));
+  if (!entry) {
+    toast('❌ Record not found');
+    return;
   }
-  localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(mainInventory));
 
-  stockOutList = stockOutList.filter(e => e.id !== id);
-  localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(stockOutList));
-  render();
-  toast('Stock OUT record deleted & inventory restored');
+  try {
+    // 1. Delete server transaction if txId exists
+    if (entry.txId) {
+      await InventoryAPI.deleteTransaction(entry.txId, entry.itemIndex);
+    }
+
+    // 2. Restore to main inventory
+    let mainInventory = [];
+    try {
+      const invData = await InventoryAPI.loadInventory();
+      mainInventory = invData.rows || [];
+    } catch(e) {
+      mainInventory = JSON.parse(localStorage.getItem(MAIN_INVENTORY_KEY) || '[]');
+    }
+
+    const idx = mainInventory.findIndex(r => 
+      (r.model || '').trim().toLowerCase() === String(entry.model || '').trim().toLowerCase()
+    );
+    if (idx >= 0) {
+      const currentQty = Number(mainInventory[idx].qty !== undefined ? mainInventory[idx].qty : mainInventory[idx].quantity) || 0;
+      const restoreQty = Number(entry.qty) || 0;
+      const newQty = currentQty + restoreQty;
+      mainInventory[idx].qty = newQty;
+      mainInventory[idx].quantity = newQty;
+    } else {
+      mainInventory.push({
+        product: entry.product,
+        brand: entry.brand,
+        model: entry.model,
+        qty: Number(entry.qty) || 0,
+        quantity: Number(entry.qty) || 0
+      });
+    }
+    localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(mainInventory));
+    await InventoryAPI.saveInventory(mainInventory);
+
+    // 3. Remove from stockOutList
+    stockOutList = stockOutList.filter(e => String(e.id) !== String(id));
+    localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(stockOutList));
+    render();
+    toast('✓ Stock OUT record deleted & inventory restored');
+  } catch (err) {
+    console.error("Delete stock OUT error:", err);
+    toast('❌ Error deleting record: ' + (err.message || 'Server error'));
+  }
 }
 
 function exportStockOutCSV() {
@@ -640,32 +689,52 @@ function exportStockOutCSV() {
   URL.revokeObjectURL(a.href);
 }
 
-function clearAllStockOut() {
+async function clearAllStockOut() {
   if (!confirm('Delete ALL stock OUT records? This will also restore main inventory.')) return;
   
-  // Reverse all from main inventory
-  const mainInventory = JSON.parse(localStorage.getItem(MAIN_INVENTORY_KEY) || '[]');
-  stockOutList.forEach(entry => {
-    const idx = mainInventory.findIndex(r => 
-      (r.model || '').trim().toLowerCase() === entry.model.trim().toLowerCase()
-    );
-    if (idx >= 0) {
-      mainInventory[idx].qty = (Number(mainInventory[idx].qty) || 0) + entry.qty;
-    } else {
-      mainInventory.push({
-        product: entry.product,
-        brand: entry.brand,
-        model: entry.model,
-        qty: entry.qty
-      });
-    }
-  });
-  localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(mainInventory));
+  try {
+    await InventoryAPI.clearTransactions('out');
 
-  stockOutList = [];
-  localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(stockOutList));
-  render();
-  toast('All stock OUT records cleared');
+    let mainInventory = [];
+    try {
+      const invData = await InventoryAPI.loadInventory();
+      mainInventory = invData.rows || [];
+    } catch(e) {
+      mainInventory = JSON.parse(localStorage.getItem(MAIN_INVENTORY_KEY) || '[]');
+    }
+
+    stockOutList.forEach(entry => {
+      const idx = mainInventory.findIndex(r => 
+        (r.model || '').trim().toLowerCase() === String(entry.model || '').trim().toLowerCase()
+      );
+      if (idx >= 0) {
+        const currentQty = Number(mainInventory[idx].qty !== undefined ? mainInventory[idx].qty : mainInventory[idx].quantity) || 0;
+        const restoreQty = Number(entry.qty) || 0;
+        const newQty = currentQty + restoreQty;
+        mainInventory[idx].qty = newQty;
+        mainInventory[idx].quantity = newQty;
+      } else {
+        mainInventory.push({
+          product: entry.product,
+          brand: entry.brand,
+          model: entry.model,
+          qty: Number(entry.qty) || 0,
+          quantity: Number(entry.qty) || 0
+        });
+      }
+    });
+
+    localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(mainInventory));
+    await InventoryAPI.saveInventory(mainInventory);
+
+    stockOutList = [];
+    localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(stockOutList));
+    render();
+    toast('✓ All stock OUT records cleared & inventory restored');
+  } catch (err) {
+    console.error("Clear all stock out error:", err);
+    toast('❌ Error clearing records: ' + (err.message || 'Server error'));
+  }
 }
 
 // Initialize on page load

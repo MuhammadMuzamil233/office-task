@@ -1510,11 +1510,42 @@ app.post("/api/inventory/transactions", authMiddleware, adminMiddleware, async (
 // DELETE /api/inventory/transactions/:id
 app.delete("/api/inventory/transactions/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    await StockTransaction.findByIdAndDelete(req.params.id);
+    const { itemIndex } = req.query;
+    if (itemIndex !== undefined && itemIndex !== "") {
+      const idx = parseInt(itemIndex, 10);
+      const tx = await StockTransaction.findById(req.params.id);
+      if (tx) {
+        if (Array.isArray(tx.items) && !isNaN(idx) && idx >= 0 && idx < tx.items.length) {
+          tx.items.splice(idx, 1);
+          if (tx.items.length === 0) {
+            await StockTransaction.findByIdAndDelete(req.params.id);
+          } else {
+            await tx.save();
+          }
+        } else {
+          await StockTransaction.findByIdAndDelete(req.params.id);
+        }
+      }
+    } else {
+      await StockTransaction.findByIdAndDelete(req.params.id);
+    }
     res.json({ ok: true });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not delete transaction" });
+  }
+});
+
+// DELETE /api/inventory/transactions - clear transactions
+app.delete("/api/inventory/transactions", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { type } = req.query;
+    const filter = type ? { type } : {};
+    await StockTransaction.deleteMany(filter);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not clear transactions" });
   }
 });
 

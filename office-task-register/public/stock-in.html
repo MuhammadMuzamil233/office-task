@@ -152,7 +152,7 @@ async function loadStockInData() {
   }
   try {
     const txs = await InventoryAPI.getTransactions('in');
-    if (Array.isArray(txs) && txs.length) {
+    if (Array.isArray(txs)) {
       const flatList = [];
       txs.forEach(tx => {
         const wName = tx.sourceDestination || tx.warehouse || '-';
@@ -162,6 +162,7 @@ async function loadStockInData() {
             flatList.push({
               id: tx.id ? String(tx.id) + '_' + idx : String(Date.now() + idx),
               txId: tx.id,
+              itemIndex: idx,
               date: dStr,
               warehouse: wName,
               invoiceNo: tx.invoiceNo || '',
@@ -173,10 +174,8 @@ async function loadStockInData() {
           });
         }
       });
-      if (flatList.length) {
-        stockInList = flatList;
-        localStorage.setItem(STOCK_IN_KEY, JSON.stringify(flatList));
-      }
+      stockInList = flatList;
+      localStorage.setItem(STOCK_IN_KEY, JSON.stringify(flatList));
     }
   } catch (e) {
     console.error("Failed to load stock in transactions:", e);
@@ -501,8 +500,19 @@ function saveStockIn() {
 
   localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(mainInventory));
   localStorage.setItem(STOCK_IN_KEY, JSON.stringify(stockInList));
-  InventoryAPI.saveInventory(mainInventory).catch(()=>{});
-  InventoryAPI.addTransaction({ type: "in", date: record.date, invoiceNo: record.invoiceNo, sourceDestination: record.vendor, items: record.items }).catch(()=>{});
+  InventoryAPI.saveInventory(mainInventory).catch(e => console.error("Save inv err:", e));
+  InventoryAPI.addTransaction({
+    type: "in",
+    date: date,
+    invoiceNo: "",
+    sourceDestination: warehouse,
+    items: itemsToReceive.map(i => ({
+      product: i.product,
+      brand: i.brand,
+      model: i.model,
+      quantity: i.qty
+    }))
+  }).then(() => loadStockInData()).catch(e => console.error("Add tx err:", e));
 
   closeAddModal();
   render();
@@ -551,8 +561,12 @@ function render() {
         <td>${escapeHtml(item.brand || '-')}</td>
         <td><span class="model-badge">${escapeHtml(item.model)}</span></td>
         <td><strong>${item.qty}</strong></td>
-        <td class="actions"><button class="danger" onclick="deleteStockIn(${item.id})">Delete</button></td>
+        <td class="actions"><button class="danger delete-btn">Delete</button></td>
       `;
+      const delBtn = tr.querySelector('.delete-btn');
+      if (delBtn) {
+        delBtn.addEventListener('click', () => deleteStockIn(item.id));
+      }
       body.appendChild(tr);
     });
   }
@@ -565,25 +579,51 @@ function render() {
   updateFilterSuggestions();
 }
 
-function deleteStockIn(id) {
+async function deleteStockIn(id) {
   if (!confirm('Delete this stock IN record? This will deduct the stock from Main Inventory.')) return;
-  const entry = stockInList.find(e => e.id === id);
-  if (!entry) return;
-
-  // Reverse from main inventory
-  const mainInventory = JSON.parse(localStorage.getItem(MAIN_INVENTORY_KEY) || '[]');
-  const idx = mainInventory.findIndex(r => 
-    (r.model || '').trim().toLowerCase() === entry.model.trim().toLowerCase()
-  );
-  if (idx >= 0) {
-    mainInventory[idx].qty = Math.max(0, (Number(mainInventory[idx].qty) || 0) - entry.qty);
+  const entry = stockInList.find(e => String(e.id) === String(id));
+  if (!entry) {
+    toast('❌ Record not found');
+    return;
   }
-  localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(mainInventory));
 
-  stockInList = stockInList.filter(e => e.id !== id);
-  localStorage.setItem(STOCK_IN_KEY, JSON.stringify(stockInList));
-  render();
-  toast('Stock IN record deleted & inventory adjusted');
+  try {
+    // 1. Delete server transaction if txId exists
+    if (entry.txId) {
+      await InventoryAPI.deleteTransaction(entry.txId, entry.itemIndex);
+    }
+
+    // 2. Reverse from main inventory
+    let mainInventory = [];
+    try {
+      const invData = await InventoryAPI.loadInventory();
+      mainInventory = invData.rows || [];
+    } catch(e) {
+      mainInventory = JSON.parse(localStorage.getItem(MAIN_INVENTORY_KEY) || '[]');
+    }
+
+    const idx = mainInventory.findIndex(r => 
+      (r.model || '').trim().toLowerCase() === String(entry.model || '').trim().toLowerCase()
+    );
+    if (idx >= 0) {
+      const currentQty = Number(mainInventory[idx].qty !== undefined ? mainInventory[idx].qty : mainInventory[idx].quantity) || 0;
+      const deductQty = Number(entry.qty) || 0;
+      const newQty = Math.max(0, currentQty - deductQty);
+      mainInventory[idx].qty = newQty;
+      mainInventory[idx].quantity = newQty;
+      localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(mainInventory));
+      await InventoryAPI.saveInventory(mainInventory);
+    }
+
+    // 3. Remove from stockInList
+    stockInList = stockInList.filter(e => String(e.id) !== String(id));
+    localStorage.setItem(STOCK_IN_KEY, JSON.stringify(stockInList));
+    render();
+    toast('✓ Stock IN record deleted & inventory adjusted');
+  } catch (err) {
+    console.error("Delete stock IN error:", err);
+    toast('❌ Error deleting record: ' + (err.message || 'Server error'));
+  }
 }
 
 function exportStockInCSV() {
@@ -600,25 +640,44 @@ function exportStockInCSV() {
   URL.revokeObjectURL(a.href);
 }
 
-function clearAllStockIn() {
+async function clearAllStockIn() {
   if (!confirm('Delete ALL stock IN records? This will also adjust main inventory.')) return;
   
-  // Reverse all from main inventory
-  const mainInventory = JSON.parse(localStorage.getItem(MAIN_INVENTORY_KEY) || '[]');
-  stockInList.forEach(entry => {
-    const idx = mainInventory.findIndex(r => 
-      (r.model || '').trim().toLowerCase() === entry.model.trim().toLowerCase()
-    );
-    if (idx >= 0) {
-      mainInventory[idx].qty = Math.max(0, (Number(mainInventory[idx].qty) || 0) - entry.qty);
-    }
-  });
-  localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(mainInventory));
+  try {
+    await InventoryAPI.clearTransactions('in');
 
-  stockInList = [];
-  localStorage.setItem(STOCK_IN_KEY, JSON.stringify(stockInList));
-  render();
-  toast('All stock IN records cleared');
+    let mainInventory = [];
+    try {
+      const invData = await InventoryAPI.loadInventory();
+      mainInventory = invData.rows || [];
+    } catch(e) {
+      mainInventory = JSON.parse(localStorage.getItem(MAIN_INVENTORY_KEY) || '[]');
+    }
+
+    stockInList.forEach(entry => {
+      const idx = mainInventory.findIndex(r => 
+        (r.model || '').trim().toLowerCase() === String(entry.model || '').trim().toLowerCase()
+      );
+      if (idx >= 0) {
+        const currentQty = Number(mainInventory[idx].qty !== undefined ? mainInventory[idx].qty : mainInventory[idx].quantity) || 0;
+        const deductQty = Number(entry.qty) || 0;
+        const newQty = Math.max(0, currentQty - deductQty);
+        mainInventory[idx].qty = newQty;
+        mainInventory[idx].quantity = newQty;
+      }
+    });
+
+    localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(mainInventory));
+    await InventoryAPI.saveInventory(mainInventory);
+
+    stockInList = [];
+    localStorage.setItem(STOCK_IN_KEY, JSON.stringify(stockInList));
+    render();
+    toast('✓ All stock IN records cleared & inventory adjusted');
+  } catch (err) {
+    console.error("Clear all stock in error:", err);
+    toast('❌ Error clearing records: ' + (err.message || 'Server error'));
+  }
 }
 
 // Initialize on page load
