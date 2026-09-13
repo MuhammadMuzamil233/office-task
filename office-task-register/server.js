@@ -615,6 +615,29 @@ app.get("/api/admin/demands/history", authMiddleware, adminMiddleware, async (re
   }
 });
 
+// DELETE /api/admin/demands/history/:id - Delete single history entry
+app.delete("/api/admin/demands/history/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const deleted = await DemandHistory.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ error: "Demand history item not found" });
+    res.json({ ok: true, id: req.params.id });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not delete demand history item" });
+  }
+});
+
+// DELETE /api/admin/demands/history - Clear all demand history
+app.delete("/api/admin/demands/history", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await DemandHistory.deleteMany({});
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not clear demand history" });
+  }
+});
+
 app.post("/api/demands", authMiddleware, async (req, res) => {
   try {
     const { date, products, isUrgent } = req.body || {};
@@ -1175,11 +1198,20 @@ app.post("/api/inventory/save-all", authMiddleware, adminMiddleware, async (req,
     await InventoryItem.deleteMany({});
     const docs = rows.map(r => {
       const { id, _id, product, brand, model, quantity, qty, ...extra } = r;
+      // Prioritize qty (from manual frontend adjustment), fallback to quantity
+      const finalQty = Number(qty !== undefined && qty !== null && qty !== "" ? qty : (quantity !== undefined && quantity !== null && quantity !== "" ? quantity : 0)) || 0;
+      delete extra.qty;
+      delete extra.quantity;
+      delete extra.product;
+      delete extra.brand;
+      delete extra.model;
+      delete extra._id;
+      delete extra.id;
       return {
         product: String(product || "").trim(),
         brand: String(brand || "").trim(),
         model: String(model || "").trim(),
-        quantity: Number(quantity !== undefined ? quantity : (qty !== undefined ? qty : 0)) || 0,
+        quantity: finalQty,
         extra
       };
     });
@@ -1194,12 +1226,20 @@ app.post("/api/inventory/save-all", authMiddleware, adminMiddleware, async (req,
 // POST /api/inventory/item - Add single row
 app.post("/api/inventory/item", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { product, brand, model, quantity, ...extra } = req.body || {};
+    const { product, brand, model, quantity, qty, ...extra } = req.body || {};
+    const finalQty = Number(qty !== undefined && qty !== null && qty !== "" ? qty : (quantity !== undefined && quantity !== null && quantity !== "" ? quantity : 0)) || 0;
+    delete extra.qty;
+    delete extra.quantity;
+    delete extra.product;
+    delete extra.brand;
+    delete extra.model;
+    delete extra._id;
+    delete extra.id;
     const item = await InventoryItem.create({
       product: String(product || "").trim(),
       brand: String(brand || "").trim(),
       model: String(model || "").trim(),
-      quantity: Number(quantity) || 0,
+      quantity: finalQty,
       extra
     });
     res.json(inventoryItemToJson(item));
@@ -1212,15 +1252,25 @@ app.post("/api/inventory/item", authMiddleware, adminMiddleware, async (req, res
 // PATCH /api/inventory/item/:id - Update single item
 app.patch("/api/inventory/item/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { product, brand, model, quantity, ...extra } = req.body || {};
+    const { product, brand, model, quantity, qty, ...extra } = req.body || {};
     const item = await InventoryItem.findById(req.params.id);
     if (!item) return res.status(404).json({ error: "Item not found" });
 
     if (product !== undefined) item.product = String(product).trim();
     if (brand !== undefined) item.brand = String(brand).trim();
     if (model !== undefined) item.model = String(model).trim();
-    if (quantity !== undefined) item.quantity = Number(quantity) || 0;
+    const qVal = qty !== undefined && qty !== null && qty !== "" ? qty : quantity;
+    if (qVal !== undefined && qVal !== null && qVal !== "") {
+      item.quantity = Number(qVal) || 0;
+    }
     if (Object.keys(extra).length) {
+      delete extra.qty;
+      delete extra.quantity;
+      delete extra.product;
+      delete extra.brand;
+      delete extra.model;
+      delete extra._id;
+      delete extra.id;
       item.extra = { ...(item.extra || {}), ...extra };
       item.markModified("extra");
     }

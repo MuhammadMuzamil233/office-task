@@ -514,10 +514,14 @@ async function syncInventoryFromServer(){
     const data = await InventoryAPI.loadInventory();
     if (data && Array.isArray(data.rows)) {
       if (data.rows.length) {
-        rows = data.rows.map(item => ({
-          ...item,
-          qty: Number(item.quantity !== undefined && item.quantity !== null ? item.quantity : (item.qty !== undefined ? item.qty : 0)) || 0
-        }));
+        rows = data.rows.map(item => {
+          const q = Number(item.qty !== undefined && item.qty !== null && item.qty !== "" ? item.qty : (item.quantity !== undefined && item.quantity !== null && item.quantity !== "" ? item.quantity : 0)) || 0;
+          return {
+            ...item,
+            quantity: q,
+            qty: q
+          };
+        });
         localStorage.setItem(KEY, JSON.stringify(rows));
       } else {
         rows = [];
@@ -583,7 +587,7 @@ function render(){
    <td><input value="${esc(r.brand)}" onchange="update(${i},'brand',this.value)"></td>
    <td><input value="${esc(r.model)}" onchange="update(${i},'model',this.value)"></td>
    ${customCells}
-   <td><div style="display:flex;align-items:center;gap:4px;"><input type="number" min="0" step="1" value="${Number(r.qty)||0}" onchange="update(${i},'qty',this.value)">${r.onTheWayQty > 0 ? `<span class="badge-ontheway" title="${r.onTheWayQty} units on the way">🚚 On the Way (${r.onTheWayQty})</span>` : ''}</div></td>
+   <td><div style="display:flex;align-items:center;gap:4px;"><input type="number" min="0" step="1" value="${Number(r.qty)||0}" onchange="update(${i},'qty',this.value)" onblur="update(${i},'qty',this.value)" onkeydown="if(event.key==='Enter')this.blur()">${r.onTheWayQty > 0 ? `<span class="badge-ontheway" title="${r.onTheWayQty} units on the way">🚚 On the Way (${r.onTheWayQty})</span>` : ''}</div></td>
    <td><span class="status ${s}">${statusText(s)}</span></td>
    <td class="actions"><button type="button" style="background:#0f3d3e;border-color:#0f3d3e;color:#fff;padding:5px 9px;font-size:11px;" onclick="demandRowFromInventory(${i})">⚡ Demand</button><button class="danger" onclick="removeRow(${i})">Delete</button></td>`;
    body.appendChild(tr);
@@ -604,19 +608,31 @@ function showSuggestions(input){input.focus();input.select()}
 function esc(x){return String(x??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 
 function update(i,k,v){
-  const previous={...rows[i]};
-  rows[i][k]=k==='qty'?Math.max(0,Number(v)||0):v;
-  if((k==='product'||k==='brand'||k==='model') && hasDuplicateModel(i, rows[i])){
-    rows[i]=previous;
+  if (!rows[i]) return;
+  const currentVal = (k === 'qty' || k === 'quantity') ? Number(rows[i].qty ?? rows[i].quantity ?? 0) : rows[i][k];
+  const newVal = (k === 'qty' || k === 'quantity') ? Math.max(0, Number(v) || 0) : v;
+  if (currentVal === newVal) return;
+
+  const previous = { ...rows[i] };
+  if (k === 'qty' || k === 'quantity') {
+    rows[i].qty = newVal;
+    rows[i].quantity = newVal;
+  } else {
+    rows[i][k] = newVal;
+  }
+  if ((k === 'product' || k === 'brand' || k === 'model') && hasDuplicateModel(i, rows[i])) {
+    rows[i] = previous;
     save();
     toast('This model already exists in inventory');
     return;
   }
   save();
-  if(k==='qty'&&rows[i].qty<=1)toast((rows[i].qty<=0?'Out of Stock':'Low Stock')+' alert: '+rows[i].model)
+  if ((k === 'qty' || k === 'quantity') && rows[i].qty <= 1) {
+    toast((rows[i].qty <= 0 ? 'Out of Stock' : 'Low Stock') + ' alert: ' + rows[i].model);
+  }
 }
 
-function addRow(){rows.push({product:'',brand:'',model:'',qty:0});save();setTimeout(()=>document.querySelector('#body tr:last-child input')?.focus(),50)}
+function addRow(){rows.push({product:'',brand:'',model:'',qty:0,quantity:0});save();setTimeout(()=>document.querySelector('#body tr:last-child input')?.focus(),50)}
 function removeRow(i){if(confirm('Delete this model?')){rows.splice(i,1);save()}}
 
 function getImportColumnMap(){
@@ -2174,7 +2190,7 @@ function importPaste(){
   parsed.forEach(item => {
     const existingIndex=rows.findIndex(r=>normalize(r.product)===normalize(item.product)&&normalize(r.brand)===normalize(item.brand)&&normalize(r.model)===normalize(item.model));
     if(existingIndex>=0){
-      rows[existingIndex].qty=(Number(rows[existingIndex].qty)||0)+item.qty;
+      const mergedQ=(Number(rows[existingIndex].qty)||0)+item.qty; rows[existingIndex].qty=mergedQ; rows[existingIndex].quantity=mergedQ;
       if(item.entryTime && !rows[existingIndex].entryTime){rows[existingIndex].entryTime=item.entryTime;}
       if(item.warehouseName && !rows[existingIndex].warehouseName){rows[existingIndex].warehouseName=item.warehouseName;}
       if(item.invoiceNumber && !rows[existingIndex].invoiceNumber){rows[existingIndex].invoiceNumber=item.invoiceNumber;}
@@ -2185,7 +2201,7 @@ function importPaste(){
       });
       merged++;
     } else {
-      const newRow={product:item.product,brand:item.brand,model:item.model,qty:item.qty};
+      const newRow={product:item.product,brand:item.brand,model:item.model,qty:item.qty,quantity:item.qty};
       if(item.entryTime) newRow.entryTime=item.entryTime;
       if(item.warehouseName) newRow.warehouseName=item.warehouseName;
       if(item.invoiceNumber) newRow.invoiceNumber=item.invoiceNumber;
