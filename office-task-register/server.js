@@ -119,6 +119,39 @@ const AdminRequest = mongoose.model("AdminRequest", adminRequestSchema);
 const Notification = mongoose.model("Notification", notificationSchema);
 const PushSubscription = mongoose.model("PushSubscription", pushSubscriptionSchema);
 
+const inventoryItemSchema = new mongoose.Schema({
+  product: { type: String, default: "", trim: true },
+  brand: { type: String, default: "", trim: true },
+  model: { type: String, default: "", trim: true },
+  quantity: { type: Number, default: 0 },
+  extra: { type: mongoose.Schema.Types.Mixed, default: {} }
+}, { timestamps: true });
+
+const inventoryConfigSchema = new mongoose.Schema({
+  key: { type: String, required: true, unique: true },
+  value: { type: mongoose.Schema.Types.Mixed, required: true }
+}, { timestamps: true });
+
+const stockTransactionSchema = new mongoose.Schema({
+  type: { type: String, enum: ["in", "out"], required: true },
+  date: { type: String, required: true },
+  invoiceNo: { type: String, default: "", trim: true },
+  sourceDestination: { type: String, default: "", trim: true },
+  items: [{
+    product: { type: String, default: "" },
+    brand: { type: String, default: "" },
+    model: { type: String, default: "" },
+    quantity: { type: Number, default: 0 },
+    unitPrice: { type: Number, default: null },
+    remarks: { type: String, default: "" }
+  }],
+  createdBy: { type: String, default: "" }
+}, { timestamps: true });
+
+const InventoryItem = mongoose.model("InventoryItem", inventoryItemSchema);
+const InventoryConfig = mongoose.model("InventoryConfig", inventoryConfigSchema);
+const StockTransaction = mongoose.model("StockTransaction", stockTransactionSchema);
+
 function todayStr() {
   const d = new Date();
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
@@ -890,6 +923,216 @@ app.delete("/api/tasks/:id", authMiddleware, adminMiddleware, async (req, res) =
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not delete task" });
+  }
+});
+
+// ---------- Inventory routes ----------
+function inventoryItemToJson(item) {
+  return {
+    id: item._id.toString(),
+    product: item.product || "",
+    brand: item.brand || "",
+    model: item.model || "",
+    quantity: Number(item.quantity) || 0,
+    ...(item.extra || {})
+  };
+}
+
+// GET /api/inventory - Get all inventory rows & extra fields
+app.get("/api/inventory", authMiddleware, async (req, res) => {
+  try {
+    const items = await InventoryItem.find().sort({ createdAt: -1 });
+    const config = await InventoryConfig.findOne({ key: "extra_fields" });
+    const extraFields = config && Array.isArray(config.value) ? config.value : [
+      { key: "warehouseName", label: "Warehouse Name" },
+      { key: "invoiceNumber", label: "Invoice Number" },
+      { key: "entryTime", label: "Entry Time" }
+    ];
+    res.json({
+      rows: items.map(inventoryItemToJson),
+      extraFields
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not load inventory" });
+  }
+});
+
+// POST /api/inventory/save-all - Bulk replace/sync rows
+app.post("/api/inventory/save-all", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { rows } = req.body;
+    if (!Array.isArray(rows)) {
+      return res.status(400).json({ error: "rows array is required" });
+    }
+    await InventoryItem.deleteMany({});
+    const docs = rows.map(r => {
+      const { id, _id, product, brand, model, quantity, ...extra } = r;
+      return {
+        product: String(product || "").trim(),
+        brand: String(brand || "").trim(),
+        model: String(model || "").trim(),
+        quantity: Number(quantity) || 0,
+        extra
+      };
+    });
+    const created = docs.length ? await InventoryItem.insertMany(docs) : [];
+    res.json({ ok: true, count: created.length });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not save inventory" });
+  }
+});
+
+// POST /api/inventory/item - Add single row
+app.post("/api/inventory/item", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { product, brand, model, quantity, ...extra } = req.body || {};
+    const item = await InventoryItem.create({
+      product: String(product || "").trim(),
+      brand: String(brand || "").trim(),
+      model: String(model || "").trim(),
+      quantity: Number(quantity) || 0,
+      extra
+    });
+    res.json(inventoryItemToJson(item));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not add inventory item" });
+  }
+});
+
+// PATCH /api/inventory/item/:id - Update single item
+app.patch("/api/inventory/item/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { product, brand, model, quantity, ...extra } = req.body || {};
+    const item = await InventoryItem.findById(req.params.id);
+    if (!item) return res.status(404).json({ error: "Item not found" });
+
+    if (product !== undefined) item.product = String(product).trim();
+    if (brand !== undefined) item.brand = String(brand).trim();
+    if (model !== undefined) item.model = String(model).trim();
+    if (quantity !== undefined) item.quantity = Number(quantity) || 0;
+    if (Object.keys(extra).length) {
+      item.extra = { ...(item.extra || {}), ...extra };
+      item.markModified("extra");
+    }
+    await item.save();
+    res.json(inventoryItemToJson(item));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not update inventory item" });
+  }
+});
+
+// DELETE /api/inventory/item/:id - Delete single item
+app.delete("/api/inventory/item/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await InventoryItem.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not delete inventory item" });
+  }
+});
+
+// DELETE /api/inventory/clear-all - Clear inventory
+app.delete("/api/inventory/clear-all", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await InventoryItem.deleteMany({});
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not clear inventory" });
+  }
+});
+
+// GET /api/inventory/config/:key - Get config
+app.get("/api/inventory/config/:key", authMiddleware, async (req, res) => {
+  try {
+    const config = await InventoryConfig.findOne({ key: req.params.key });
+    res.json({ key: req.params.key, value: config ? config.value : null });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not load inventory config" });
+  }
+});
+
+// POST /api/inventory/config/:key - Save config
+app.post("/api/inventory/config/:key", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { value } = req.body;
+    const config = await InventoryConfig.findOneAndUpdate(
+      { key: req.params.key },
+      { key: req.params.key, value },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    res.json({ ok: true, key: config.key, value: config.value });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not save inventory config" });
+  }
+});
+
+// GET /api/inventory/transactions - Stock In/Out transactions
+app.get("/api/inventory/transactions", authMiddleware, async (req, res) => {
+  try {
+    const { type } = req.query;
+    const filter = type ? { type } : {};
+    const txs = await StockTransaction.find(filter).sort({ createdAt: -1 });
+    res.json(txs.map(t => ({
+      id: t._id.toString(),
+      type: t.type,
+      date: t.date,
+      invoiceNo: t.invoiceNo,
+      sourceDestination: t.sourceDestination,
+      items: t.items,
+      createdBy: t.createdBy,
+      createdAt: t.createdAt
+    })));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not load stock transactions" });
+  }
+});
+
+// POST /api/inventory/transactions - Create transaction
+app.post("/api/inventory/transactions", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { type, date, invoiceNo, sourceDestination, items } = req.body || {};
+    if (!["in", "out"].includes(type) || !Array.isArray(items) || !items.length) {
+      return res.status(400).json({ error: "Valid type (in/out) and items are required" });
+    }
+    const tx = await StockTransaction.create({
+      type,
+      date: date || todayStr(),
+      invoiceNo: String(invoiceNo || "").trim(),
+      sourceDestination: String(sourceDestination || "").trim(),
+      items: items.map(it => ({
+        product: String(it.product || "").trim(),
+        brand: String(it.brand || "").trim(),
+        model: String(it.model || "").trim(),
+        quantity: Number(it.quantity) || 0,
+        unitPrice: it.unitPrice != null ? Number(it.unitPrice) : null,
+        remarks: String(it.remarks || "").trim()
+      })),
+      createdBy: req.user.name
+    });
+    res.json({ ok: true, id: tx._id.toString() });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not create transaction" });
+  }
+});
+
+// DELETE /api/inventory/transactions/:id
+app.delete("/api/inventory/transactions/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await StockTransaction.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not delete transaction" });
   }
 });
 

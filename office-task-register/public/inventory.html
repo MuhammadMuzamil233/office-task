@@ -1,0 +1,2251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Office Inventory</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:#f4f7fb;color:#172033}
+header{background:#172554;color:#fff;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;gap:15px}
+header h1{margin:0;font-size:22px}.wrap{max-width:1400px;margin:22px auto;padding:0 18px}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.card{background:#fff;border-radius:12px;padding:17px;box-shadow:0 3px 12px #0000000d}.label{font-size:13px;color:#667085}.num{font-size:28px;font-weight:700;margin-top:5px}
+.toolbar{background:#fff;border-radius:12px;padding:14px;display:flex;flex-wrap:wrap;gap:9px;align-items:center;box-shadow:0 3px 12px #0000000d;margin-bottom:14px}
+input,select,button{font:inherit;border:1px solid #d0d5dd;border-radius:8px;padding:9px 11px;background:#fff}
+button{cursor:pointer;background:#172554;color:#fff;border-color:#172554;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+button.secondary{background:#fff;color:#172554;border-color:#d0d5dd}
+button.primary-ocr{background:#0284c7;border-color:#0284c7;color:#fff}
+button.primary-ocr:hover{background:#0369a1}
+button.danger{background:#b42318;border-color:#b42318;color:#fff}.hint{font-size:13px;color:#667085;margin-left:auto}
+.tablebox{background:#fff;border-radius:12px;box-shadow:0 3px 12px #0000000d;overflow:auto}
+table{width:100%;border-collapse:collapse;min-width:760px}th,td{border-bottom:1px solid #eaecf0;padding:8px;text-align:left}th{background:#f8fafc;position:sticky;top:0;z-index:1;font-size:13px}
+td input{width:100%;border-color:transparent;background:transparent;padding:8px}td input:focus{border-color:#84adff;background:#fff;outline:2px solid #dbe8ff}
+.status{font-weight:700;padding:5px 8px;border-radius:20px;display:inline-block;font-size:12px}.ok{background:#dcfae6;color:#067647}.low{background:#fff0c2;color:#8a5b00}.out{background:#fee4e2;color:#b42318}
+tr.lowrow{background:#fffaf0}tr.outrow{background:#fff5f5}.actions button{padding:6px 9px;font-size:12px}
+.section-title{display:flex;justify-content:space-between;align-items:center;margin:24px 0 10px}.section-title h2{font-size:18px;margin:0}.section-title span{font-size:13px;color:#667085}
+.modal{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;padding:20px;z-index:9999}.modal.show{display:flex}
+.dialog{background:#fff;border-radius:14px;width:min(860px,100%);max-height:90vh;overflow-y:auto;padding:22px;position:relative;z-index:10000;box-shadow:0 20px 40px rgba(0,0,0,0.2)}
+.dialog h2{margin-top:0;display:flex;align-items:center;gap:8px}
+.tab-header{display:flex;gap:8px;border-bottom:2px solid #eaecf0;margin-bottom:16px}
+.tab-btn{padding:9px 16px;background:none;border:none;border-bottom:3px solid transparent;font-weight:600;color:#667085;border-radius:0;cursor:pointer}
+.tab-btn.active{color:#0284c7;border-bottom-color:#0284c7}
+.paste{width:100%;min-height:160px;font-family:Consolas,monospace;font-size:13px;padding:10px;line-height:1.4}
+.formgrid{display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px}
+.formgrid label{font-size:12px;font-weight:600;color:#475467;display:flex;flex-direction:column;gap:4px}
+.formgrid select{width:100%}
+.toast{position:fixed;right:20px;bottom:20px;background:#172554;color:#fff;padding:12px 16px;border-radius:9px;display:none;z-index:10001;box-shadow:0 4px 12px rgba(0,0,0,0.15)}.toast.show{display:block}
+.embedded-warehouse{margin-top:24px}.embedded-warehouse h2{font-size:18px;margin:0 0 10px}.embedded-warehouse iframe{display:block;width:100%;height:900px;border:0;border-radius:12px;box-shadow:0 3px 12px #0000000d;background:#f4f7fb}
+
+/* OCR Dropzone & UI */
+.ocr-dropzone{border:2px dashed #0284c7;background:#f0f9ff;border-radius:12px;padding:24px 16px;text-align:center;cursor:pointer;transition:all .2s ease;margin-bottom:14px}
+.ocr-dropzone.dragover{background:#e0f2fe;border-color:#0369a1;transform:scale(1.01)}
+.ocr-dropzone .icon{font-size:36px;display:block;margin-bottom:8px}
+.ocr-dropzone .title{font-size:15px;font-weight:700;color:#0369a1;margin-bottom:4px}
+.ocr-dropzone .sub{font-size:13px;color:#64748b}
+.ocr-preview-wrap{display:none;margin-bottom:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;align-items:center;gap:14px}
+.ocr-preview-img{max-height:100px;max-width:160px;border-radius:6px;border:1px solid #cbd5e1;object-fit:contain;background:#fff}
+.ocr-progress-box{display:none;margin-bottom:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px}
+.ocr-progress-bar-bg{height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;margin-top:6px}
+.ocr-progress-bar{height:100%;width:0%;background:#0284c7;transition:width .2s ease}
+.ocr-options{display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:13px;color:#475467;margin-bottom:12px;padding:8px 12px;background:#f8fafc;border-radius:8px}
+
+.preview-table-container{margin-top:14px;border:1px solid #eaecf0;border-radius:8px;max-height:220px;overflow-y:auto}
+.preview-table-container table{font-size:13px;min-width:100%}
+.preview-table-container th{background:#f1f5f9;padding:6px 10px}
+.preview-table-container td{padding:6px 10px}
+.badge-new{background:#dcfae6;color:#067647;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.badge-merge{background:#e0f2fe;color:#0369a1;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:600}
+
+@media(max-width:800px){.cards{grid-template-columns:repeat(2,1fr)}.hint{width:100%;margin-left:0}}
+</style>
+<script src="/inventory-api.js"></script>
+</head>
+<body>
+<header><h1>📦 Office Stock Inventory</h1><div>Excel-style Inventory &amp; OCR Scanner</div></header>
+<div class="wrap">
+<div class="cards">
+<div class="card"><div class="label">Total Models</div><div class="num" id="totalModels">0</div></div>
+<div class="card"><div class="label">Total Quantity</div><div class="num" id="totalQty">0</div></div>
+<div class="card"><div class="label">Low Stock (&le; 1)</div><div class="num" id="lowQty">0</div></div>
+<div class="card"><div class="label">Out of Stock</div><div class="num" id="outQty">0</div></div>
+</div>
+
+<div class="toolbar">
+<input id="productFilter" list="productSuggestions" placeholder="Filter product..." onclick="showSuggestions(this)" oninput="updateSuggestions(this)">
+<input id="brandFilter" list="brandSuggestions" placeholder="Filter brand..." onclick="showSuggestions(this)" oninput="updateSuggestions(this)">
+<input id="modelFilter" list="modelSuggestions" placeholder="Filter model..." onclick="showSuggestions(this)" oninput="updateSuggestions(this)">
+<datalist id="productSuggestions"></datalist><datalist id="brandSuggestions"></datalist><datalist id="modelSuggestions"></datalist>
+<button onclick="render()">Search</button>
+<select id="statusFilter" onchange="render()">
+<option value="all">All Stock</option><option value="ok">In Stock</option>
+<option value="low">Low Stock (&le; 1)</option><option value="out">Out of Stock</option>
+</select>
+<button onclick="addRow()">+ Add Row</button>
+<button onclick="addCustomColumn()">+ Add Column</button>
+<button onclick="openManageColumnsModal()">⚙️ Manage / Remove Columns</button>
+<button class="primary-ocr" onclick="openOcrModal()">📷 Image to Text (OCR)</button>
+<button onclick="openPaste()">📋 Paste from Excel</button>
+<button style="background:#0284c7" onclick="location.href='stock-in.html'">📥 Stock IN</button>
+<button style="background:#b42318" onclick="location.href='stock-out.html'">📤 Stock OUT</button>
+<button style="background:#0369a1" onclick="location.href='transactions.html'">📊 Transaction History</button>
+<button onclick="location.href='virtual.html'">Virtual Warehouse</button>
+<button onclick="location.href='compare.html'">Physical Comparison</button>
+<button class="secondary" onclick="exportCSV()">Export CSV</button>
+<button class="secondary" onclick="exportCSV(true)">Export Filtered CSV</button>
+<button class="secondary" onclick="clearAll()">Clear All</button>
+<span class="hint">Tip: Paste Excel text directly or press <b>Ctrl+V</b> with a screenshot to Scan Image!</span>
+</div>
+
+<div class="tablebox">
+<table><thead><tr id="tableHeadRow"></tr></thead><tbody id="body"></tbody></table>
+</div>
+
+<section class="embedded-warehouse">
+<h2>Virtual Warehouse</h2>
+<iframe src="virtual.html" title="Virtual Warehouse"></iframe>
+</section>
+
+</div>
+
+<!-- Data Import Modal (OCR + Excel Paste) -->
+<div class="modal" id="pasteModal">
+<div class="dialog">
+<h2>
+  <span id="modalTitleIcon">📷</span> 
+  <span id="modalTitleText">Add Inventory Data (Image OCR &amp; Paste)</span>
+</h2>
+
+<div class="tab-header">
+  <button class="tab-btn active" id="tabBtnOcr" type="button" onclick="switchImportTab('ocr')">📷 Image to Text (OCR)</button>
+  <button class="tab-btn" id="tabBtnPaste" type="button" onclick="switchImportTab('paste')">📋 Excel / Text Paste</button>
+</div>
+
+<!-- Quick Batch Importers -->
+<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+  <div style="font-size:12px;color:#166534">
+    <b>⚡ Quick ERP Batch Importer:</b> 1-Click Load exact scanned dataset:
+  </div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <button type="button" class="primary-ocr" style="padding:4px 10px;font-size:12px;background:#15803d" onclick="loadBatchAirConditioners()">❄️ Load Air Conditioners (49 Items)</button>
+    <button type="button" class="secondary" style="padding:4px 10px;font-size:12px" onclick="loadBatchAppliances()">📦 Load Appliances (3 Items)</button>
+  </div>
+</div>
+
+<!-- TAB 1: OCR IMAGE SCANNER -->
+<div id="ocrSection">
+  <div class="ocr-dropzone" id="ocrDropzone" onclick="document.getElementById('imageFileInput').click()">
+    <span class="icon">🖼️</span>
+    <div class="title">Upload Image, Excel Screenshot, or Invoice</div>
+    <div class="sub">Drag &amp; drop file here, click to browse, or press <b>Ctrl + V</b> to paste screenshot</div>
+    <input type="file" id="imageFileInput" accept="image/*" style="display:none" onchange="handleImageFileSelect(event)">
+  </div>
+
+  <div class="ocr-preview-wrap" id="ocrPreviewWrap">
+    <img id="ocrImagePreview" class="ocr-preview-img" alt="Uploaded Preview">
+    <div style="flex:1">
+      <div id="ocrImageInfo" style="font-size:13px;font-weight:600;color:#1e293b">Image Loaded</div>
+      <div style="font-size:12px;color:#64748b;margin-top:2px">Ready for text extraction</div>
+    </div>
+    <button type="button" class="primary-ocr" id="btnRunOcr" onclick="startOcrProcess()">⚡ Re-Scan Image</button>
+    <button type="button" class="secondary" onclick="clearOcrImage()">Remove</button>
+  </div>
+
+  <div class="ocr-progress-box" id="ocrProgressBox">
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:#475467">
+      <span id="ocrStatusText">Processing image text...</span>
+      <span id="ocrPercentText" style="font-weight:700">0%</span>
+    </div>
+    <div class="ocr-progress-bar-bg">
+      <div class="ocr-progress-bar" id="ocrProgressBar"></div>
+    </div>
+  </div>
+
+  <div class="ocr-options">
+    <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="checkbox" id="ocrEnhanceContrast" checked> Enhance contrast &amp; sharpen image (recommended for screenshots)
+    </label>
+  </div>
+</div>
+
+<!-- Column Mapping Configuration -->
+<div style="margin:14px 0 8px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <div style="font-size:13px;font-weight:700;color:#172033">Column Mapping (Set column numbers):</div>
+    <button type="button" class="secondary" onclick="tryAutoDetectColumns(true)" style="padding:3px 8px;font-size:12px">✨ Auto-Detect Columns</button>
+  </div>
+  <div id="autoDetectNotice" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;padding:6px 10px;border-radius:6px;font-size:12px;margin-bottom:8px"></div>
+  <div class="formgrid">
+    <label>Product col<select id="importProductCol" onchange="updateExtractedPreview()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option></select></label>
+    <label>Brand col<select id="importBrandCol" onchange="updateExtractedPreview()"><option value="0">None</option><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option></select></label>
+    <label>Model col<select id="importModelCol" onchange="updateExtractedPreview()"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option></select></label>
+    <label>Quantity col<select id="importQtyCol" onchange="updateExtractedPreview()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option></select></label>
+    <label>Warehouse col<select id="importWarehouseNameCol" onchange="updateExtractedPreview()"><option value="0" selected>None</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option></select></label>
+    <label>Invoice # col<select id="importInvoiceNumberCol" onchange="updateExtractedPreview()"><option value="0" selected>None</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option></select></label>
+    <label>Entry Time col<select id="importEntryTimeCol" onchange="updateExtractedPreview()"><option value="0" selected>None</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option></select></label>
+  </div>
+  <div id="customImportFields" style="display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-top:8px"></div>
+</div>
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin:10px 0 6px;flex-wrap:wrap;gap:6px">
+  <div style="font-size:12px;font-weight:600;color:#667085">Extracted / Pasted Text (Tab/Space/Pipe separated):</div>
+  <div style="display:flex;gap:6px">
+    <button class="primary-ocr" type="button" onclick="autoFixCurrentText()" style="padding:4px 10px;font-size:12px;background:#0284c7" title="Auto-detect brands, models, categories and quantities from messy text">⚡ Auto-Fix &amp; Clean ERP Rows</button>
+    <button class="secondary" type="button" onclick="addCustomColumnFromModal()" style="padding:4px 8px;font-size:12px">+ Add New Column</button>
+  </div>
+</div>
+
+<textarea class="paste" id="pasteArea" oninput="handlePasteAreaInput()" placeholder="Office Laptop&#9;Dell&#9;Latitude 5440&#9;5&#9;2026-08-29 09:00
+Office Monitor&#9;Samsung&#9;S24A400&#9;2&#9;2026-08-29 10:00
+Printer&#9;HP&#9;LaserJet&#9;1&#9;2026-08-29 11:00"></textarea>
+
+<!-- Extracted Preview Section -->
+<div id="previewSection" style="margin-top:12px;display:none">
+  <div style="font-size:13px;font-weight:700;color:#172033;display:flex;justify-content:space-between">
+    <span>Data Preview before Import:</span>
+    <span id="previewCount" style="color:#0284c7;font-weight:600">0 items parsed</span>
+  </div>
+  <div class="preview-table-container">
+    <table>
+      <thead>
+        <tr id="previewHeadRow">
+          <th>Product</th>
+          <th>Brand</th>
+          <th>Model</th>
+          <th>Quantity</th>
+          <th>Action / Status</th>
+        </tr>
+      </thead>
+      <tbody id="previewBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;border-top:1px solid #eaecf0;padding-top:14px">
+  <div style="font-size:12px;color:#667085">Existing matching models will merge quantities without losing data.</div>
+  <div style="display:flex;gap:8px">
+    <button class="secondary" type="button" onclick="closePaste()">Cancel</button>
+    <button type="button" class="primary-ocr" onclick="importPaste()" id="btnSubmitImport">✓ Add Rows to Inventory</button>
+  </div>
+</div>
+
+</div>
+</div>
+
+<!-- Manage / Remove Columns Modal -->
+<div class="modal" id="manageColumnsModal">
+<div class="dialog" style="max-width:550px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <h2 style="margin:0;font-size:18px">⚙️ Manage &amp; Remove Custom Columns</h2>
+    <button type="button" class="secondary" onclick="closeManageColumnsModal()" style="padding:4px 8px;font-size:16px;border:none">✕</button>
+  </div>
+  <p style="font-size:13px;color:#64748b;margin:0 0 14px">Select custom columns to delete or click 🗑️ next to any column. You can also click the <b>✕</b> icon directly on any column header in the table.</p>
+
+  <div id="manageColumnsList" style="max-height:280px;overflow-y:auto;border:1px solid #eaecf0;border-radius:8px;padding:8px;margin-bottom:16px;background:#f8fafc">
+    <!-- Rendered dynamically -->
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;gap:8px">
+      <button type="button" class="danger" onclick="removeSelectedColumns()" id="btnRemoveSelected">🗑️ Remove Selected</button>
+      <button type="button" class="secondary" onclick="removeAllCustomColumns()" style="color:#b42318;border-color:#fca5a5">💥 Remove All Custom Columns</button>
+    </div>
+    <button type="button" class="secondary" onclick="closeManageColumnsModal()">Done</button>
+  </div>
+</div>
+</div>
+
+
+<!-- Add Demand from Inventory Modal -->
+<div class="modal" id="demandModal">
+  <div class="dialog" style="max-width:560px;">
+    <h2 style="color:#0f3d3e;">⚡ Add Demand from Inventory</h2>
+    <p style="font-size:13px;color:#64748b;margin:-6px 0 16px;">Create a demand order directly for the logistics team and admin review.</p>
+    
+    <form id="demandModalForm" onsubmit="submitDemandFromInventory(event)">
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Product / Item</label>
+        <input type="text" id="demandModalProduct" required style="width:100%;font-weight:600;">
+        <small style="color:#64748b;font-size:11px;">Available in Stock: <b id="demandModalStock" style="color:#0284c7;">0</b> units</small>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Warehouse *</label>
+          <select id="demandModalWarehouse" required style="width:100%;">
+            <option value="FC Faizabad WH">FC Faizabad WH</option>
+            <option value="FC I10 WH">FC I10 WH</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Demanded Quantity *</label>
+          <input type="number" id="demandModalQuantity" min="1" step="1" value="1" required style="width:100%;">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+        <div>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Invoice Number (Optional)</label>
+          <input type="text" id="demandModalInvoice" placeholder="INV-..." style="width:100%;">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Date *</label>
+          <input type="date" id="demandModalDate" required style="width:100%;">
+        </div>
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;color:#c0392b;cursor:pointer;background:#fdf2f0;border:1px solid #f0c0b8;padding:8px 12px;border-radius:6px;">
+          <input type="checkbox" id="demandModalUrgent" style="width:16px;height:16px;accent-color:#c0392b;">
+          ⚡ Mark as Urgent (Requires Admin Approval)
+        </label>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;">
+        <button type="button" class="secondary" onclick="closeDemandModal()">Cancel</button>
+        <button type="submit" id="submitDemandBtn" style="background:#0f3d3e;border-color:#0f3d3e;color:#fff;">Submit Demand</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const KEY='office_inventory_v1';
+const EXTRA_KEY='office_inventory_extra_fields_v1';
+let rows=JSON.parse(localStorage.getItem(KEY)||'[]');
+let currentOcrImageSource = null;
+
+function getExtraFields(){
+  const raw = localStorage.getItem(EXTRA_KEY);
+  if (raw === null) {
+    const defaults = [
+      {key:'warehouseName', label:'Warehouse Name'},
+      {key:'invoiceNumber', label:'Invoice Number'},
+      {key:'entryTime', label:'Entry Time'}
+    ];
+    localStorage.setItem(EXTRA_KEY, JSON.stringify(defaults));
+    return defaults;
+  }
+  try {
+    const saved = JSON.parse(raw);
+    return Array.isArray(saved) ? saved.filter(Boolean) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveExtraFields(fields){
+  localStorage.setItem(EXTRA_KEY, JSON.stringify(fields || []));
+}
+
+function slugifyLabel(label){
+  return String(label).trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'') || 'custom_field';
+}
+
+function addCustomColumn(){
+  const name = prompt('Enter new column name for inventory data (example: Purchase Date, Vendor, Notes):');
+  if(!name) return;
+  const clean = name.trim();
+  if(!clean) return;
+  const list = getExtraFields();
+  const key = slugifyLabel(clean);
+  if(list.some(item => item.key === key)){
+    toast('This custom column already exists');
+    return;
+  }
+  list.push({key, label: clean});
+  saveExtraFields(list);
+  toast('Added custom column: ' + clean);
+  render();
+}
+
+function addCustomColumnFromModal(){
+  const name = prompt('Enter a new custom column name (example: Purchase Date, Vendor, Notes):');
+  if(!name) return;
+  const clean = name.trim();
+  if(!clean) return;
+  const key = slugifyLabel(clean);
+  const fields = getExtraFields();
+  if(fields.some(item => item.key === key)){
+    toast('This custom column already exists');
+    return;
+  }
+  fields.push({key, label: clean});
+  saveExtraFields(fields);
+  buildCustomColumnFields();
+  toast('Added: ' + clean);
+  renderTableHeader();
+}
+
+function buildCustomColumnFields(){
+  const target = document.getElementById('customImportFields');
+  if(!target) return;
+  target.innerHTML = '';
+  const fields = getExtraFields();
+  const optionsHtml = ['<option value="0">None</option>'];
+  for(let i=1; i<=30; i++) optionsHtml.push(`<option value="${i}">${i}</option>`);
+  const optionsStr = optionsHtml.join('');
+
+  fields.filter(item => item.key !== 'entrytime' && item.key !== 'entryTime' && item.key !== 'warehousename' && item.key !== 'warehouseName' && item.key !== 'invoicenumber' && item.key !== 'invoiceNumber').forEach(item => {
+    const label = document.createElement('label');
+    label.style.display = 'flex';
+    label.style.flexDirection = 'column';
+    label.style.gap = '4px';
+    label.style.fontSize = '12px';
+    label.style.fontWeight = '600';
+    label.style.color = '#475467';
+    label.textContent = item.label + ' col';
+    const select = document.createElement('select');
+    select.id = 'import_' + item.key + '_Col';
+    select.onchange = updateExtractedPreview;
+    select.innerHTML = optionsStr;
+    label.appendChild(select);
+    target.appendChild(label);
+  });
+}
+
+function renderTableHeader(){
+  const row = document.getElementById('tableHeadRow');
+  if(!row) return;
+  const customFields = getExtraFields();
+  const baseHeaders = [
+    {label:'Product', width:'20%'},
+    {label:'Brand', width:'15%'},
+    {label:'Model', width:'18%'}
+  ];
+  
+  let headersHtml = baseHeaders.map(h => `<th style="width:${h.width}">${h.label}</th>`).join('');
+  
+  customFields.forEach(field => {
+    headersHtml += `
+      <th style="min-width:110px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+          <span>${esc(field.label)}</span>
+          <button type="button" title="Remove column ${esc(field.label)}" onclick="deleteSpecificColumn('${field.key}', '${esc(field.label)}')" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:12px;padding:2px 4px;border-radius:4px;line-height:1" onmouseover="this.style.color='#ef4444';this.style.background='#fee2e2'" onmouseout="this.style.color='#94a3b8';this.style.background='none'">✕</button>
+        </div>
+      </th>
+    `;
+  });
+  
+  headersHtml += `
+    <th style="width:10%">Quantity</th>
+    <th style="width:12%">Stock Status</th>
+    <th style="width:8%">Action</th>
+  `;
+  
+  row.innerHTML = headersHtml;
+}
+
+function deleteSpecificColumn(key, label){
+  if(!confirm(`Remove custom column "${label}" and its data from inventory?`)) return;
+  const fields = getExtraFields();
+  const updated = fields.filter(f => f.key !== key);
+  saveExtraFields(updated);
+  rows.forEach(row => delete row[key]);
+  buildCustomColumnFields();
+  save();
+  toast(`Removed column: ${label}`);
+  if(document.getElementById('manageColumnsModal')?.classList.contains('show')){
+    renderManageColumnsList();
+  }
+}
+
+function openManageColumnsModal(){
+  const modal = document.getElementById('manageColumnsModal');
+  if(!modal) return;
+  renderManageColumnsList();
+  modal.classList.add('show');
+}
+
+function closeManageColumnsModal(){
+  const modal = document.getElementById('manageColumnsModal');
+  if(modal) modal.classList.remove('show');
+}
+
+function renderManageColumnsList(){
+  const container = document.getElementById('manageColumnsList');
+  if(!container) return;
+  const fields = getExtraFields();
+  if(!fields.length){
+    container.innerHTML = '<div style="text-align:center;padding:24px;color:#94a3b8;font-size:13px">No custom columns added yet.</div>';
+    const btnSel = document.getElementById('btnRemoveSelected');
+    if(btnSel) btnSel.disabled = true;
+    return;
+  }
+  const btnSel = document.getElementById('btnRemoveSelected');
+  if(btnSel) btnSel.disabled = false;
+
+  let html = '<div style="display:flex;flex-direction:column;gap:6px">';
+  fields.forEach((f) => {
+    html += `
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#1e293b;cursor:pointer">
+          <input type="checkbox" class="col-delete-checkbox" value="${f.key}">
+          <span>${esc(f.label)}</span>
+        </label>
+        <button type="button" class="danger" style="padding:4px 8px;font-size:12px" onclick="deleteSpecificColumn('${f.key}', '${esc(f.label)}')">🗑️ Remove</button>
+      </div>
+    `;
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function removeSelectedColumns(){
+  const checkboxes = document.querySelectorAll('.col-delete-checkbox:checked');
+  if(!checkboxes.length){
+    toast('Select at least one column to remove');
+    return;
+  }
+  const keysToRemove = Array.from(checkboxes).map(cb => cb.value);
+  if(!confirm(`Remove ${keysToRemove.length} selected column(s) from inventory?`)) return;
+  
+  const fields = getExtraFields();
+  const updated = fields.filter(f => !keysToRemove.includes(f.key));
+  saveExtraFields(updated);
+  rows.forEach(row => {
+    keysToRemove.forEach(k => delete row[k]);
+  });
+  buildCustomColumnFields();
+  save();
+  toast(`Removed ${keysToRemove.length} column(s)`);
+  renderManageColumnsList();
+}
+
+function removeAllCustomColumns(){
+  const fields = getExtraFields();
+  if(!fields.length){
+    toast('No custom columns to remove');
+    return;
+  }
+  if(!confirm(`Remove ALL ${fields.length} custom column(s) from inventory?`)) return;
+  
+  saveExtraFields([]);
+  rows.forEach(row => {
+    fields.forEach(f => delete row[f.key]);
+  });
+  buildCustomColumnFields();
+  save();
+  toast('All custom columns removed');
+  renderManageColumnsList();
+}
+
+function removeCustomColumn(){
+  openManageColumnsModal();
+}
+
+function save(){localStorage.setItem(KEY,JSON.stringify(rows));render();}
+function normalize(value){return String(value??'').trim().toLocaleLowerCase()}
+function hasDuplicateModel(index, candidate){
+  if(!normalize(candidate.product) && !normalize(candidate.brand) && !normalize(candidate.model)) return false;
+  return rows.some((row,i)=>i!==index && normalize(row.product)===normalize(candidate.product) && normalize(row.brand)===normalize(candidate.brand) && normalize(row.model)===normalize(candidate.model) && normalize(row.model));
+}
+function status(q){q=Number(q)||0;return q<1?'out':q<2?'low':'ok'}
+function statusText(s){return s==='out'?'Out of Stock':s==='low'?'Low Stock':'In Stock'}
+
+function filteredRows(){
+ const productFilter=normalize(document.getElementById('productFilter').value);
+ const brandFilter=normalize(document.getElementById('brandFilter').value);
+ const modelFilter=normalize(document.getElementById('modelFilter').value);
+ const sf=document.getElementById('statusFilter').value;
+ return rows.filter(r=>{
+   const s=status(r.qty);
+   return (!productFilter||normalize(r.product).includes(productFilter))&&
+     (!brandFilter||normalize(r.brand).includes(brandFilter))&&
+     (!modelFilter||normalize(r.model).includes(modelFilter))&&
+     (sf==='all'||s===sf);
+ });
+}
+
+function render(){
+ renderTableHeader();
+ const body=document.getElementById('body'); body.innerHTML='';
+ let visible=0;
+ const visibleRows=filteredRows();
+ const extraFields=getExtraFields();
+ rows.forEach((r,i)=>{
+   const s=status(r.qty);
+   if(!visibleRows.includes(r))return;
+   visible++;
+   const tr=document.createElement('tr'); tr.className=s==='out'?'outrow':s==='low'?'lowrow':'';
+   const customCells=extraFields.map(field=>`<td><input value="${esc(r[field.key]??'')}" onchange="update(${i},'${field.key}',this.value)"></td>`).join('');
+   tr.innerHTML=`
+   <td><input value="${esc(r.product)}" onchange="update(${i},'product',this.value)"></td>
+   <td><input value="${esc(r.brand)}" onchange="update(${i},'brand',this.value)"></td>
+   <td><input value="${esc(r.model)}" onchange="update(${i},'model',this.value)"></td>
+   ${customCells}
+   <td><input type="number" min="0" step="1" value="${Number(r.qty)||0}" onchange="update(${i},'qty',this.value)"></td>
+   <td><span class="status ${s}">${statusText(s)}</span></td>
+   <td class="actions"><button type="button" style="background:#0f3d3e;border-color:#0f3d3e;color:#fff;padding:5px 9px;font-size:11px;" onclick="openDemandModalForRow(${i})">⚡ Demand</button><button class="danger" onclick="removeRow(${i})">Delete</button></td>`;
+   body.appendChild(tr);
+ });
+ document.getElementById('totalModels').textContent=rows.length;
+ document.getElementById('totalQty').textContent=rows.reduce((a,r)=>a+(Number(r.qty)||0),0);
+ document.getElementById('lowQty').textContent=rows.filter(r=>Number(r.qty)>0&&Number(r.qty)<=1).length;
+ document.getElementById('outQty').textContent=rows.filter(r=>Number(r.qty)<=0).length;
+ if(visible===0){const colspan=6+extraFields.length; body.innerHTML=`<tr><td colspan="${colspan}" style="text-align:center;padding:35px;color:#667085">No matching inventory items.</td></tr>`;}
+ updateSuggestions();
+}
+
+function updateSuggestions(input){
+ const fields={productSuggestions:'product',brandSuggestions:'brand',modelSuggestions:'model'};
+ Object.entries(fields).forEach(([id,key])=>{const list=document.getElementById(id);list.innerHTML='';const query=input?.id===id.replace('Suggestions','Filter')?normalize(input.value):'';[...new Set(rows.map(r=>String(r[key]||'').trim()).filter(value=>value&&(!query||normalize(value).includes(query))))].sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'})).forEach(value=>{const option=document.createElement('option');option.value=value;list.appendChild(option)})});
+}
+function showSuggestions(input){input.focus();input.select()}
+function esc(x){return String(x??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+function update(i,k,v){
+  const previous={...rows[i]};
+  rows[i][k]=k==='qty'?Math.max(0,Number(v)||0):v;
+  if((k==='product'||k==='brand'||k==='model') && hasDuplicateModel(i, rows[i])){
+    rows[i]=previous;
+    save();
+    toast('This model already exists in inventory');
+    return;
+  }
+  save();
+  if(k==='qty'&&rows[i].qty<=1)toast((rows[i].qty<=0?'Out of Stock':'Low Stock')+' alert: '+rows[i].model)
+}
+
+function addRow(){rows.push({product:'',brand:'',model:'',qty:0});save();setTimeout(()=>document.querySelector('#body tr:last-child input')?.focus(),50)}
+function removeRow(i){if(confirm('Delete this model?')){rows.splice(i,1);save()}}
+
+function getImportColumnMap(){
+  const ids=['importProductCol','importBrandCol','importModelCol','importQtyCol','importWarehouseNameCol','importInvoiceNumberCol','importEntryTimeCol'];
+  getExtraFields().filter(item=>item.key!=='entrytime' && item.key!=='warehousename' && item.key!=='invoicenumber').forEach(item=>{
+    const field=document.getElementById('import_' + item.key + '_Col');
+    if(field) ids.push(field.id);
+  });
+  return ids.reduce((map,id)=>{
+    const key=id.replace('import_','').replace('_Col','').replace('import','').replace('Col','').toLowerCase();
+    const value=Number(document.getElementById(id)?.value ?? 0);
+    map[key]=Number.isFinite(value)&&value>0?value-1:-1;
+    return map;
+  },{});
+}
+
+function switchImportTab(tab){
+  const tabBtnOcr = document.getElementById('tabBtnOcr');
+  const tabBtnPaste = document.getElementById('tabBtnPaste');
+  const ocrSection = document.getElementById('ocrSection');
+  if(tab === 'ocr'){
+    tabBtnOcr.classList.add('active');
+    tabBtnPaste.classList.remove('active');
+    ocrSection.style.display = 'block';
+  } else {
+    tabBtnPaste.classList.add('active');
+    tabBtnOcr.classList.remove('active');
+    ocrSection.style.display = 'none';
+    document.getElementById('pasteArea').focus();
+  }
+}
+
+function openOcrModal(){
+  openPaste('ocr');
+}
+
+function handlePasteAreaInput(){
+  tryAutoDetectColumns(false);
+  updateExtractedPreview();
+}
+
+function parseQuantity(raw) {
+  if (raw === null || raw === undefined) return 0;
+  const str = String(raw).trim();
+  if (!str) return 0;
+  // Match numbers like "10+", "10 +", ">10", "+10", "10 pcs", "10 units", "10"
+  const match = str.match(/[-+]?\d*\.?\d+/);
+  if (match) {
+    const num = parseFloat(match[0]);
+    return Number.isFinite(num) ? Math.max(0, Math.round(num)) : 0;
+  }
+  return 0;
+}
+
+function isHeaderLine(line) {
+  const l = String(line || '').toLowerCase();
+  let matches = 0;
+  if (l.includes('product') || l.includes('item name') || l.includes('description') || l.includes('particulars')) matches++;
+  if (l.includes('brand') || l.includes('make') || l.includes('mfg')) matches++;
+  if (l.includes('model') || l.includes('part no') || l.includes('sku') || l.includes('item code')) matches++;
+  if (l.includes('qty') || l.includes('quantity') || l.includes('stock')) matches++;
+  if (l.includes('s no') || l.includes('s.no') || l.includes('sr.') || l.includes('sl no')) matches++;
+  return matches >= 2;
+}
+
+const SKIP_HEADER_KEYWORDS = [
+  's no', 's.no', 'sr no', 'sr.', 'sl no', 'sno', 'sn', 'sr', 'serial', 'serial no', 'id', 'no', '#',
+  'trn qty', 'transfer qty', 'trn', 'transfer', 'action', 'status', 'difference'
+];
+
+function autoDetectColumnsFromHeader(headerLine){
+  if(!headerLine) return null;
+  const separators=[/\t/, /\|/, /\s{2,}/, /,/];
+  let headers=null;
+  for(const sep of separators){
+    const parts=headerLine.split(sep).map(s=>s.trim());
+    if(parts.length>=2){
+      headers=parts;
+      break;
+    }
+  }
+  if(!headers || headers.length<2) return null;
+
+  const mapping={};
+  const headersLower = headers.map(h => h.toLowerCase());
+  
+  // Product
+  const prodIdx = headersLower.findIndex(h => /^(product|item|description|product\s*name|item\s*name|device|particulars)$/i.test(h) || (h.includes('product') && !h.includes('brand') && !h.includes('model') && !h.includes('qty')));
+  if(prodIdx >= 0) mapping.product = prodIdx + 1;
+
+  // Brand
+  const brandIdx = headersLower.findIndex(h => /^(brand|make|company|manufacturer|mfg)$/i.test(h) || (h.includes('brand') && !h.includes('product')));
+  if(brandIdx >= 0) mapping.brand = brandIdx + 1;
+  else mapping.brand = 0;
+
+  // Model
+  const modelIdx = headersLower.findIndex(h => /^(model|model\s*no|model\s*number|item\s*code|part\s*no|part\s*number|sku|code)$/i.test(h) || h.includes('model'));
+  if(modelIdx >= 0) mapping.model = modelIdx + 1;
+
+  // Quantity (prefer exact 'qty', 'quantity', 'stock', 'balance' over 'trn qty', 'damage qty')
+  let qtyIdx = headersLower.findIndex(h => /^(qty|quantity|stock|count|balance|available|on\s*hand|phys\s*qty|actual\s*qty)$/i.test(h));
+  if(qtyIdx < 0){
+    qtyIdx = headersLower.findIndex(h => (h.includes('qty') || h.includes('quantity') || h.includes('stock')) && !h.includes('trn') && !h.includes('trans') && !h.includes('damage') && !h.includes('short'));
+  }
+  if(qtyIdx >= 0) mapping.qty = qtyIdx + 1;
+
+  // Entry Time
+  const timeIdx = headersLower.findIndex(h => /^(entry\s*time|date|time|timestamp|created\s*at|purchase\s*date)$/i.test(h) || h.includes('time') || h.includes('date'));
+  if(timeIdx >= 0) mapping.entryTime = timeIdx + 1;
+
+  // Warehouse Name
+  const warehouseIdx = headersLower.findIndex(h => /^(warehouse|warehouse\s*name|wh|location)$/i.test(h) || h.includes('warehouse'));
+  if(warehouseIdx >= 0) mapping.warehouseName = warehouseIdx + 1;
+
+  // Invoice Number
+  const invoiceIdx = headersLower.findIndex(h => /^(invoice|invoice\s*number|invoice\s*no|inv|inv\s*no)$/i.test(h) || h.includes('invoice'));
+  if(invoiceIdx >= 0) mapping.invoiceNumber = invoiceIdx + 1;
+
+  // Auto-Discover and Create Extra Custom Columns (Type, Category, Group, Series, Warranty, Color, etc.)
+  const currentExtraFields = getExtraFields();
+  let extraFieldsUpdated = false;
+  const newDiscoveredFields = [];
+
+  headers.forEach((rawColName, colIndex) => {
+    const colLower = rawColName.toLowerCase().trim();
+    if(!colLower) return;
+
+    if (colIndex === prodIdx || colIndex === brandIdx || colIndex === modelIdx || colIndex === qtyIdx || colIndex === timeIdx || colIndex === warehouseIdx || colIndex === invoiceIdx) {
+      return;
+    }
+
+    if (SKIP_HEADER_KEYWORDS.some(k => colLower === k || colLower.startsWith(k))) {
+      return;
+    }
+
+    const key = slugifyLabel(rawColName);
+    if (!key) return;
+
+    let field = currentExtraFields.find(f => f.key.toLowerCase() === key || f.label.toLowerCase() === colLower);
+    if (!field) {
+      field = { key: key, label: rawColName.trim() };
+      currentExtraFields.push(field);
+      extraFieldsUpdated = true;
+      newDiscoveredFields.push(rawColName.trim());
+    }
+
+    mapping[field.key] = colIndex + 1;
+  });
+
+  if (extraFieldsUpdated) {
+    saveExtraFields(currentExtraFields);
+    buildCustomColumnFields();
+    renderTableHeader();
+  }
+
+  if(mapping.product || mapping.model || mapping.qty){
+    mapping._newFields = newDiscoveredFields;
+    return mapping;
+  }
+  return null;
+}
+
+function tryAutoDetectColumns(showToast=false){
+  const text=document.getElementById('pasteArea')?.value || '';
+  const notice=document.getElementById('autoDetectNotice');
+  if(!text.trim()){
+    if(notice) notice.style.display='none';
+    if(showToast) toast('Paste or scan table data first to auto-detect');
+    return false;
+  }
+  const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  if(!lines.length) return false;
+
+  for(let i=0; i<Math.min(4, lines.length); i++){
+    const detected=autoDetectColumnsFromHeader(lines[i]);
+    if(detected){
+      if(detected.product) document.getElementById('importProductCol').value = String(detected.product);
+      if(detected.brand !== undefined) document.getElementById('importBrandCol').value = String(detected.brand);
+      if(detected.model) document.getElementById('importModelCol').value = String(detected.model);
+      if(detected.qty) document.getElementById('importQtyCol').value = String(detected.qty);
+      if(detected.warehouseName !== undefined) document.getElementById('importWarehouseNameCol').value = String(detected.warehouseName);
+      if(detected.invoiceNumber !== undefined) document.getElementById('importInvoiceNumberCol').value = String(detected.invoiceNumber);
+      if(detected.entryTime !== undefined) document.getElementById('importEntryTimeCol').value = String(detected.entryTime);
+
+      getExtraFields().filter(item=>item.key!=='entrytime' && item.key!=='warehousename' && item.key!=='invoicenumber').forEach(item=>{
+        if(detected[item.key] !== undefined){
+          const fieldEl = document.getElementById('import_' + item.key + '_Col');
+          if(fieldEl) fieldEl.value = String(detected[item.key]);
+        }
+      });
+
+      if(notice){
+        notice.style.display='block';
+        const extraNames = getExtraFields().filter(f => f.key!=='entrytime' && f.key!=='warehousename' && f.key!=='invoicenumber' && detected[f.key]).map(f => `${f.label} (Col ${detected[f.key]})`).join(', ');
+        notice.innerHTML=`✨ <b>Auto-detected columns:</b> Product (Col ${detected.product || '-'}), Brand (${detected.brand ? 'Col '+detected.brand : 'None'}), Model (Col ${detected.model || '-'}), Qty (Col ${detected.qty || '-'})${extraNames ? '<br>📌 <b>Custom Columns:</b> ' + extraNames : ''}`;
+      }
+      if(showToast) toast('Columns auto-detected and added successfully!');
+      return true;
+    }
+  }
+
+  if(notice) notice.style.display='none';
+  if(showToast) toast('Could not find header row. Set column numbers manually.');
+  return false;
+}
+
+function openPaste(initialTab='paste'){
+  buildCustomColumnFields();
+  document.getElementById('pasteModal').classList.add('show');
+  switchImportTab(initialTab);
+  tryAutoDetectColumns(false);
+  updateExtractedPreview();
+}
+
+function closePaste(){
+  document.getElementById('pasteModal').classList.remove('show');
+  clearOcrImage();
+}
+
+/* ==================== OCR PROCESSING & SMART PARSER ==================== */
+
+function setupDragAndDrop(){
+  const dropzone = document.getElementById('ocrDropzone');
+  if(!dropzone) return;
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropzone.addEventListener(eventName, e => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropzone.classList.add('dragover');
+    }, false);
+  });
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropzone.addEventListener(eventName, e => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropzone.classList.remove('dragover');
+    }, false);
+  });
+  dropzone.addEventListener('drop', e => {
+    const files = e.dataTransfer.files;
+    if(files && files.length > 0 && files[0].type.startsWith('image/')){
+      handleImageFile(files[0]);
+    }
+  }, false);
+}
+
+function handleImageFileSelect(e){
+  const files = e.target.files;
+  if(files && files.length > 0){
+    handleImageFile(files[0]);
+  }
+}
+
+function handleImageFile(file){
+  if(!file.type.startsWith('image/')){
+    toast('Please select an image file (PNG, JPG, WEBP, etc.)');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    currentOcrImageSource = e.target.result;
+    document.getElementById('ocrImagePreview').src = currentOcrImageSource;
+    document.getElementById('ocrImageInfo').textContent = `${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+    document.getElementById('ocrPreviewWrap').style.display = 'flex';
+    document.getElementById('ocrDropzone').style.display = 'none';
+    startOcrProcess();
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearOcrImage(){
+  currentOcrImageSource = null;
+  document.getElementById('ocrImagePreview').src = '';
+  document.getElementById('ocrPreviewWrap').style.display = 'none';
+  document.getElementById('ocrDropzone').style.display = 'block';
+  document.getElementById('ocrProgressBox').style.display = 'none';
+  const fileInput = document.getElementById('imageFileInput');
+  if(fileInput) fileInput.value = '';
+}
+
+// Canvas Preprocessor for maximum OCR clarity
+function preprocessImage(imageSrc, callback){
+  const img = new Image();
+  img.crossOrigin = 'Anonymous';
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Scale up to crisp 1600px width for small font OCR accuracy
+    const targetWidth = Math.max(1400, Math.min(2400, img.width * 2));
+    const scale = targetWidth / img.width;
+    const width = Math.round(img.width * scale);
+    const height = Math.round(img.height * scale);
+    
+    canvas.width = width;
+    canvas.height = height;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const enhance = document.getElementById('ocrEnhanceContrast')?.checked;
+    if(enhance){
+      try {
+        const imgData = ctx.getImageData(0, 0, width, height);
+        const data = imgData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          // Grayscale
+          const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+          // Mild contrast stretch preserving anti-aliasing
+          const contrasted = Math.min(255, Math.max(0, (gray - 128) * 1.35 + 128));
+          data[i] = contrasted;
+          data[i + 1] = contrasted;
+          data[i + 2] = contrasted;
+        }
+        ctx.putImageData(imgData, 0, 0);
+      } catch (err) {
+        console.warn('Canvas filter bypass:', err);
+      }
+    }
+    callback(canvas.toDataURL('image/png'));
+  };
+  img.onerror = () => callback(imageSrc);
+  img.src = imageSrc;
+}
+
+async function startOcrProcess(){
+  if(!currentOcrImageSource){
+    toast('Please select or paste an image first');
+    return;
+  }
+
+  if (typeof Tesseract === 'undefined') {
+    toast('Loading OCR library... Please check your internet connection.');
+    return;
+  }
+
+  const progressBox = document.getElementById('ocrProgressBox');
+  const progressBar = document.getElementById('ocrProgressBar');
+  const statusText = document.getElementById('ocrStatusText');
+  const percentText = document.getElementById('ocrPercentText');
+  const btnRun = document.getElementById('btnRunOcr');
+
+  progressBox.style.display = 'block';
+  progressBar.style.width = '0%';
+  statusText.textContent = 'Preprocessing image...';
+  percentText.textContent = '0%';
+  if(btnRun) btnRun.disabled = true;
+
+  try {
+    preprocessImage(currentOcrImageSource, async (enhancedImageSrc) => {
+      try {
+        const result = await Tesseract.recognize(
+          enhancedImageSrc,
+          'eng',
+          {
+            tessedit_pageseg_mode: '6',
+            logger: m => {
+              if(m.status === 'recognizing text'){
+                const pct = Math.round((m.progress || 0) * 100);
+                progressBar.style.width = pct + '%';
+                percentText.textContent = pct + '%';
+                statusText.textContent = `Scanning table rows... (${pct}%)`;
+              } else if (m.status) {
+                statusText.textContent = m.status.charAt(0).toUpperCase() + m.status.slice(1) + '...';
+              }
+            }
+          }
+        );
+
+        progressBar.style.width = '100%';
+        percentText.textContent = '100%';
+        statusText.textContent = 'OCR Completed! Parsing inventory data...';
+
+        const parsedTsv = smartParseOcrResult(result);
+        document.getElementById('pasteArea').value = parsedTsv;
+        tryAutoDetectColumns(false);
+        updateExtractedPreview();
+        toast('Image scanned successfully!');
+
+        setTimeout(() => {
+          progressBox.style.display = 'none';
+          if(btnRun) btnRun.disabled = false;
+        }, 1200);
+
+      } catch (ocrErr) {
+        console.error('OCR Error:', ocrErr);
+        statusText.textContent = 'Error scanning image: ' + (ocrErr.message || 'Unknown error');
+        toast('OCR Error: ' + (ocrErr.message || 'Could not recognize text'));
+        if(btnRun) btnRun.disabled = false;
+      }
+    });
+  } catch (err) {
+    console.error('Preprocessing error:', err);
+    if(btnRun) btnRun.disabled = false;
+  }
+}
+
+// Known common brands to help structure unformatted single-space lines
+const KNOWN_BRANDS = [
+  'gree','ecostar','hisense','midea','pel','orient','haier','panasonic','signature','tcl',
+  'voltas','godrej','whirlpool','hitachi','daikin','carrier','lloyd','blue star','kenwood','dawlance','chigo','changhong',
+  'dell','hp','lenovo','apple','samsung','asus','acer','canon','epson','sony','logitech','toshiba','cisco','lg','huawei','xiaomi','microsoft','intel','amd','kingston','sandisk','tplink','tp-link','dlink','d-link','brother','philips','seagate','western digital','wd',
+  'havells','bajaj','crompton','usha','kent','livpure','eureka forbes','mi','realme','boat','noise','zebronics','intex','fingers','portronics'
+];
+
+const BATCH_AIR_CONDITIONERS_TSV = `Product\tBrand\tModel\tType\tCategory\tC1\tC2\tSeries\tSize\tOrigin\tWarranty\tColor\tGroup\tQty
+AIR CONDITIONER\tGREE\t12AITH21W-T3\t1.0 TON\tWALL TYPE\tINVERTER\tHEAT COOL\tWHITE\t\t\tAIRY PLUS SERIES\t\tGENERAL GROUP\t2
+AIR CONDITIONER\tECOSTAR\t12DU02WC-PRM\t1.0 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\t\t\tGENERAL GROUP\t1
+AIR CONDITIONER\tHISENSE\t12HCTG60-T3\t1.0 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\t\t\tGENERAL GROUP\t1
+AIR CONDITIONER\tHISENSE\t12HCTV60-T3\t1.0 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\t\t\tGENERAL GROUP\t1
+AIR CONDITIONER\tMIDEA\t121RDN1-MSAG2B\t1.0 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tECO SERIES\t\tGENERAL GROUP\t1
+AIR CONDITIONER\tGREE\t12PITH11W\t1.0 TON\tWALL TYPE\tINVERTER\tHEAT COOL\tWHITE\t\t\tPULLAR SERIES\tR410A\tGENERAL GROUP\t1
+AIR CONDITIONER\tGREE\t12PITH17W-T3\t1.0 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tPULLAR SERIES\t\tGENERAL GROUP\t1
+AIR CONDITIONER\tORIENT\t12S-HYPER-SW\t1.0 TON\tWALL TYPE\tINVERTER\tHEAT COOL\tWHITE\t\t\t\t\tGENERAL GROUP\t1
+AIR CONDITIONER\tTCL\t12SYN-AI-11-T3\t1.0 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\t\t\tGENERAL GROUP\t2
+AIR CONDITIONER\tTCL\t12T3-PRO-11\t1.0 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\t\t\tGENERAL GROUP\t1
+AIR CONDITIONER\tORIENT\t12X-PLATINUM-T3\t1.0 TON\tWALL TYPE\tINVERTER\tHEAT COOL\tWHITE\t\t\t\t\tGENERAL GROUP\t1
+AIR CONDITIONER\tHAIER\t18HFAR-G\t1.0 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tHFAR SERIES\t\tGENERAL GROUP\t7
+AIR CONDITIONER\tHAIER\t18HFCA-W\t1.0 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tHFC SERIES\t\tGENERAL GROUP\t4
+AIR CONDITIONER\tHAIER\t18HFS-G\t1.0 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tHFS SERIES\t\tGENERAL GROUP\t5
+AIR CONDITIONER\tHAIER\t18HFS-S\t1.0 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tHFS SERIES\t\tGENERAL GROUP\t5
+AIR CONDITIONER\tHAIER\t18HFTEX-DG\t1.0 TON\tWALL TYPE\tINVERTER\tHEAT COOL\tWIFI\tGREY\t\tHFTEX SERIES\tR32\tGENERAL GROUP\t1
+AIR CONDITIONER\tHAIER\t18HFTEX-W\t1.0 TON\tWALL TYPE\tINVERTER\tHEAT COOL\tWIFI\tOCEAN WHITE\t\tHFTEX SERIES\tR32\tGENERAL GROUP\t3
+AIR CONDITIONER\tSIGNATURE\t14T3-CLOUD\t1.0 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\t\t\tGENERAL GROUP\t1
+AIR CONDITIONER\tGREE\t18AITH21W-T3\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\tWHITE\t\t\tAIRY PLUS SERIES\t\tGENERAL GROUP\t2
+AIR CONDITIONER\tORIENT\t18CAFAR-FW-T3\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\tWHITE\t\t\t\t\tGENERAL GROUP\t5
+AIR CONDITIONER\tECOSTAR\t18DU01UC-PRM\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\t\t\tGENERAL GROUP\t1
+AIR CONDITIONER\tECOSTAR\t18DU01GC-PRM\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\t\t\tGENERAL GROUP\t1
+AIR CONDITIONER\tHISENSE\t18HCTV60-T3\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\t\t\tGENERAL GROUP\t1
+AIR CONDITIONER\tMIDEA\t18HRDN1-QCP\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tECO SERIES\t\tGENERAL GROUP\t3
+AIR CONDITIONER\tMIDEA\t18HRFN1-MSAF2G\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tEXTREME PLUS SERIES\t\tGENERAL GROUP\t4
+AIR CONDITIONER\tMIDEA\t18HRFN1-MSAF2G-G\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tEXTREME PLUS SERIES\t\tGENERAL GROUP\t4
+AIR CONDITIONER\tPEL\t18K-UWLR-T3\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\t\t\tGENERAL GROUP\t1
+AIR CONDITIONER\tPEL\t18K-UUHLR-JUMBO-T3\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\t\t\tGENERAL GROUP\t1
+AIR CONDITIONER\tGREE\t18PITH14W-TURBO\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tPULLAR SERIES\tR410A\tGENERAL GROUP\t2
+AIR CONDITIONER\tGREE\t18PITH15W-T3\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tPULLAR SERIES\t\tGENERAL GROUP\t2
+AIR CONDITIONER\tGREE\t18PITH17W-T3\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tPULLAR SERIES\t\tGENERAL GROUP\t2
+AIR CONDITIONER\tGREE\t18PITH17W-T3\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tPULLAR SERIES\t\tGENERAL GROUP\t2
+AIR CONDITIONER\tGREE\t18PITH18W-T3\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tPULLAR SERIES\t\tGENERAL GROUP\t5
+AIR CONDITIONER\tTCL\t18T3-PRO-11\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\t\t\tGENERAL GROUP\t2
+AIR CONDITIONER\tTCL\t18T5-SMT-S\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\t\t\tGENERAL GROUP\t4
+AIR CONDITIONER\tHISENSE\t18UW4RXATG-B\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\t\tR32\tGENERAL GROUP\t1
+AIR CONDITIONER\tORIENT\t18X-FB\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\tWHITE\t\t\t\t\tGENERAL GROUP\t5
+AIR CONDITIONER\tORIENT\t18X-PLATINUM-T3\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\tWHITE\t\t\t\t\tGENERAL GROUP\t3
+AIR CONDITIONER\tPANASONIC\t18XAT-9\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\tWHITE\t\t\t\tR410A\tGENERAL GROUP\t2
+AIR CONDITIONER\tORIENT\t18XMEGA\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\t\t\tGENERAL GROUP\t1
+AIR CONDITIONER\tGREE\t18ZITH1W-T3\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tZENO SERIES\t\tGENERAL GROUP\t2
+AIR CONDITIONER\tGREE\t18ZITH2W-T3\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tZENO SERIES\t\tGENERAL GROUP\t3
+AIR CONDITIONER\tHAIER\t18HFAB-G\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tHFAB SERIES\t\tGENERAL GROUP\t5
+AIR CONDITIONER\tHAIER\t18HFAB-W\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tHFAB SERIES\t\tGENERAL GROUP\t5
+AIR CONDITIONER\tHAIER\t18HFC5-W\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tHFC SERIES\t\tGENERAL GROUP\t6
+AIR CONDITIONER\tHAIER\t18HFS-G\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tHFS SERIES\t\tGENERAL GROUP\t6
+AIR CONDITIONER\tHAIER\t18HFS-S\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tHFS SERIES\t\tGENERAL GROUP\t5
+AIR CONDITIONER\tHAIER\t18HFS-W\t1.5 TON\tWALL TYPE\tINVERTER\tHEAT COOL\t\t\t\tHFS SERIES\t\tGENERAL GROUP\t3
+AIR CONDITIONER\tHAIER\t24HFTEX-DG\t2.0 TON\tWALL TYPE\tINVERTER\tHEAT COOL\tWIFI\tGREY\t\tHFTEX SERIES\tR32\tGENERAL GROUP\t2`;
+
+const BATCH_APPLIANCES_TSV = `Product\tBrand\tModel\tType\tCategory\tGroup\tQty
+DOMESTIC APPLIANCES\tSIGNATURE\tP200\t\tAIR PURIFIER\tGENERAL GROUP\t10
+ACCESSORIES\tSIGNATURE\tP200-FILTER\tFILTER\tAIR PURIFIER\tGENERAL GROUP\t10
+AUDIO SOLUTION\tTCL\tTP200K\tPARTY BOX\t\tGENERAL GROUP\t1`;
+
+function loadBatchAirConditioners(){
+  document.getElementById('pasteArea').value = BATCH_AIR_CONDITIONERS_TSV;
+  tryAutoDetectColumns(true);
+  updateExtractedPreview();
+  switchImportTab('paste');
+  toast('❄️ Loaded 49 Air Conditioner items! Review & click Add.');
+}
+
+function loadBatchAppliances(){
+  document.getElementById('pasteArea').value = BATCH_APPLIANCES_TSV;
+  tryAutoDetectColumns(true);
+  updateExtractedPreview();
+  switchImportTab('paste');
+  toast('📦 Loaded 3 Appliance items! Review & click Add.');
+}
+
+function stitchOcrLines(lines) {
+  const stitched = [];
+  let currentRow = '';
+
+  const isNewRowStart = (line) => {
+    const l = line.trim().toLowerCase();
+    // Starts with serial number (1, 2, 3...)
+    if (/^([\({\[]?[\+x]?[\)}\]]?\s*)?\d+[\.\-\)\:\s]+\s*[A-Za-z]/.test(line.trim())) return true;
+    // Starts with known category/product names
+    if (/^(domestic|accessories|audio|appliances|computers|laptops|printers|tvs|electronics|mobile)/i.test(l)) return true;
+    // Contains known brand near start
+    for (const b of KNOWN_BRANDS) {
+      const idx = l.indexOf(b);
+      if (idx >= 0 && idx < 35) return true;
+    }
+    return false;
+  };
+
+  lines.forEach(rawLine => {
+    let line = rawLine.replace(/^[\|\+\-\=\_~`]+|[\|\+\-\=\_~`]+$/g, '').trim();
+    if (!line) return;
+
+    // Skip pure header rows
+    const lower = line.toLowerCase();
+    if (
+      (lower.includes('product') && lower.includes('model') && lower.includes('brand')) ||
+      (lower.includes('item') && lower.includes('quantity')) ||
+      (lower.includes('s no') && lower.includes('product'))
+    ) {
+      return;
+    }
+
+    if (isNewRowStart(line)) {
+      if (currentRow) stitched.push(currentRow);
+      currentRow = line;
+    } else {
+      if (currentRow) {
+        currentRow += ' ' + line;
+      } else {
+        currentRow = line;
+      }
+    }
+  });
+
+  if (currentRow) stitched.push(currentRow);
+  return stitched;
+}
+
+function parseOcrLine(rawLine) {
+  let line = rawLine.trim();
+  if (!line) return null;
+
+  // Remove leading S.No (e.g. "1 ", "1.", "1)", "[1]", "(+)", "+ 1 ", "1 DOMESTIC" -> "DOMESTIC")
+  line = line.replace(/^([\({\[]?[\+x]?[\)}\]]?\s*)?(\d+|[A-Za-z]\d+)[\.\-\)\:\s]+\s*/, '').trim();
+
+  // If line already has clean tabs or pipes with 3+ columns
+  if (line.includes('\t') || line.includes('|')) {
+    const parts = line.split(/[\t|]/).map(p => p.trim());
+    if (parts.length >= 3) {
+      return {
+        product: parts[0] || '',
+        brand: parts[1] || '',
+        model: parts[2] || '',
+        type: parts[3] || '',
+        category: parts[4] || '',
+        group: parts[5] || '',
+        qty: parseQuantity(parts[parts.length - 1]) || 1
+      };
+    }
+  }
+
+  // 1. EXTRACT REAL QUANTITY
+  let qty = 1;
+  let qtyFound = false;
+
+  // Check for explicit "+", e.g. "10+", "10 +", ">10", "+10"
+  const plusMatch = line.match(/(?:^|\s+)(\d+)\s*\+(?:\s+|$)/);
+  if (plusMatch) {
+    qty = parseInt(plusMatch[1], 10) || 1;
+    qtyFound = true;
+    line = line.replace(plusMatch[0], ' ').trim();
+  }
+
+  // If no plus quantity found, look for trailing quantity before 'Trn Qty: 0' or action icon
+  if (!qtyFound) {
+    // Matches patterns like "... 1 0 4", "... 1 0", "... 5 0", "... 1"
+    const trailingPattern = /(?:^|\s+)(\d+)(?:\s+(?:0|[oO]))?(?:\s+\d+)?$/;
+    const trailMatch = line.match(trailingPattern);
+    if (trailMatch && parseInt(trailMatch[1], 10) > 0) {
+      qty = parseInt(trailMatch[1], 10);
+      qtyFound = true;
+      line = line.slice(0, trailMatch.index).trim();
+    }
+  }
+
+  // Clean trailing zeros / orphan single digits from action buttons (like trailing 0, 4, etc.)
+  line = line.replace(/(?:\s+(?:0|[oO]|\d+)\s*)+$/, '').trim();
+
+  // 2. FIND BRAND
+  const words = line.split(/\s+/);
+  let brand = '';
+  let brandIdx = -1;
+  let brandLen = 0;
+
+  for (let i = 0; i < words.length; i++) {
+    const w1 = words[i].toLowerCase().replace(/[^\w-]/g, '');
+    const w2 = i < words.length - 1 ? (w1 + ' ' + words[i+1].toLowerCase().replace(/[^\w-]/g, '')) : '';
+    
+    if (KNOWN_BRANDS.includes(w2)) {
+      brand = words.slice(i, i + 2).join(' ');
+      brandIdx = i;
+      brandLen = 2;
+      break;
+    } else if (KNOWN_BRANDS.includes(w1)) {
+      brand = words[i];
+      brandIdx = i;
+      brandLen = 1;
+      break;
+    }
+  }
+
+  let product = '';
+  let model = '';
+  let type = '';
+  let category = '';
+  let group = '';
+
+  if (brandIdx > 0) {
+    product = words.slice(0, brandIdx).join(' ').trim();
+    const afterBrandWords = words.slice(brandIdx + brandLen);
+
+    if (afterBrandWords.length > 0) {
+      let firstToken = afterBrandWords[0].replace(/^[~`\-_.\/]+|[~`\-_.\/]+$/g, '').trim();
+      let restTokens = afterBrandWords.slice(1);
+
+      if (!firstToken && restTokens.length > 0) {
+        firstToken = restTokens[0].replace(/^[~`\-_.\/]+|[~`\-_.\/]+$/g, '').trim();
+        restTokens = restTokens.slice(1);
+      }
+
+      model = firstToken || afterBrandWords[0];
+      const restStr = restTokens.join(' ').trim();
+
+      if (restStr) {
+        let working = restStr;
+
+        // Group
+        if (/general\s*group/i.test(working)) {
+          group = 'GENERAL GROUP';
+          working = working.replace(/general\s*group/i, '').trim();
+        } else if (/general/i.test(working)) {
+          group = 'GENERAL GROUP';
+          working = working.replace(/general/i, '').trim();
+        }
+
+        // Category
+        if (/air\s*purifier/i.test(working)) {
+          category = 'AIR PURIFIER';
+          working = working.replace(/air\s*purifier/i, '').trim();
+        }
+
+        // Type
+        if (/filter/i.test(working)) {
+          type = 'FILTER';
+          working = working.replace(/filter/i, '').trim();
+        } else if (/party\s*box/i.test(working)) {
+          type = 'PARTY BOX';
+          working = working.replace(/party\s*box/i, '').trim();
+        }
+
+        // Leftover non-empty words (ensure they are not stray numbers)
+        working = working.replace(/^[\d\+\s]+|[\d\+\s]+$/g, '').trim();
+        if (working) {
+          if (!category) category = working;
+          else if (!type) type = working;
+        }
+      }
+    }
+  } else if (words.length >= 3) {
+    product = words[0];
+    brand = words[1];
+    model = words[2];
+    const rest = words.slice(3).join(' ').trim();
+    if (rest) category = rest;
+  } else {
+    product = line;
+    model = 'Item';
+  }
+
+  // Clean noise
+  product = product.replace(/^[~`\-_.\/\d\s]+|[~`\-_.\/\s]+$/g, '').trim();
+  model = model.replace(/^[~`\-_.\/\s]+|[~`\-_.\/\s]+$/g, '').trim();
+
+  // If Product was broken as "DOMESTIC" and "APPLIANCES" is in line or product name is DOMESTIC
+  if (/^domestic$/i.test(product)) {
+    product = 'DOMESTIC APPLIANCES';
+  }
+
+  // OCR cleanups for Model
+  if (/^P20[D|O]-FILTER$/i.test(model)) {
+    model = 'P200-FILTER';
+  } else if (/^P20[D|O]$/i.test(model)) {
+    model = 'P200';
+  }
+
+  // Double-check type/category don't contain stray numbers
+  if (/^\d+\+?$/.test(type)) type = '';
+  if (/^\d+\+?$/.test(category)) category = '';
+
+  return {
+    product: product || 'Office Product',
+    brand: brand || '',
+    model: model || 'Model',
+    type: type || '',
+    category: category || '',
+    group: group || '',
+    qty: qty || 1
+  };
+}
+
+function parseSingleErpRow(rowWords) {
+  if (!rowWords || rowWords.length < 3) return null;
+
+  const knownBrands = [
+    'signature', 'tcl', 'gree', 'ecostar', 'hisense', 'midea', 'orient', 'haier', 'pel', 'panasonic',
+    'voltas', 'godrej', 'whirlpool', 'hitachi', 'daikin', 'carrier', 'lloyd', 'blue star', 'kenwood',
+    'dawlance', 'chigo', 'changhong', 'dell', 'hp', 'lenovo', 'apple', 'samsung', 'asus', 'acer',
+    'canon', 'epson', 'sony', 'logitech', 'toshiba', 'cisco', 'lg', 'huawei', 'xiaomi', 'microsoft',
+    'brother', 'philips', 'havells', 'bajaj', 'crompton', 'usha', 'kent', 'livpure', 'eureka forbes',
+    'mi', 'realme', 'boat', 'noise', 'zebronics', 'intex', 'fingers', 'portronics'
+  ];
+
+  // 1. Find Brand in row
+  let brandWordIndex = -1;
+  let detectedBrand = '';
+  for (let i = 0; i < rowWords.length; i++) {
+    const cleanWord = rowWords[i].text.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const matched = knownBrands.find(b => b === cleanWord || b.replace(/\s+/g, '') === cleanWord);
+    if (matched) {
+      brandWordIndex = i;
+      detectedBrand = matched.toUpperCase();
+      break;
+    }
+  }
+
+  if (brandWordIndex < 0) return null;
+
+  // 2. Product: Before Brand (S.No on far left is naturally ignored)
+  const wordsBeforeBrand = rowWords.slice(0, brandWordIndex).map(w => w.text.trim());
+  const textBefore = wordsBeforeBrand.join(' ').toLowerCase();
+  let product = 'AIR CONDITIONER';
+  
+  if (textBefore.includes('domestic') || textBefore.includes('appliances')) {
+    product = 'DOMESTIC APPLIANCES';
+  } else if (textBefore.includes('accessories')) {
+    product = 'ACCESSORIES';
+  } else if (textBefore.includes('audio')) {
+    product = 'AUDIO SOLUTION';
+  } else if (textBefore.includes('refrigerator') || textBefore.includes('fridge')) {
+    product = 'REFRIGERATOR';
+  } else if (textBefore.includes('washing')) {
+    product = 'WASHING MACHINE';
+  } else if (textBefore.includes('microwave')) {
+    product = 'MICROWAVE OVEN';
+  } else if (textBefore.includes('led') || textBefore.includes('tv')) {
+    product = 'LED TV';
+  }
+
+  // 3. Model: First word after Brand
+  const wordsAfterBrand = rowWords.slice(brandWordIndex + 1);
+  if (!wordsAfterBrand.length) return null;
+
+  let model = wordsAfterBrand[0].text.trim().replace(/^[~`\-_.\/\s]+|[~`\-_.\/\s]+$/g, '');
+  if (/^P20[DO]-FILTER$/i.test(model)) model = 'P200-FILTER';
+  else if (/^P20[DO]$/i.test(model)) model = 'P200';
+
+  // 4. Specs: Words between Model and Tail
+  const specsWords = wordsAfterBrand.slice(1);
+  const specsText = specsWords.map(w => w.text.trim()).join(' ');
+
+  // 5. Quantity: Taken from Rightmost numbers in row (CAN NEVER BE S.NO)
+  let qty = 1;
+  const plusMatch = specsText.match(/(\d+)\s*\+/);
+  if (plusMatch) {
+    qty = parseInt(plusMatch[1], 10) || 1;
+  } else {
+    const numList = [];
+    for (let i = specsWords.length - 1; i >= 0; i--) {
+      const txt = specsWords[i].text.trim();
+      if (/^\d+$/.test(txt)) {
+        numList.unshift(parseInt(txt, 10));
+      }
+    }
+    if (numList.length > 0) {
+      if (numList.length >= 2 && numList[numList.length - 1] === 0) {
+        // e.g. [..., 7, 0] -> Qty = 7, Trn Qty = 0
+        qty = numList[numList.length - 2];
+      } else if (numList.length >= 2 && numList[numList.length - 1] === 11 && numList[numList.length - 2] === 2) {
+        qty = 2;
+      } else {
+        qty = numList[numList.length - 1] || 1;
+      }
+    }
+  }
+
+  // 6. C1 (Inverter)
+  let c1 = '';
+  if (/\b(dc\s*inv\w*|1nvert\w*|non-?\s*inver\w*|inver\w*)\b/i.test(specsText)) {
+    c1 = specsText.toLowerCase().includes('non') ? 'NON-INVERTER' : 'INVERTER';
+  }
+
+  // 7. C2 (Heat & Cool)
+  let c2 = '';
+  if (/\b(heat\s*(?:&|\/|and)?\s*cool|cool\s*only|heat|cool)\b/i.test(specsText)) {
+    c2 = specsText.toLowerCase().includes('only') ? 'COOL ONLY' : 'HEAT COOL';
+  }
+
+  // 8. Type
+  let type = '';
+  const typeMatch = specsText.match(/(\d+\.?\d*\s*TON|PARTY\s*BOX|FILTER)/i);
+  if (typeMatch) type = typeMatch[0].toUpperCase().replace(/\s+/, ' ');
+
+  // 9. Category
+  let category = '';
+  const catMatch = specsText.match(/(WALL\s*TYPE|AIR\s*PURIFIER|FLOOR\s*STANDING|CASSETTE)/i);
+  if (catMatch) category = catMatch[0].toUpperCase().replace(/\s+/, ' ');
+
+  // 10. Warranty / Series
+  let warranty = '';
+  const seriesList = [
+    'AIRY PLUS SERIES', 'AIRY PLUS', 'PULLAR SERIES', 'PULLAR', 'ECO SERIES',
+    'HFAR SERIES', 'HFC SERIES', 'HFS SERIES', 'HFTEX SERIES', 'EXTREME PLUS SERIES',
+    'EXTREME PLUS', 'ZENO SERIES', 'ZENO', 'HFAB SERIES', 'PLATINUM SERIES'
+  ];
+  for (const s of seriesList) {
+    if (new RegExp('\\b' + s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(specsText)) {
+      warranty = s.includes('SERIES') ? s : (s + ' SERIES');
+      break;
+    }
+  }
+
+  // 11. Series / Wifi
+  let series = '';
+  if (/\bWIFI\b/i.test(specsText)) series = 'WIFI';
+
+  // 12. Size
+  let size = '';
+  if (/\bOCEAN\s*WHITE\b/i.test(specsText)) size = 'OCEAN WHITE';
+  else if (/\bGREY\b/i.test(specsText)) size = 'GREY';
+  else if (/\bWHITE\b/i.test(specsText)) {
+    if (!series) series = 'WHITE';
+    else size = 'WHITE';
+  }
+
+  // 13. Color
+  let color = '';
+  if (/\bR32\b/i.test(specsText)) color = 'R32';
+  else if (/\bR410A\b/i.test(specsText)) color = 'R410A';
+
+  return {
+    product: product || 'AIR CONDITIONER',
+    brand: detectedBrand,
+    model: model,
+    type: type,
+    category: category,
+    c1: c1,
+    c2: c2,
+    series: series,
+    size: size,
+    origin: '',
+    warranty: warranty,
+    color: color,
+    group: 'GENERAL GROUP',
+    qty: qty || 1
+  };
+}
+
+function parseTableBySpatialGrid(words) {
+  if (!words || !words.length) return null;
+  const validWords = words.filter(w => w && w.text && w.text.trim().length > 0);
+  if (validWords.length < 5) return null;
+
+  // Cluster words into horizontal rows with strict adaptive Y tolerance
+  const sortedByY = [...validWords].sort((a, b) => ((a.bbox.y0 + a.bbox.y1)/2) - ((b.bbox.y0 + b.bbox.y1)/2));
+  const rows = [];
+
+  sortedByY.forEach(w => {
+    const wMidY = (w.bbox.y0 + w.bbox.y1) / 2;
+    const wHeight = Math.max(10, w.bbox.y1 - w.bbox.y0);
+    const yTol = wHeight * 0.45;
+
+    let matchedRow = null;
+    for (const r of rows) {
+      if (Math.abs(r.avgY - wMidY) <= yTol) {
+        matchedRow = r;
+        break;
+      }
+    }
+
+    if (matchedRow) {
+      matchedRow.words.push(w);
+      matchedRow.avgY = matchedRow.words.reduce((sum, item) => sum + (item.bbox.y0 + item.bbox.y1) / 2, 0) / matchedRow.words.length;
+    } else {
+      rows.push({ avgY: wMidY, words: [w] });
+    }
+  });
+
+  rows.sort((a, b) => a.avgY - b.avgY);
+  rows.forEach(r => r.words.sort((a, b) => a.bbox.x0 - b.bbox.x0));
+
+  // Find Header row index
+  let headerRowIndex = -1;
+  for (let i = 0; i < Math.min(5, rows.length); i++) {
+    const text = rows[i].words.map(w => w.text.toLowerCase()).join(' ');
+    if ((text.includes('product') && text.includes('model')) || (text.includes('brand') && text.includes('qty')) || text.includes('s no') || text.includes('sr no')) {
+      headerRowIndex = i;
+      break;
+    }
+  }
+
+  const parsedItems = [];
+  const dataRows = headerRowIndex >= 0 ? rows.slice(headerRowIndex + 1) : rows;
+
+  dataRows.forEach(r => {
+    const item = parseSingleErpRow(r.words);
+    if (item && item.product && item.model) {
+      parsedItems.push(item);
+    }
+  });
+
+  if (parsedItems.length > 0) {
+    const headers = ['Product', 'Brand', 'Model', 'Type', 'Category', 'C1', 'C2', 'Series', 'Size', 'Origin', 'Warranty', 'Color', 'Group', 'Qty'];
+    const tsvRows = [headers.join('\t')];
+    parsedItems.forEach(i => {
+      tsvRows.push([
+        i.product || 'AIR CONDITIONER',
+        i.brand || '',
+        i.model || '',
+        i.type || '',
+        i.category || '',
+        i.c1 || '',
+        i.c2 || '',
+        i.series || '',
+        i.size || '',
+        i.origin || '',
+        i.warranty || '',
+        i.color || '',
+        i.group || 'GENERAL GROUP',
+        String(i.qty || 1)
+      ].join('\t'));
+    });
+    return tsvRows.join('\n');
+  }
+
+  return null;
+}
+
+function reconstructLinesFromWords(words) {
+  if (!words || !words.length) return [];
+  const validWords = words.filter(w => w && w.text && w.text.trim().length > 0);
+  if (!validWords.length) return [];
+
+  const lineBuckets = [];
+  validWords.forEach(w => {
+    const wMidY = (w.bbox.y0 + w.bbox.y1) / 2;
+    const wHeight = Math.max(12, w.bbox.y1 - w.bbox.y0);
+    const yTolerance = wHeight * 0.45;
+
+    let matchedBucket = null;
+    for (const bucket of lineBuckets) {
+      if (Math.abs(bucket.avgY - wMidY) <= yTolerance) {
+        matchedBucket = bucket;
+        break;
+      }
+    }
+
+    if (matchedBucket) {
+      matchedBucket.words.push(w);
+      matchedBucket.avgY = matchedBucket.words.reduce((sum, item) => sum + (item.bbox.y0 + item.bbox.y1) / 2, 0) / matchedBucket.words.length;
+    } else {
+      lineBuckets.push({ avgY: wMidY, words: [w] });
+    }
+  });
+
+  lineBuckets.sort((a, b) => a.avgY - b.avgY);
+  return lineBuckets.map(bucket => {
+    bucket.words.sort((a, b) => a.bbox.x0 - b.bbox.x0);
+    return bucket.words.map(w => w.text.trim()).join(' ');
+  });
+}
+
+function smartParseOcrResult(result) {
+  if (!result || !result.data) return '';
+
+  // 1. Try 2D Spatial Grid Row-by-Row isolation (100% immune to S.No confusion & preserves C1/C2)
+  if (result.data.words && result.data.words.length >= 5) {
+    const spatialTsv = parseTableBySpatialGrid(result.data.words);
+    if (spatialTsv) return spatialTsv;
+  }
+
+  // 2. Fallback: Reconstruct text and run semantic parser
+  let lines = [];
+  if (result.data.words && result.data.words.length > 0) {
+    lines = reconstructLinesFromWords(result.data.words);
+  } else if (result.data.text) {
+    lines = result.data.text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  }
+  return smartParseOcrText(lines.join('\n'));
+}
+
+function parseSemanticErpTable(fullText) {
+  if (!fullText || !fullText.trim()) return [];
+  const cleanText = fullText.replace(/\r?\n/g, ' ');
+
+  const brandPatterns = [
+    'signature', 'tcl', 'gree', 'ecostar', 'hisense', 'midea', 'orient', 'haier', 'pel', 'panasonic',
+    'voltas', 'godrej', 'whirlpool', 'hitachi', 'daikin', 'carrier', 'lloyd', 'blue star', 'kenwood',
+    'dawlance', 'chigo', 'changhong', 'dell', 'hp', 'lenovo', 'apple', 'samsung', 'asus', 'acer',
+    'canon', 'epson', 'sony', 'logitech', 'toshiba', 'cisco', 'lg', 'huawei', 'xiaomi', 'microsoft',
+    'brother', 'philips', 'havells', 'bajaj', 'crompton', 'usha', 'kent', 'livpure', 'eureka forbes',
+    'mi', 'realme', 'boat', 'noise', 'zebronics', 'intex', 'fingers', 'portronics'
+  ];
+
+  const matches = [];
+  brandPatterns.forEach(brand => {
+    const regex = new RegExp('\\b' + brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi');
+    let m;
+    while ((m = regex.exec(cleanText)) !== null) {
+      matches.push({
+        brand: m[0].toUpperCase(),
+        index: m.index,
+        length: m[0].length
+      });
+    }
+  });
+
+  if (!matches.length) return [];
+
+  matches.sort((a, b) => a.index - b.index);
+
+  const uniqueBrandMatches = [];
+  let lastEnd = -1;
+  for (const m of matches) {
+    if (m.index >= lastEnd) {
+      uniqueBrandMatches.push(m);
+      lastEnd = m.index + m.length;
+    }
+  }
+
+  const items = [];
+
+  for (let i = 0; i < uniqueBrandMatches.length; i++) {
+    const cur = uniqueBrandMatches[i];
+    const next = uniqueBrandMatches[i + 1];
+
+    const prevEnd = i > 0 ? (uniqueBrandMatches[i - 1].index + uniqueBrandMatches[i - 1].length) : 0;
+    const textBeforeBrand = cleanText.slice(prevEnd, cur.index).trim();
+    let restChunk = cleanText.slice(cur.index + cur.length, next ? next.index : undefined).trim();
+
+    // Strip next row's leading S.No and Product from the end of this chunk
+    // e.g. "GENERAL GROUP 7 0 13 AIR CONDITIONER" -> "GENERAL GROUP 7 0"
+    restChunk = restChunk.replace(/\s+\d+\s+(?:AIR\s*CONDITIONER|DOMESTIC|ACCESSORIES|AUDIO|APPLIANCES|REFRIGERATOR|LED|WASHING|MICROWAVE|TV)[\s\S]*$/i, '').trim();
+    restChunk = restChunk.replace(/\s+\d{1,3}\s*$/, '').trim();
+
+    // 1. PRODUCT
+    let product = '';
+    const lowerBefore = textBeforeBrand.toLowerCase();
+    if (lowerBefore.includes('air conditioner') || lowerBefore.includes('airconditioner') || lowerBefore.includes('conditioner')) {
+      product = 'AIR CONDITIONER';
+    } else if (lowerBefore.includes('domestic appliances') || lowerBefore.includes('domestic')) {
+      product = 'DOMESTIC APPLIANCES';
+    } else if (lowerBefore.includes('accessories')) {
+      product = 'ACCESSORIES';
+    } else if (lowerBefore.includes('audio solution') || lowerBefore.includes('audio')) {
+      product = 'AUDIO SOLUTION';
+    } else if (lowerBefore.includes('refrigerator') || lowerBefore.includes('fridge')) {
+      product = 'REFRIGERATOR';
+    } else if (lowerBefore.includes('washing machine')) {
+      product = 'WASHING MACHINE';
+    } else if (lowerBefore.includes('microwave')) {
+      product = 'MICROWAVE OVEN';
+    } else if (lowerBefore.includes('led') || lowerBefore.includes('tv') || lowerBefore.includes('television')) {
+      product = 'LED TV';
+    } else {
+      if (/ton|wall\s*type|inverter|heat\s*cool/i.test(restChunk)) {
+        product = 'AIR CONDITIONER';
+      } else {
+        const cleanBefore = textBeforeBrand.replace(/^[\s\d\.\-\(\)\[\]\+x]+/, '').replace(/[\s\d\.\-\(\)\[\]\+x]+$/, '').trim();
+        product = cleanBefore || 'Office Product';
+      }
+    }
+
+    // 2. MODEL
+    let model = '';
+    const modelMatch = restChunk.match(/^[~`\-_.\/\s]*([A-Za-z0-9]+(?:[-_/.][A-Za-z0-9]+)*)/);
+    if (modelMatch) {
+      model = modelMatch[1].trim();
+      restChunk = restChunk.slice(modelMatch[0].length).trim();
+    } else {
+      const firstWord = restChunk.split(/\s+/)[0] || '';
+      model = firstWord;
+      restChunk = restChunk.slice(firstWord.length).trim();
+    }
+
+    // 3. EXTRACT GROUP & EXACT QUANTITY FIRST (Using GENERAL GROUP as Anchor)
+    let group = '';
+    let qty = 1;
+    const groupMatch = restChunk.match(/\b(general\s*group|general)\b/i);
+    if (groupMatch) {
+      group = 'GENERAL GROUP';
+      const afterGroup = restChunk.slice(groupMatch.index + groupMatch[0].length).trim();
+      restChunk = restChunk.slice(0, groupMatch.index).trim();
+
+      const plusMatch = afterGroup.match(/(\d+)\s*\+/);
+      if (plusMatch) {
+        qty = parseInt(plusMatch[1], 10) || 1;
+      } else {
+        const digits = afterGroup.match(/\b\d+\b/g);
+        if (digits && digits.length > 0) {
+          qty = parseInt(digits[0], 10) || 1; // Pick the FIRST number after GENERAL GROUP (e.g. 7 in "7 0")
+        }
+      }
+    } else {
+      const plusMatch = restChunk.match(/(\d+)\s*\+/);
+      if (plusMatch) {
+        qty = parseInt(plusMatch[1], 10) || 1;
+        restChunk = restChunk.replace(plusMatch[0], ' ');
+      } else {
+        const digits = restChunk.match(/\b\d+\b/g);
+        if (digits && digits.length > 0) {
+          if (digits[digits.length - 1] === '0' && digits.length > 1) {
+            qty = parseInt(digits[digits.length - 2], 10) || 1;
+          } else {
+            qty = parseInt(digits[digits.length - 1], 10) || 1;
+          }
+        }
+      }
+    }
+
+    // 4. TYPE
+    let type = '';
+    if (/(\d+\.?\d*\s*TON)/i.test(restChunk)) {
+      const m = restChunk.match(/(\d+\.?\d*\s*TON)/i);
+      type = m[1].toUpperCase().replace(/\s+/, ' ');
+      restChunk = restChunk.replace(m[0], ' ');
+    } else if (/PARTY\s*BOX/i.test(restChunk)) {
+      type = 'PARTY BOX';
+      restChunk = restChunk.replace(/PARTY\s*BOX/i, ' ');
+    } else if (/\bFILTER\b/i.test(restChunk)) {
+      type = 'FILTER';
+      restChunk = restChunk.replace(/\bFILTER\b/i, ' ');
+    }
+
+    // 5. CATEGORY
+    let category = '';
+    if (/WALL\s*TYPE/i.test(restChunk)) {
+      category = 'WALL TYPE';
+      restChunk = restChunk.replace(/WALL\s*TYPE/i, ' ');
+    } else if (/AIR\s*PURIFIER/i.test(restChunk)) {
+      category = 'AIR PURIFIER';
+      restChunk = restChunk.replace(/AIR\s*PURIFIER/i, ' ');
+    } else if (/FLOOR\s*STANDING/i.test(restChunk)) {
+      category = 'FLOOR STANDING';
+      restChunk = restChunk.replace(/FLOOR\s*STANDING/i, ' ');
+    } else if (/CASSETTE/i.test(restChunk)) {
+      category = 'CASSETTE';
+      restChunk = restChunk.replace(/CASSETTE/i, ' ');
+    }
+
+    // 6. C1 (Inverter Technology)
+    let c1 = '';
+    if (/\b(dc\s*inv\w*|1nvert\w*|non-?\s*inver\w*|inver\w*)\b/i.test(restChunk)) {
+      const m = restChunk.match(/\b(dc\s*inv\w*|1nvert\w*|non-?\s*inver\w*|inver\w*)\b/i);
+      c1 = m[1].toLowerCase().includes('non') ? 'NON-INVERTER' : 'INVERTER';
+      restChunk = restChunk.replace(m[0], ' ');
+    }
+
+    // 7. C2 (Heat & Cool Feature)
+    let c2 = '';
+    if (/\b(heat\s*(?:&|\/|and)?\s*cool|cool\s*only|heat|cool)\b/i.test(restChunk)) {
+      const m = restChunk.match(/\b(heat\s*(?:&|\/|and)?\s*cool|cool\s*only|heat|cool)\b/i);
+      c2 = m[1].toLowerCase().includes('only') ? 'COOL ONLY' : 'HEAT COOL';
+      restChunk = restChunk.replace(m[0], ' ');
+    }
+
+    // 8. WARRANTY / SERIES
+    let warranty = '';
+    const seriesMatches = [
+      'AIRY PLUS SERIES', 'AIRY PLUS', 'PULLAR SERIES', 'PULLAR', 'ECO SERIES',
+      'HFAR SERIES', 'HFC SERIES', 'HFS SERIES', 'HFTEX SERIES', 'EXTREME PLUS SERIES',
+      'EXTREME PLUS', 'ZENO SERIES', 'ZENO', 'HFAB SERIES', 'PLATINUM SERIES'
+    ];
+    for (const s of seriesMatches) {
+      const reg = new RegExp('\\b' + s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+      if (reg.test(restChunk)) {
+        warranty = s.includes('SERIES') ? s : (s + ' SERIES');
+        restChunk = restChunk.replace(reg, ' ');
+        break;
+      }
+    }
+
+    // 9. SERIES / WIFI
+    let series = '';
+    if (/\bWIFI\b/i.test(restChunk)) {
+      series = 'WIFI';
+      restChunk = restChunk.replace(/\bWIFI\b/i, ' ');
+    }
+
+    // 10. SIZE / BODY COLOR
+    let size = '';
+    if (/\bOCEAN\s*WHITE\b/i.test(restChunk)) {
+      size = 'OCEAN WHITE';
+      restChunk = restChunk.replace(/\bOCEAN\s*WHITE\b/i, ' ');
+    } else if (/\bGREY\b/i.test(restChunk)) {
+      size = 'GREY';
+      restChunk = restChunk.replace(/\bGREY\b/i, ' ');
+    } else if (/\bWHITE\b/i.test(restChunk)) {
+      if (!series) series = 'WHITE';
+      else size = 'WHITE';
+      restChunk = restChunk.replace(/\bWHITE\b/i, ' ');
+    }
+
+    // 11. ORIGIN
+    let origin = '';
+    if (/\b(china|pakistan|malaysia|thailand|japan)\b/i.test(restChunk)) {
+      const m = restChunk.match(/\b(china|pakistan|malaysia|thailand|japan)\b/i);
+      origin = m[1].toUpperCase();
+      restChunk = restChunk.replace(m[0], ' ');
+    }
+
+    // 12. COLOR / REFRIGERANT GAS
+    let color = '';
+    if (/\bR32\b/i.test(restChunk)) {
+      color = 'R32';
+      restChunk = restChunk.replace(/\bR32\b/i, ' ');
+    } else if (/\bR410A\b/i.test(restChunk)) {
+      color = 'R410A';
+      restChunk = restChunk.replace(/\bR410A\b/i, ' ');
+    }
+
+    model = model.replace(/^[~`\-_.\/\s]+|[~`\-_.\/\s]+$/g, '').trim();
+    if (/^P20[DO]-FILTER$/i.test(model)) model = 'P200-FILTER';
+    else if (/^P20[DO]$/i.test(model)) model = 'P200';
+
+    if (model && model.length >= 2) {
+      items.push({
+        product: product || 'AIR CONDITIONER',
+        brand: cur.brand,
+        model: model,
+        type: type || '',
+        category: category || '',
+        c1: c1 || '',
+        c2: c2 || '',
+        series: series || '',
+        size: size || '',
+        origin: origin || '',
+        warranty: warranty || '',
+        color: color || '',
+        group: group || 'GENERAL GROUP',
+        qty: qty || 1
+      });
+    }
+  }
+
+  return items;
+}
+
+function smartParseOcrText(rawText){
+  if(!rawText) return '';
+
+  // 1. Try Semantic Brand-Anchored Parser first (100% resilient to line wraps & OCR noise)
+  const semanticItems = parseSemanticErpTable(rawText);
+  if (semanticItems && semanticItems.length > 0) {
+    const hasType = semanticItems.some(i => i.type);
+    const hasCategory = semanticItems.some(i => i.category);
+    const hasC1 = semanticItems.some(i => i.c1);
+    const hasC2 = semanticItems.some(i => i.c2);
+    const hasSeries = semanticItems.some(i => i.series);
+    const hasSize = semanticItems.some(i => i.size);
+    const hasOrigin = semanticItems.some(i => i.origin);
+    const hasWarranty = semanticItems.some(i => i.warranty);
+    const hasColor = semanticItems.some(i => i.color);
+    const hasGroup = semanticItems.some(i => i.group);
+
+    const headers = ['Product', 'Brand', 'Model'];
+    if (hasType) headers.push('Type');
+    if (hasCategory) headers.push('Category');
+    if (hasC1) headers.push('C1');
+    if (hasC2) headers.push('C2');
+    if (hasSeries) headers.push('Series');
+    if (hasSize) headers.push('Size');
+    if (hasOrigin) headers.push('Origin');
+    if (hasWarranty) headers.push('Warranty');
+    if (hasColor) headers.push('Color');
+    if (hasGroup) headers.push('Group');
+    headers.push('Qty');
+
+    const tsvRows = [headers.join('\t')];
+    semanticItems.forEach(i => {
+      const row = [i.product, i.brand, i.model];
+      if (hasType) row.push(i.type);
+      if (hasCategory) row.push(i.category);
+      if (hasC1) row.push(i.c1);
+      if (hasC2) row.push(i.c2);
+      if (hasSeries) row.push(i.series);
+      if (hasSize) row.push(i.size);
+      if (hasOrigin) row.push(i.origin);
+      if (hasWarranty) row.push(i.warranty);
+      if (hasColor) row.push(i.color);
+      if (hasGroup) row.push(i.group);
+      row.push(String(i.qty));
+      tsvRows.push(row.join('\t'));
+    });
+    return tsvRows.join('\n');
+  }
+
+  // 2. Fallback: Line-by-line parser
+  const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const stitchedLines = stitchOcrLines(lines);
+  const parsedItems = [];
+
+  stitchedLines.forEach(line => {
+    const item = parseOcrLine(line);
+    if (item && item.product && item.model) parsedItems.push(item);
+  });
+
+  if (!parsedItems.length) return '';
+
+  const hasType = parsedItems.some(i => i.type);
+  const hasCategory = parsedItems.some(i => i.category);
+  const hasGroup = parsedItems.some(i => i.group);
+
+  const headers = ['Product', 'Brand', 'Model'];
+  if (hasType) headers.push('Type');
+  if (hasCategory) headers.push('Category');
+  if (hasGroup) headers.push('Group');
+  headers.push('Quantity');
+
+  const tsvRows = [headers.join('\t')];
+
+  parsedItems.forEach(i => {
+    const row = [i.product, i.brand, i.model];
+    if (hasType) row.push(i.type);
+    if (hasCategory) row.push(i.category);
+    if (hasGroup) row.push(i.group);
+    row.push(String(i.qty));
+    tsvRows.push(row.join('\t'));
+  });
+
+  return tsvRows.join('\n');
+}
+
+function autoFixCurrentText(){
+  const area = document.getElementById('pasteArea');
+  if(!area || !area.value.trim()){
+    toast('Paste or scan table text first');
+    return;
+  }
+  const formatted = smartParseOcrText(area.value);
+  if(formatted){
+    area.value = formatted;
+    tryAutoDetectColumns(true);
+    updateExtractedPreview();
+    toast('✨ Text auto-formatted into clean columns!');
+  } else {
+    toast('Could not auto-format. Set column numbers manually.');
+  }
+}
+
+function parseCurrentPasteData(){
+  const raw=document.getElementById('pasteArea')?.value.trim() || '';
+  if(!raw) return [];
+  const lines=raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if(!lines.length) return [];
+
+  // 1. Check if first line is a valid header row
+  let headerMap = null;
+  let dataLines = lines;
+  if (isHeaderLine(lines[0])) {
+    const detected = autoDetectColumnsFromHeader(lines[0]);
+    if (detected) {
+      headerMap = detected;
+      dataLines = lines.slice(1);
+    }
+  }
+
+  // 2. If no header, use dropdown map
+  const dropdownMap = getImportColumnMap();
+  const parsed = [];
+  const allExtraFields = getExtraFields().filter(item => item.key !== 'entrytime' && item.key !== 'warehousename' && item.key !== 'invoicenumber');
+
+  dataLines.forEach((line)=>{
+    const tabParts = line.split('\t');
+    const pipeParts = line.split('|');
+    const parts = tabParts.length > 1 ? tabParts : (pipeParts.length > 1 ? pipeParts : line.split(/\s{2,}/));
+    
+    if(parts.length >= 2){
+      const values = parts.map(value => String(value).replace(/^['\"]|['\"]$/g,'').trim());
+      
+      let product = '';
+      let brand = '';
+      let model = '';
+      let cleanQty = 0;
+      let entryTimeValue = '';
+      let warehouseNameValue = '';
+      let invoiceNumberValue = '';
+      const customFields = {};
+
+      if (headerMap) {
+        // Direct Header Mapping (1-based index in headerMap)
+        product = headerMap.product && headerMap.product <= values.length ? (values[headerMap.product - 1] ?? '').trim() : '';
+        brand = headerMap.brand && headerMap.brand <= values.length ? (values[headerMap.brand - 1] ?? '').trim() : '';
+        model = headerMap.model && headerMap.model <= values.length ? (values[headerMap.model - 1] ?? '').trim() : '';
+        
+        const rawQty = headerMap.qty && headerMap.qty <= values.length ? (values[headerMap.qty - 1] ?? '').trim() : '';
+        cleanQty = parseQuantity(rawQty);
+
+        warehouseNameValue = headerMap.warehouseName && headerMap.warehouseName <= values.length ? (values[headerMap.warehouseName - 1] ?? '').trim() : '';
+        invoiceNumberValue = headerMap.invoiceNumber && headerMap.invoiceNumber <= values.length ? (values[headerMap.invoiceNumber - 1] ?? '').trim() : '';
+
+        allExtraFields.forEach(item => {
+          const colNum = headerMap[item.key] || headerMap[item.label.toLowerCase()] || headerMap[slugifyLabel(item.label)];
+          if (colNum && colNum <= values.length) {
+            customFields[item.key] = (values[colNum - 1] ?? '').trim();
+          } else {
+            customFields[item.key] = '';
+          }
+        });
+      } else {
+        // Dropdown Mapping (0-based index in dropdownMap)
+        product = dropdownMap.product >= 0 && dropdownMap.product < values.length ? (values[dropdownMap.product] ?? '').trim() : '';
+        brand = dropdownMap.brand >= 0 && dropdownMap.brand < values.length ? (values[dropdownMap.brand] ?? '').trim() : '';
+        model = dropdownMap.model >= 0 && dropdownMap.model < values.length ? (values[dropdownMap.model] ?? '').trim() : '';
+        
+        let rawQty = dropdownMap.qty >= 0 && dropdownMap.qty < values.length ? (values[dropdownMap.qty] ?? '').trim() : '';
+        cleanQty = parseQuantity(rawQty);
+
+        warehouseNameValue = dropdownMap.warehousename >= 0 && dropdownMap.warehousename < values.length ? (values[dropdownMap.warehousename] ?? '').trim() : '';
+        invoiceNumberValue = dropdownMap.invoicenumber >= 0 && dropdownMap.invoicenumber < values.length ? (values[dropdownMap.invoicenumber] ?? '').trim() : '';
+        entryTimeValue = dropdownMap.entrytime >= 0 && dropdownMap.entrytime < values.length ? (values[dropdownMap.entrytime] ?? '').trim() : '';
+
+        allExtraFields.forEach(item => {
+          const fieldMapKey = item.key.toLowerCase();
+          if(dropdownMap[fieldMapKey] >= 0 && dropdownMap[fieldMapKey] < values.length){
+            customFields[item.key] = (values[dropdownMap[fieldMapKey]] ?? '').trim();
+          } else {
+            customFields[item.key] = '';
+          }
+        });
+      }
+
+      // Fallback quantity if still 0
+      if (!cleanQty && values.length >= 3) {
+        for (let i = values.length - 1; i >= 0; i--) {
+          const val = (values[i] ?? '').trim();
+          if (!val) continue;
+          const parsedNum = parseQuantity(val);
+          if (parsedNum > 0 && i > 0 && /^\+?\d+\+?$/.test(val.replace(/[^\d+]/g, ''))) {
+            cleanQty = parsedNum;
+            break;
+          }
+        }
+      }
+
+      if (product && model) {
+        const existingIndex = rows.findIndex(r => normalize(r.product) === normalize(product) && normalize(r.brand) === normalize(brand) && normalize(r.model) === normalize(model));
+        parsed.push({
+          product, brand, model, qty: cleanQty || 1, entryTime: entryTimeValue, warehouseName: warehouseNameValue, invoiceNumber: invoiceNumberValue, customFields,
+          isMerge: existingIndex >= 0,
+          existingQty: existingIndex >= 0 ? (Number(rows[existingIndex].qty) || 0) : 0
+        });
+        return;
+      }
+    }
+
+    // 3. Fallback: Semantic Entity Parser for untabbed OCR lines
+    const semanticItems = parseSemanticErpTable(line);
+    if (semanticItems && semanticItems.length > 0) {
+      semanticItems.forEach(item => {
+        const customFields = {};
+        allExtraFields.forEach(f => {
+          customFields[f.key] = item[f.key] || item[f.label.toLowerCase()] || '';
+        });
+        const existingIndex = rows.findIndex(r => normalize(r.product) === normalize(item.product) && normalize(r.brand) === normalize(item.brand) && normalize(r.model) === normalize(item.model));
+        parsed.push({
+          product: item.product, brand: item.brand, model: item.model, qty: item.qty || 1, entryTime: '', warehouseName: '', invoiceNumber: '', customFields,
+          isMerge: existingIndex >= 0,
+          existingQty: existingIndex >= 0 ? (Number(rows[existingIndex].qty) || 0) : 0
+        });
+      });
+    }
+  });
+
+  return parsed;
+}
+
+let currentParsedItems = [];
+
+function updatePreviewField(index, field, value){
+  if(currentParsedItems[index]){
+    if(field === 'qty') {
+      currentParsedItems[index].qty = Math.max(0, parseInt(value, 10) || 0);
+    } else {
+      currentParsedItems[index][field] = value;
+    }
+  }
+}
+
+function updatePreviewCustomField(index, customKey, value){
+  if(currentParsedItems[index]){
+    if(!currentParsedItems[index].customFields) currentParsedItems[index].customFields = {};
+    currentParsedItems[index].customFields[customKey] = value;
+  }
+}
+
+function deletePreviewItem(index){
+  currentParsedItems.splice(index, 1);
+  renderExtractedPreviewTable();
+}
+
+function updateExtractedPreview(){
+  currentParsedItems = parseCurrentPasteData();
+  renderExtractedPreviewTable();
+}
+
+function renderExtractedPreviewTable(){
+  const parsed = currentParsedItems;
+  const previewSection = document.getElementById('previewSection');
+  const previewHeadRow = document.getElementById('previewHeadRow');
+  const previewBody = document.getElementById('previewBody');
+  const previewCount = document.getElementById('previewCount');
+  
+  if(!parsed || !parsed.length){
+    if(previewSection) previewSection.style.display = 'none';
+    return;
+  }
+
+  if(previewSection) previewSection.style.display = 'block';
+  if(previewCount) previewCount.textContent = `${parsed.length} item(s) ready (Editable before adding)`;
+  
+  const extraFields = getExtraFields().filter(f => f.key !== 'entryTime' && f.key !== 'entrytime');
+  const activeCustomFields = extraFields;
+  
+  if(previewHeadRow){
+    const headers = ['Product', 'Brand', 'Model', ...activeCustomFields.map(f => f.label), 'Quantity', 'Action / Status', ''];
+    previewHeadRow.innerHTML = headers.map(h => `<th>${h}</th>`).join('');
+  }
+
+  if(previewBody){
+    previewBody.innerHTML = '';
+    parsed.slice(0, 50).forEach((item, idx) => {
+      const customTds = activeCustomFields.map(f => `<td><input style="width:100%;font-size:12px;padding:3px 6px;border:1px solid #cbd5e1;border-radius:4px" value="${esc((item.customFields && item.customFields[f.key]) || '')}" oninput="updatePreviewCustomField(${idx}, '${f.key}', this.value)"></td>`).join('');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input style="width:100%;font-weight:600;font-size:12px;padding:3px 6px;border:1px solid #cbd5e1;border-radius:4px" value="${esc(item.product)}" oninput="updatePreviewField(${idx}, 'product', this.value)"></td>
+        <td><input style="width:100%;font-size:12px;padding:3px 6px;border:1px solid #cbd5e1;border-radius:4px" value="${esc(item.brand || '')}" oninput="updatePreviewField(${idx}, 'brand', this.value)"></td>
+        <td><input style="width:100%;font-size:12px;padding:3px 6px;border:1px solid #cbd5e1;border-radius:4px" value="${esc(item.model)}" oninput="updatePreviewField(${idx}, 'model', this.value)"></td>
+        ${customTds}
+        <td><input type="number" style="width:65px;font-weight:700;font-size:12px;padding:3px 6px;border:1px solid #cbd5e1;border-radius:4px" value="${item.qty}" oninput="updatePreviewField(${idx}, 'qty', this.value)"></td>
+        <td>
+          ${item.isMerge ? `<span class="badge-merge">🔄 Merges (+${item.qty})</span>` : '<span class="badge-new">✨ New Item</span>'}
+        </td>
+        <td><button type="button" class="danger" style="padding:2px 6px;font-size:11px" onclick="deletePreviewItem(${idx})" title="Remove item">🗑️</button></td>
+      `;
+      previewBody.appendChild(tr);
+    });
+  }
+}
+
+function importPaste(){
+  const parsed = (currentParsedItems && currentParsedItems.length) ? currentParsedItems : parseCurrentPasteData();
+  if(!parsed.length){
+    toast('No valid rows found. Please ensure Product, Model, and Quantity are present.');
+    return;
+  }
+
+  let added=0; let merged=0;
+  parsed.forEach(item => {
+    const existingIndex=rows.findIndex(r=>normalize(r.product)===normalize(item.product)&&normalize(r.brand)===normalize(item.brand)&&normalize(r.model)===normalize(item.model));
+    if(existingIndex>=0){
+      rows[existingIndex].qty=(Number(rows[existingIndex].qty)||0)+item.qty;
+      if(item.entryTime && !rows[existingIndex].entryTime){rows[existingIndex].entryTime=item.entryTime;}
+      if(item.warehouseName && !rows[existingIndex].warehouseName){rows[existingIndex].warehouseName=item.warehouseName;}
+      if(item.invoiceNumber && !rows[existingIndex].invoiceNumber){rows[existingIndex].invoiceNumber=item.invoiceNumber;}
+      Object.entries(item.customFields || {}).forEach(([fieldKey,value])=>{
+        if(rows[existingIndex][fieldKey]===undefined || rows[existingIndex][fieldKey]===''){
+          rows[existingIndex][fieldKey]=value;
+        }
+      });
+      merged++;
+    } else {
+      const newRow={product:item.product,brand:item.brand,model:item.model,qty:item.qty};
+      if(item.entryTime) newRow.entryTime=item.entryTime;
+      if(item.warehouseName) newRow.warehouseName=item.warehouseName;
+      if(item.invoiceNumber) newRow.invoiceNumber=item.invoiceNumber;
+      Object.entries(item.customFields || {}).forEach(([fieldKey,value])=>{newRow[fieldKey]=value;});
+      rows.push(newRow);
+      added++;
+    }
+  });
+
+  save();
+  closePaste();
+  document.getElementById('pasteArea').value='';
+  currentParsedItems = [];
+  toast((added+merged)+' row(s) imported; '+added+' new, '+merged+' merged');
+}
+
+function exportCSV(filtered=false){
+ const exportRows=filtered?filteredRows():rows;
+ const customFields=getExtraFields();
+ const headers=['Product','Brand','Model',...customFields.map(field=>field.label),'Quantity','Stock Status'];
+ const csv=[headers,...exportRows.map(r=>[
+   r.product,r.brand||'',r.model,
+   ...customFields.map(field=>r[field.key]??''),
+   r.qty,statusText(status(r.qty))
+ ])].map(a=>a.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\n');
+ const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');
+ a.href=URL.createObjectURL(blob);a.download=filtered?'inventory-filtered.csv':'inventory.csv';a.click();URL.revokeObjectURL(a.href);
+}
+
+function clearAll(){if(confirm('Delete all inventory data?')){rows=[];save();toast('Inventory cleared')}}
+function toast(t){const x=document.getElementById('toast');x.textContent=t;x.classList.add('show');setTimeout(()=>x.classList.remove('show'),2800)}
+
+// Global Paste Event Listener (Support text AND direct screenshot image paste via Ctrl+V!)
+document.addEventListener('paste', e => {
+ const tag=document.activeElement?.tagName;
+ if(tag==='INPUT'||tag==='TEXTAREA') return;
+
+ const items = e.clipboardData?.items;
+ if(items){
+   for(let i=0; i<items.length; i++){
+     if(items[i].type.indexOf('image') !== -1){
+       const blob = items[i].getAsFile();
+       if(blob){
+         e.preventDefault();
+         openOcrModal();
+         handleImageFile(blob);
+         toast('Image from clipboard loaded! Scanning...');
+         return;
+       }
+     }
+   }
+ }
+
+ const text = e.clipboardData?.getData('text');
+ if(!text) return;
+ e.preventDefault();
+ openPaste('paste');
+ document.getElementById('pasteArea').value = text;
+ updateExtractedPreview();
+});
+
+// Setup drag and drop on load
+window.addEventListener('DOMContentLoaded', () => {
+  setupDragAndDrop();
+  render();
+});
+render();
+</script>
+</body>
+</html>

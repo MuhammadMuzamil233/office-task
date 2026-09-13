@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Transaction History - Office Inventory</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:#f4f7fb;color:#172033}
+header{background:#172554;color:#fff;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;gap:15px}
+header h1{margin:0;font-size:22px}.wrap{max-width:1400px;margin:22px auto;padding:0 18px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+.card{background:#fff;border-radius:12px;padding:17px;box-shadow:0 3px 12px #0000000d}.label{font-size:13px;color:#667085}.num{font-size:28px;font-weight:700;margin-top:5px}
+.toolbar{background:#fff;border-radius:12px;padding:14px;display:flex;flex-wrap:wrap;gap:9px;align-items:center;box-shadow:0 3px 12px #0000000d;margin-bottom:14px}
+input,select,button{font:inherit;border:1px solid #d0d5dd;border-radius:8px;padding:9px 11px;background:#fff}
+button{cursor:pointer;background:#172554;color:#fff;border-color:#172554;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+button.secondary{background:#fff;color:#172554;border-color:#d0d5dd}
+.tablebox{background:#fff;border-radius:12px;box-shadow:0 3px 12px #0000000d;overflow:auto}
+table{width:100%;border-collapse:collapse;min-width:760px}th,td{border-bottom:1px solid #eaecf0;padding:8px;text-align:left}th{background:#f8fafc;position:sticky;top:0;z-index:1;font-size:13px}
+.type-in{color:#067647;font-weight:700}.type-out{color:#b42318;font-weight:700}
+.actions button{padding:6px 9px;font-size:12px}
+.toast{position:fixed;right:20px;bottom:20px;background:#172554;color:#fff;padding:12px 16px;border-radius:9px;display:none;z-index:10001;box-shadow:0 4px 12px rgba(0,0,0,0.15)}.toast.show{display:block}
+.badge-in{background:#dcfae6;color:#067647;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;display:inline-block}
+.badge-out{background:#fee4e2;color:#b42318;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;display:inline-block}
+.model-badge{background:#e0f2fe;color:#0369a1;padding:3px 8px;border-radius:6px;font-weight:700;display:inline-block;font-size:13px}
+@media(max-width:800px){.cards{grid-template-columns:1fr}}
+</style>
+<script src="/inventory-api.js"></script>
+</head>
+<body>
+<header>
+  <h1>📊 Transaction History</h1>
+  <button class="secondary" style="color:#172554" onclick="location.href='index.html'">← Back to Inventory</button>
+</header>
+
+<div class="wrap">
+  <div class="cards">
+    <div class="card">
+      <div class="label">Total Stock IN Quantity</div>
+      <div class="num" id="totalStockIn">0</div>
+    </div>
+    <div class="card">
+      <div class="label">Total Stock OUT Quantity</div>
+      <div class="num" id="totalStockOut">0</div>
+    </div>
+    <div class="card">
+      <div class="label">Unique Models Transacted</div>
+      <div class="num" id="uniqueModels">0</div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <input id="productFilter" list="productSuggestions" placeholder="Filter product..." oninput="render()">
+    <input id="modelFilter" list="modelSuggestions" placeholder="Filter model..." oninput="render()">
+    <select id="typeFilter" onchange="render()">
+      <option value="all">All Transactions</option>
+      <option value="in">Stock IN Only</option>
+      <option value="out">Stock OUT Only</option>
+    </select>
+    <input id="refFilter" placeholder="Filter invoice / warehouse..." oninput="render()">
+    <datalist id="productSuggestions"></datalist>
+    <datalist id="modelSuggestions"></datalist>
+    <button onclick="render()">Search</button>
+    <button class="secondary" onclick="exportTransactionCSV()">Export History</button>
+    <button class="secondary" onclick="clearHistory()">Clear All</button>
+  </div>
+
+  <div class="tablebox">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Product</th>
+          <th>Brand</th>
+          <th>Model</th>
+          <th>Quantity</th>
+          <th>Reference (Warehouse / Invoice #)</th>
+        </tr>
+      </thead>
+      <tbody id="body"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STOCK_IN_KEY = 'office_inventory_stock_in_v1';
+const STOCK_OUT_KEY = 'office_inventory_stock_out_v1';
+
+function escapeHtml(text) {
+  return String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+function getAllTransactions() {
+  const stockIn = JSON.parse(localStorage.getItem(STOCK_IN_KEY) || '[]');
+  const stockOut = JSON.parse(localStorage.getItem(STOCK_OUT_KEY) || '[]');
+  
+  const transactions = [
+    ...stockIn.map(item => ({
+      ...item,
+      type: 'in',
+      reference: item.warehouse || ''
+    })),
+    ...stockOut.map(item => ({
+      ...item,
+      type: 'out',
+      reference: item.invoice || ''
+    }))
+  ];
+
+  return transactions.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+}
+
+function updateDatalists(allTransactions) {
+  const productSuggestions = document.getElementById('productSuggestions');
+  const modelSuggestions = document.getElementById('modelSuggestions');
+
+  const products = [...new Set(allTransactions.map(t => t.product).filter(Boolean))].sort();
+  const models = [...new Set(allTransactions.map(t => t.model).filter(Boolean))].sort();
+
+  if (productSuggestions) {
+    productSuggestions.innerHTML = products.map(p => `<option value="${escapeHtml(p)}">`).join('');
+  }
+  if (modelSuggestions) {
+    modelSuggestions.innerHTML = models.map(m => `<option value="${escapeHtml(m)}">`).join('');
+  }
+}
+
+function render() {
+  const productFilter = (document.getElementById('productFilter')?.value || '').toLowerCase().trim();
+  const modelFilter = (document.getElementById('modelFilter')?.value || '').toLowerCase().trim();
+  const typeFilter = document.getElementById('typeFilter')?.value || 'all';
+  const refFilter = (document.getElementById('refFilter')?.value || '').toLowerCase().trim();
+  
+  const allTransactions = getAllTransactions();
+  updateDatalists(allTransactions);
+
+  const filtered = allTransactions.filter(item =>
+    (item.product || '').toLowerCase().includes(productFilter) &&
+    (item.model || '').toLowerCase().includes(modelFilter) &&
+    (typeFilter === 'all' || item.type === typeFilter) &&
+    (item.reference || '').toLowerCase().includes(refFilter)
+  );
+
+  const body = document.getElementById('body');
+  body.innerHTML = '';
+
+  if (!filtered.length) {
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:35px;color:#667085">No transaction records found matching filters.</td></tr>';
+  } else {
+    filtered.forEach(item => {
+      const tr = document.createElement('tr');
+      const typeLabel = item.type === 'in' ? '<span class="badge-in">📥 IN</span>' : '<span class="badge-out">📤 OUT</span>';
+      
+      tr.innerHTML = `
+        <td>${escapeHtml(item.date)}</td>
+        <td>${typeLabel}</td>
+        <td>${escapeHtml(item.product)}</td>
+        <td>${escapeHtml(item.brand || '-')}</td>
+        <td><span class="model-badge">${escapeHtml(item.model)}</span></td>
+        <td><strong>${item.qty}</strong></td>
+        <td><strong>${escapeHtml(item.reference)}</strong></td>
+      `;
+      body.appendChild(tr);
+    });
+  }
+
+  const stockIn = JSON.parse(localStorage.getItem(STOCK_IN_KEY) || '[]');
+  const stockOut = JSON.parse(localStorage.getItem(STOCK_OUT_KEY) || '[]');
+  
+  const filteredStockIn = stockIn.filter(item =>
+    (item.product || '').toLowerCase().includes(productFilter) &&
+    (item.model || '').toLowerCase().includes(modelFilter) &&
+    (item.warehouse || '').toLowerCase().includes(refFilter)
+  );
+  const filteredStockOut = stockOut.filter(item =>
+    (item.product || '').toLowerCase().includes(productFilter) &&
+    (item.model || '').toLowerCase().includes(modelFilter) &&
+    (item.invoice || '').toLowerCase().includes(refFilter)
+  );
+
+  const totalInQty = filteredStockIn.reduce((a, i) => a + (Number(i.qty) || 0), 0);
+  const totalOutQty = filteredStockOut.reduce((a, i) => a + (Number(i.qty) || 0), 0);
+  const uniqueModels = new Set(filtered.map(i => i.model).filter(Boolean));
+
+  document.getElementById('totalStockIn').textContent = totalInQty;
+  document.getElementById('totalStockOut').textContent = totalOutQty;
+  document.getElementById('uniqueModels').textContent = uniqueModels.size;
+}
+
+function exportTransactionCSV() {
+  const transactions = getAllTransactions();
+  const headers = ['Date', 'Type', 'Product', 'Brand', 'Model', 'Quantity', 'Reference'];
+  const csv = [
+    headers,
+    ...transactions.map(t => [
+      t.date,
+      t.type.toUpperCase(),
+      t.product,
+      t.brand || '',
+      t.model,
+      t.qty,
+      t.reference
+    ])
+  ].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'transaction-history.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('✓ History exported to CSV');
+}
+
+function clearHistory() {
+  if (!confirm('Delete ALL transaction history? This cannot be undone.')) return;
+  localStorage.setItem(STOCK_IN_KEY, '[]');
+  localStorage.setItem(STOCK_OUT_KEY, '[]');
+  render();
+  toast('All transaction history cleared');
+}
+
+render();
+</script>
+</body>
+</html>

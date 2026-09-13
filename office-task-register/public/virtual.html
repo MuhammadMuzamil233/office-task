@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Virtual Warehouse</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:#f4f7fb;color:#172033}
+header{background:#172554;color:#fff;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;gap:15px}header h1{margin:0;font-size:22px}
+.wrap{max-width:1100px;margin:22px auto;padding:0 18px}.toolbar,.tablebox{background:#fff;border-radius:12px;padding:14px;box-shadow:0 3px 12px #0000000d;margin-bottom:14px}
+.toolbar{display:flex;flex-wrap:wrap;gap:9px;align-items:end}.formgrid{display:grid;grid-template-columns:2fr 1fr 1.5fr;gap:10px;flex:1}.formgrid label{font-size:13px;color:#667085}.formgrid input,.formgrid select{width:100%;margin-top:5px}
+input,select,button{font:inherit;border:1px solid #d0d5dd;border-radius:8px;padding:9px 11px;background:#fff}button{cursor:pointer;background:#172554;color:#fff;border-color:#172554;font-weight:600}button.secondary{background:#fff;color:#172554}.actions button{padding:6px 9px;font-size:12px}
+table{width:100%;border-collapse:collapse;min-width:650px}th,td{border-bottom:1px solid #eaecf0;padding:10px;text-align:left}th{background:#f8fafc;font-size:13px}.hint{font-size:13px;color:#667085;margin:0 0 14px}.toast{position:fixed;right:20px;bottom:20px;background:#172554;color:#fff;padding:12px 16px;border-radius:9px;display:none}.toast.show{display:block}
+@media(max-width:700px){.formgrid{grid-template-columns:1fr}.toolbar button{width:100%}}
+</style>
+<script src="/inventory-api.js"></script>
+</head>
+<body>
+<header><h1>Temporary Virtual Warehouse</h1><button class="secondary" onclick="location.href='index.html'">Back to Actual Stock</button></header>
+<div class="wrap">
+<p class="hint">Move stock here temporarily when an item is given to a person or department. Moved quantity is deducted from actual stock.</p>
+<div class="toolbar">
+<input id="productFilter" list="productSuggestions" placeholder="Filter product..." oninput="updateSuggestions(this)">
+<input id="brandFilter" list="brandSuggestions" placeholder="Filter brand..." oninput="updateSuggestions(this)">
+<input id="modelFilter" list="modelSuggestions" placeholder="Filter model..." oninput="pickSourceByModel(this.value);updateSuggestions(this)">
+<datalist id="productSuggestions"></datalist><datalist id="brandSuggestions"></datalist><datalist id="modelSuggestions"></datalist>
+<button onclick="render()">Search</button>
+<div class="formgrid">
+<label>Product<input id="moveProduct" list="moveProductSuggestions" placeholder="Type product" oninput="pickSourceByFields()"></label>
+<label>Brand<input id="moveBrand" list="moveBrandSuggestions" placeholder="Type brand" oninput="pickSourceByFields()"></label>
+<label>Model<input id="moveModel" list="moveModelSuggestions" placeholder="Type model" oninput="pickSourceByFields()"></label>
+<datalist id="moveProductSuggestions"></datalist><datalist id="moveBrandSuggestions"></datalist><datalist id="moveModelSuggestions"></datalist>
+<label>Selected Stock<select id="transferSource" onchange="updateAvailable()"></select></label>
+<label>Quantity<input id="transferQty" type="number" min="1" step="1" value="1"></label>
+<label>Given To<input id="transferPerson" placeholder="Person or department"></label>
+</div>
+<button onclick="transferStock()">Move Stock</button>
+</div>
+<div class="tablebox"><table><thead><tr><th style="width:22%">Product</th><th style="width:18%">Brand</th><th style="width:22%">Model</th><th style="width:13%">Quantity</th><th style="width:15%">Given To</th><th style="width:10%">Action</th></tr></thead><tbody id="virtualBody"></tbody></table></div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const KEY='office_inventory_v1';const VIRTUAL_KEY='office_virtual_inventory_v1';
+let rows=JSON.parse(localStorage.getItem(KEY)||'[]');let virtualRows=JSON.parse(localStorage.getItem(VIRTUAL_KEY)||'[]');
+function esc(x){return String(x??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function normalize(value){return String(value??'').trim().toLocaleLowerCase()}
+
+InventoryAPI.injectNavbar('virtual');
+window.addEventListener("DOMContentLoaded", async () => {
+  await InventoryAPI.checkAdmin();
+  const inv = await InventoryAPI.loadInventory();
+  if (inv.rows && inv.rows.length) {
+    rows = inv.rows;
+    localStorage.setItem(KEY, JSON.stringify(rows));
+  }
+  const savedV = await InventoryAPI.getConfig(VIRTUAL_KEY);
+  if (savedV && Array.isArray(savedV)) {
+    virtualRows = savedV;
+    localStorage.setItem(VIRTUAL_KEY, JSON.stringify(virtualRows));
+  }
+  render();
+});
+
+async function save(){
+  localStorage.setItem(KEY,JSON.stringify(rows));
+  localStorage.setItem(VIRTUAL_KEY,JSON.stringify(virtualRows));
+  render();
+  InventoryAPI.saveInventory(rows).catch(()=>{});
+  InventoryAPI.saveConfig(VIRTUAL_KEY, virtualRows).catch(()=>{});
+}
+
+function updateAvailable(){const i=Number(document.getElementById('transferSource').value);document.getElementById('transferQty').max=Number(rows[i]?.qty)||0}
+function pickSourceByFields(){const product=normalize(document.getElementById('moveProduct').value);const brand=normalize(document.getElementById('moveBrand').value);const model=normalize(document.getElementById('moveModel').value);const index=rows.findIndex(r=>Number(r.qty)>0&&(!product||normalize(r.product).includes(product))&&(!brand||normalize(r.brand).includes(brand))&&(!model||normalize(r.model).includes(model)));if(index>=0){document.getElementById('transferSource').value=String(index);updateAvailable()}}
+function render(){
+ const source=document.getElementById('transferSource');source.innerHTML='';const moveLists={moveProductSuggestions:'product',moveBrandSuggestions:'brand',moveModelSuggestions:'model'};Object.entries(moveLists).forEach(([id,key])=>{const list=document.getElementById(id);list.innerHTML='';[...new Set(rows.filter(r=>Number(r.qty)>0).map(r=>String(r[key]||'').trim()).filter(Boolean))].sort().forEach(value=>{const option=document.createElement('option');option.value=value;list.appendChild(option)})});rows.forEach((r,i)=>{if(Number(r.qty)>0){const o=document.createElement('option');o.value=i;o.textContent=`${r.product||'Unnamed'} / ${r.brand||'No brand'} / ${r.model||'No model'} (Available: ${Number(r.qty)})`;source.appendChild(o)}});updateAvailable();
+ const productFilter=normalize(document.getElementById('productFilter').value);const brandFilter=normalize(document.getElementById('brandFilter').value);const modelFilter=normalize(document.getElementById('modelFilter').value);
+ const body=document.getElementById('virtualBody');body.innerHTML='';let visible=0;virtualRows.forEach((r,i)=>{if(productFilter&&!normalize(r.product).includes(productFilter)||brandFilter&&!normalize(r.brand).includes(brandFilter)||modelFilter&&!normalize(r.model).includes(modelFilter))return;visible++;const tr=document.createElement('tr');tr.innerHTML=`<td>${esc(r.product)}</td><td>${esc(r.brand)}</td><td>${esc(r.model)}</td><td>${r.qty}</td><td>${esc(r.person||'Temporary')}</td><td class="actions"><button class="secondary" onclick="returnVirtual(${i})">Return Stock</button></td>`;body.appendChild(tr)});
+ if(!visible)body.innerHTML='<tr><td colspan="6" style="text-align:center;padding:35px;color:#667085">No matching temporary stock.</td></tr>';
+ updateSuggestions();
+}
+function updateSuggestions(input){const fields={productSuggestions:'product',brandSuggestions:'brand',modelSuggestions:'model'};Object.entries(fields).forEach(([id,key])=>{const list=document.getElementById(id);list.innerHTML='';const query=input?.id===id.replace('Suggestions','Filter')?normalize(input.value):'';[...new Set(virtualRows.map(r=>String(r[key]||'').trim()).filter(value=>value&&(!query||normalize(value).includes(query))))].sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'})).forEach(value=>{const option=document.createElement('option');option.value=value;list.appendChild(option)})})}
+function transferStock(){const i=Number(document.getElementById('transferSource').value);const qty=Number(document.getElementById('transferQty').value);const person=document.getElementById('transferPerson').value.trim();if(!rows[i]||!Number.isInteger(qty)||qty<1||qty>Number(rows[i].qty)){toast('Enter a valid quantity within actual stock');return}rows[i].qty-=qty;virtualRows.push({product:rows[i].product,brand:rows[i].brand||'',model:rows[i].model,qty,person});save();document.getElementById('transferPerson').value='';toast(qty+' item(s) moved to Virtual Warehouse')}
+function returnVirtual(i){const moved=virtualRows[i];if(!moved)return;const actual=rows.find(r=>r.product===moved.product&&r.brand===moved.brand&&r.model===moved.model);if(actual)actual.qty=(Number(actual.qty)||0)+moved.qty;else rows.push({product:moved.product,brand:moved.brand||'',model:moved.model,qty:moved.qty});virtualRows.splice(i,1);save();toast(moved.qty+' item(s) returned to actual stock')}
+function toast(t){const x=document.getElementById('toast');x.textContent=t;x.classList.add('show');setTimeout(()=>x.classList.remove('show'),2500)}
+render();
+</script>
+</body>
+</html>

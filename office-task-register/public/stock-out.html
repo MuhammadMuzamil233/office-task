@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stock OUT - Office Inventory</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:#f4f7fb;color:#172033}
+header{background:#b42318;color:#fff;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;gap:15px}
+header h1{margin:0;font-size:22px}.wrap{max-width:1400px;margin:22px auto;padding:0 18px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+.card{background:#fff;border-radius:12px;padding:17px;box-shadow:0 3px 12px #0000000d}.label{font-size:13px;color:#667085}.num{font-size:28px;font-weight:700;margin-top:5px}
+.toolbar{background:#fff;border-radius:12px;padding:14px;display:flex;flex-wrap:wrap;gap:9px;align-items:center;box-shadow:0 3px 12px #0000000d;margin-bottom:14px}
+input,select,button,textarea{font:inherit;border:1px solid #d0d5dd;border-radius:8px;padding:9px 11px;background:#fff}
+button{cursor:pointer;background:#b42318;color:#fff;border-color:#b42318;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+button.secondary{background:#fff;color:#172554;border-color:#d0d5dd}
+.tablebox{background:#fff;border-radius:12px;box-shadow:0 3px 12px #0000000d;overflow:auto}
+table{width:100%;border-collapse:collapse;min-width:760px}th,td{border-bottom:1px solid #eaecf0;padding:8px;text-align:left}th{background:#f8fafc;position:sticky;top:0;z-index:1;font-size:13px}
+td input,td select{width:100%;border-color:transparent;background:transparent;padding:8px}td input:focus,td select:focus{border-color:#84adff;background:#fff;outline:2px solid #dbe8ff}
+.status{font-weight:700;padding:5px 8px;border-radius:20px;display:inline-block;font-size:12px}.out{background:#fee4e2;color:#b42318}
+tr.highlight{background:#fff5f5}.actions button{padding:6px 9px;font-size:12px}
+.form-group{margin-bottom:12px}.form-group label{display:block;font-size:12px;font-weight:600;color:#475467;margin-bottom:4px}
+.form-group input,.form-group select{width:100%;padding:9px 11px;border:1px solid #d0d5dd;border-radius:8px}
+.toast{position:fixed;right:20px;bottom:20px;background:#172554;color:#fff;padding:12px 16px;border-radius:9px;display:none;z-index:10001;box-shadow:0 4px 12px rgba(0,0,0,0.15)}.toast.show{display:block}
+.modal{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;padding:20px;z-index:9999}.modal.show{display:flex}
+.dialog{background:#fff;border-radius:14px;width:min(860px,95vw);max-height:90vh;overflow-y:auto;padding:22px;position:relative;z-index:10000;box-shadow:0 20px 40px rgba(0,0,0,0.2)}
+.dialog h2{margin-top:0;margin-bottom:16px}.dialog .button-group{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.section-title{display:flex;justify-content:space-between;align-items:center;margin:24px 0 10px}
+.section-title h2{font-size:18px;margin:0}
+.model-badge{background:#fee4e2;color:#b42318;padding:3px 8px;border-radius:6px;font-weight:600;display:inline-block}
+.invoice-badge{background:#f1f5f9;color:#334155;padding:3px 8px;border-radius:6px;font-weight:700;display:inline-block}
+.error-msg{color:#b42318;font-size:12px;margin-top:5px;font-weight:600;background:#fee4e2;padding:6px 10px;border-radius:6px;border:1px solid #fecdca}
+.info-msg{color:#0369a1;font-size:12px;margin-top:5px;font-weight:600;background:#f0f9ff;padding:6px 10px;border-radius:6px;border:1px solid #b9e6fe}
+.item-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:10px;position:relative}
+.item-card:hover{border-color:#cbd5e1}
+.item-card-grid{display:grid;grid-template-columns:2fr 1.2fr 100px 36px;gap:10px;align-items:start}
+@media(max-width:700px){.item-card-grid{grid-template-columns:1fr;gap:8px}}
+</style>
+<script src="/inventory-api.js"></script>
+</head>
+<body>
+<header>
+  <h1>📤 Stock OUT (Issuing)</h1>
+  <div>
+    <button class="secondary" style="color:#b42318" onclick="location.href='index.html'">← Back to Inventory</button>
+    <button class="secondary" style="color:#b42318;margin-left:8px" onclick="location.href='stock-in.html'">Stock IN →</button>
+    <button class="secondary" style="color:#b42318;margin-left:8px" onclick="location.href='transactions.html'">📊 History</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="cards">
+    <div class="card">
+      <div class="label">Total Items Issued</div>
+      <div class="num" id="totalOut">0</div>
+    </div>
+    <div class="card">
+      <div class="label">Unique Products</div>
+      <div class="num" id="uniqueProducts">0</div>
+    </div>
+    <div class="card">
+      <div class="label">Total Quantity Out</div>
+      <div class="num" id="totalQtyOut">0</div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <input id="productFilter" list="productFilterSuggestions" placeholder="Filter product..." oninput="render()">
+    <input id="modelFilter" list="modelFilterSuggestions" placeholder="Filter model..." oninput="render()">
+    <input id="invoiceFilter" placeholder="Filter invoice..." oninput="render()">
+    <datalist id="productFilterSuggestions"></datalist>
+    <datalist id="modelFilterSuggestions"></datalist>
+    <button onclick="render()">Search</button>
+    <button onclick="openAddModal()">+ Add Stock OUT (Invoice)</button>
+    <button class="secondary" onclick="exportStockOutCSV()">Export</button>
+    <button class="secondary" onclick="clearAllStockOut()">Clear All</button>
+  </div>
+
+  <div class="tablebox">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Invoice #</th>
+          <th>Product</th>
+          <th>Brand</th>
+          <th>Model</th>
+          <th>Quantity</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add Multi-Item Stock OUT Modal -->
+<div class="modal" id="addModal">
+  <div class="dialog">
+    <h2>📤 Add Stock OUT (Invoice)</h2>
+    
+    <!-- Invoice Header -->
+    <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:12px;margin-bottom:16px;background:#f8fafc;padding:12px 14px;border-radius:10px;border:1px solid #e2e8f0;">
+      <div class="form-group" style="margin-bottom:0">
+        <label>Invoice Number *</label>
+        <input id="outInvoice" placeholder="e.g., INV-2024-001, PO-2024-05" style="font-weight:600">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label>Date *</label>
+        <input id="outDate" type="date">
+      </div>
+    </div>
+
+    <!-- Items Section Header -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <label style="font-weight:700;font-size:14px;color:#172554">📦 Invoice Items / Models:</label>
+      <button type="button" class="secondary" style="padding:6px 12px;font-size:13px;border-color:#b42318;color:#b42318" onclick="addModelRow()">+ Add Another Model</button>
+    </div>
+
+    <div id="modalGeneralError" class="error-msg" style="display:none;margin-bottom:12px"></div>
+
+    <!-- Container for dynamic item rows -->
+    <div id="itemsContainer" style="display:flex;flex-direction:column;gap:10px;max-height:48vh;overflow-y:auto;padding-right:4px;">
+      <!-- Rows will be injected here -->
+    </div>
+
+    <div class="button-group" style="margin-top:18px">
+      <button class="secondary" onclick="closeAddModal()">Cancel</button>
+      <button onclick="saveStockOut()" style="background:#b42318;border-color:#b42318">✓ Save &amp; Issue Invoice</button>
+    </div>
+  </div>
+</div>
+
+<datalist id="modelListGlobal"></datalist>
+<div class="toast" id="toast"></div>
+
+<script>
+const STOCK_OUT_KEY = 'office_inventory_stock_out_v1';
+const MAIN_INVENTORY_KEY = 'office_inventory_v1';
+let stockOutList = JSON.parse(localStorage.getItem(STOCK_OUT_KEY) || '[]');
+
+InventoryAPI.injectNavbar('stock-out');
+window.addEventListener("DOMContentLoaded", async () => {
+  await InventoryAPI.checkAdmin();
+  const inv = await InventoryAPI.loadInventory();
+  if (inv.rows && inv.rows.length) {
+    localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(inv.rows));
+    populateModelSuggestions();
+  }
+  const txs = await InventoryAPI.getTransactions('out');
+  if (txs && txs.length) {
+    stockOutList = txs;
+    localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(txs));
+    renderStockOutList();
+    updateStats();
+  }
+});
+
+let rowCounter = 0;
+
+function escapeHtml(text) {
+  return String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+function getCurrentDate() {
+  const today = new Date();
+  return today.toISOString().split('T')[0];
+}
+
+function getInventoryModels() {
+  const mainInventory = JSON.parse(localStorage.getItem(MAIN_INVENTORY_KEY) || '[]');
+  const modelMap = new Map();
+  mainInventory.forEach(r => {
+    const m = (r.model || '').trim();
+    if (m && !modelMap.has(m.toLowerCase())) {
+      modelMap.set(m.toLowerCase(), {
+        model: m,
+        product: r.product || '',
+        brand: r.brand || '',
+        qty: Number(r.qty) || 0
+      });
+    }
+  });
+  return Array.from(modelMap.values()).sort((a, b) => a.model.localeCompare(b.model));
+}
+
+function updateGlobalModelDatalist() {
+  const models = getInventoryModels();
+  const datalist = document.getElementById('modelListGlobal');
+  datalist.innerHTML = models.map(item => `<option value="${escapeHtml(item.model)}">${escapeHtml(item.product)}${item.brand ? ' - ' + escapeHtml(item.brand) : ''} (Stock: ${item.qty})</option>`).join('');
+}
+
+function populateSelectOptions(selectEl) {
+  const models = getInventoryModels();
+  const currentVal = selectEl.value;
+  selectEl.innerHTML = '<option value="">-- Choose Model from Dropdown --</option>' +
+    models.map(item => {
+      const stockText = item.qty > 0 ? `Available: ${item.qty}` : 'OUT OF STOCK (0)';
+      return `<option value="${escapeHtml(item.model)}">${escapeHtml(item.model)} (${escapeHtml(item.product)}${item.brand ? ' - ' + escapeHtml(item.brand) : ''} | ${stockText})</option>`;
+    }).join('');
+  selectEl.value = currentVal;
+}
+
+function addModelRow(modelName = '', qtyVal = 1) {
+  const rowId = ++rowCounter;
+  const container = document.getElementById('itemsContainer');
+  
+  const card = document.createElement('div');
+  card.className = 'item-card';
+  card.id = `itemCard_${rowId}`;
+  card.setAttribute('data-row-id', rowId);
+
+  card.innerHTML = `
+    <div class="item-card-grid">
+      <div>
+        <label style="font-size:12px;font-weight:600;color:#475467;margin-bottom:4px;display:block">Model *</label>
+        <select class="row-model-select" id="selectModel_${rowId}" onchange="onRowModelSelectChange(${rowId})" style="margin-bottom:6px">
+          <option value="">-- Choose Model from Dropdown --</option>
+        </select>
+        <input class="row-model-input" id="inputModel_${rowId}" list="modelListGlobal" placeholder="Or type to search model..." oninput="onRowModelInputChange(${rowId})" onchange="onRowModelInputChange(${rowId})" style="font-size:13px">
+        <div id="rowStockInfo_${rowId}" class="info-msg" style="display:none"></div>
+        <div id="rowError_${rowId}" class="error-msg" style="display:none"></div>
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:#475467;margin-bottom:4px;display:block">Product &amp; Brand</label>
+        <input id="rowProductBrand_${rowId}" placeholder="Auto-filled" readonly style="background:#fff;font-size:12px;color:#334155" title="Auto-filled from Model">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:#475467;margin-bottom:4px;display:block">Qty *</label>
+        <input class="row-qty-input" id="rowQty_${rowId}" type="number" min="1" value="${qtyVal}" oninput="validateSingleRow(${rowId})">
+      </div>
+      <div style="padding-top:24px;text-align:right">
+        <button type="button" class="secondary" style="color:#b42318;border-color:#fca5a5;padding:8px 10px" onclick="removeModelRow(${rowId})" title="Remove item">✕</button>
+      </div>
+    </div>
+  `;
+
+  container.appendChild(card);
+  const selectEl = document.getElementById(`selectModel_${rowId}`);
+  populateSelectOptions(selectEl);
+
+  if (modelName) {
+    document.getElementById(`inputModel_${rowId}`).value = modelName;
+    selectEl.value = modelName;
+    validateSingleRow(rowId);
+  }
+
+  updateRemoveButtons();
+}
+
+function removeModelRow(rowId) {
+  const card = document.getElementById(`itemCard_${rowId}`);
+  if (card) card.remove();
+  updateRemoveButtons();
+  validateAllRows();
+}
+
+function updateRemoveButtons() {
+  const cards = document.querySelectorAll('.item-card');
+  cards.forEach((c) => {
+    const btn = c.querySelector('button[title="Remove item"]');
+    if (btn) {
+      btn.style.visibility = cards.length > 1 ? 'visible' : 'hidden';
+    }
+  });
+}
+
+function onRowModelSelectChange(rowId) {
+  const selectEl = document.getElementById(`selectModel_${rowId}`);
+  const inputEl = document.getElementById(`inputModel_${rowId}`);
+  inputEl.value = selectEl.value;
+  validateSingleRow(rowId);
+}
+
+function onRowModelInputChange(rowId) {
+  validateSingleRow(rowId);
+}
+
+function validateSingleRow(rowId) {
+  const inputEl = document.getElementById(`inputModel_${rowId}`);
+  const selectEl = document.getElementById(`selectModel_${rowId}`);
+  const productBrandEl = document.getElementById(`rowProductBrand_${rowId}`);
+  const qtyEl = document.getElementById(`rowQty_${rowId}`);
+  const stockInfo = document.getElementById(`rowStockInfo_${rowId}`);
+  const errorEl = document.getElementById(`rowError_${rowId}`);
+
+  if (!inputEl) return null;
+  const modelVal = inputEl.value.trim();
+
+  if (!modelVal) {
+    errorEl.style.display = 'none';
+    stockInfo.style.display = 'none';
+    inputEl.style.borderColor = '#d0d5dd';
+    productBrandEl.value = '';
+    selectEl.value = '';
+    return null;
+  }
+
+  const mainInventory = JSON.parse(localStorage.getItem(MAIN_INVENTORY_KEY) || '[]');
+  const found = mainInventory.find(r => (r.model || '').trim().toLowerCase() === modelVal.toLowerCase());
+
+  if (!found) {
+    errorEl.textContent = `❌ Error: Model "${modelVal}" inventory mein mojood nahi hai!`;
+    errorEl.style.display = 'block';
+    stockInfo.style.display = 'none';
+    inputEl.style.borderColor = '#b42318';
+    productBrandEl.value = '';
+    selectEl.value = '';
+    return null;
+  }
+
+  const availableStock = Number(found.qty) || 0;
+  productBrandEl.value = `${found.product || ''}${found.brand ? ' (' + found.brand + ')' : ''}`;
+  selectEl.value = found.model;
+
+  const qty = parseInt(qtyEl.value) || 0;
+
+  if (availableStock <= 0) {
+    errorEl.textContent = `⚠️ Out of Stock! Available: 0`;
+    errorEl.style.display = 'block';
+    stockInfo.style.display = 'none';
+    inputEl.style.borderColor = '#b42318';
+    qtyEl.max = '0';
+    return null;
+  } else if (qty > availableStock) {
+    errorEl.textContent = `❌ Quantity exceeds stock! Available: ${availableStock}, Requested: ${qty}`;
+    errorEl.style.display = 'block';
+    stockInfo.innerHTML = `📦 Available Stock: <b>${availableStock}</b> units`;
+    stockInfo.style.display = 'block';
+    inputEl.style.borderColor = '#b42318';
+    qtyEl.max = String(availableStock);
+    return null;
+  } else {
+    errorEl.style.display = 'none';
+    stockInfo.innerHTML = `📦 Available Stock: <span style="color:#067647;font-weight:700">${availableStock}</span> units`;
+    stockInfo.style.display = 'block';
+    inputEl.style.borderColor = '#12b76a';
+    qtyEl.max = String(availableStock);
+    return {
+      model: found.model,
+      product: found.product || '',
+      brand: found.brand || '',
+      availableStock: availableStock,
+      qty: qty
+    };
+  }
+}
+
+function validateAllRows() {
+  const cards = document.querySelectorAll('.item-card');
+  let isValid = true;
+  const modelUsage = {};
+
+  cards.forEach(c => {
+    const rowId = c.getAttribute('data-row-id');
+    const result = validateSingleRow(rowId);
+    if (!result || result.qty <= 0) {
+      isValid = false;
+    } else {
+      modelUsage[result.model.toLowerCase()] = (modelUsage[result.model.toLowerCase()] || 0) + result.qty;
+      if (modelUsage[result.model.toLowerCase()] > result.availableStock) {
+        const errorEl = document.getElementById(`rowError_${rowId}`);
+        errorEl.textContent = `❌ Total quantity for "${result.model}" across rows exceeds available stock (${result.availableStock})!`;
+        errorEl.style.display = 'block';
+        isValid = false;
+      }
+    }
+  });
+
+  return isValid;
+}
+
+function openAddModal() {
+  updateGlobalModelDatalist();
+  document.getElementById('outDate').value = getCurrentDate();
+  document.getElementById('outInvoice').value = '';
+  document.getElementById('modalGeneralError').style.display = 'none';
+  
+  const container = document.getElementById('itemsContainer');
+  container.innerHTML = '';
+  rowCounter = 0;
+  
+  // Add first empty item row
+  addModelRow();
+  
+  document.getElementById('addModal').classList.add('show');
+  document.getElementById('outInvoice').focus();
+}
+
+function closeAddModal() {
+  document.getElementById('addModal').classList.remove('show');
+}
+
+function saveStockOut() {
+  const invoice = document.getElementById('outInvoice').value.trim();
+  const date = document.getElementById('outDate').value || getCurrentDate();
+  const generalError = document.getElementById('modalGeneralError');
+  generalError.style.display = 'none';
+
+  if (!invoice) {
+    generalError.textContent = '❌ Error: Please enter an Invoice / Reference Number!';
+    generalError.style.display = 'block';
+    document.getElementById('outInvoice').focus();
+    toast('❌ Please enter Invoice Number');
+    return;
+  }
+
+  const cards = document.querySelectorAll('.item-card');
+  if (cards.length === 0) {
+    generalError.textContent = '❌ Error: Please add at least one model to issue!';
+    generalError.style.display = 'block';
+    return;
+  }
+
+  const itemsToIssue = [];
+  const mainInventory = JSON.parse(localStorage.getItem(MAIN_INVENTORY_KEY) || '[]');
+  let hasErrors = false;
+  const aggregatedModelQty = {};
+
+  cards.forEach(c => {
+    const rowId = c.getAttribute('data-row-id');
+    const inputEl = document.getElementById(`inputModel_${rowId}`);
+    const qtyEl = document.getElementById(`rowQty_${rowId}`);
+    const errorEl = document.getElementById(`rowError_${rowId}`);
+
+    const modelVal = (inputEl ? inputEl.value : '').trim();
+    const qty = parseInt(qtyEl ? qtyEl.value : '0') || 0;
+
+    if (!modelVal) {
+      errorEl.textContent = '❌ Error: Please select or enter a Model!';
+      errorEl.style.display = 'block';
+      hasErrors = true;
+      return;
+    }
+
+    const found = mainInventory.find(r => (r.model || '').trim().toLowerCase() === modelVal.toLowerCase());
+    if (!found) {
+      errorEl.textContent = `❌ Error: Model "${modelVal}" inventory mein mojood nahi hai!`;
+      errorEl.style.display = 'block';
+      hasErrors = true;
+      return;
+    }
+
+    const availableStock = Number(found.qty) || 0;
+    if (qty <= 0) {
+      errorEl.textContent = '❌ Error: Quantity must be greater than 0!';
+      errorEl.style.display = 'block';
+      hasErrors = true;
+      return;
+    }
+
+    const mKey = found.model.toLowerCase();
+    aggregatedModelQty[mKey] = (aggregatedModelQty[mKey] || 0) + qty;
+
+    if (aggregatedModelQty[mKey] > availableStock) {
+      errorEl.textContent = `❌ Insufficient stock for "${found.model}"! Available: ${availableStock}, Total Requested: ${aggregatedModelQty[mKey]}`;
+      errorEl.style.display = 'block';
+      hasErrors = true;
+      return;
+    }
+
+    itemsToIssue.push({
+      date: date,
+      invoice: invoice,
+      product: found.product || '',
+      brand: found.brand || '',
+      model: found.model,
+      qty: qty
+    });
+  });
+
+  if (hasErrors || itemsToIssue.length === 0) {
+    toast('❌ Please fix the errors in the items list before saving');
+    return;
+  }
+
+  // Deduct from Main Inventory and add to stockOutList
+  itemsToIssue.forEach((item, index) => {
+    const entry = {
+      id: Date.now() + index,
+      date: item.date,
+      product: item.product,
+      brand: item.brand,
+      model: item.model,
+      invoice: item.invoice,
+      qty: item.qty
+    };
+    stockOutList.push(entry);
+
+    // Update main inventory row
+    const idx = mainInventory.findIndex(r => 
+      (r.model || '').trim().toLowerCase() === item.model.trim().toLowerCase()
+    );
+    if (idx >= 0) {
+      mainInventory[idx].qty = Math.max(0, (Number(mainInventory[idx].qty) || 0) - item.qty);
+      mainInventory[idx].invoiceNumber = item.invoice;
+    }
+  });
+
+  localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(mainInventory));
+  localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(stockOutList));
+  InventoryAPI.saveInventory(mainInventory).catch(()=>{});
+  InventoryAPI.addTransaction({ type: "out", date: record.date, invoiceNo: record.invoiceNo, sourceDestination: record.receiver, items: record.items }).catch(()=>{});
+
+  closeAddModal();
+  render();
+  const totalUnits = itemsToIssue.reduce((a, b) => a + b.qty, 0);
+  toast(`✓ Invoice "${invoice}" saved: ${itemsToIssue.length} model(s), ${totalUnits} total units issued`);
+}
+
+function updateFilterSuggestions() {
+  const productFilterSuggestions = document.getElementById('productFilterSuggestions');
+  const modelFilterSuggestions = document.getElementById('modelFilterSuggestions');
+  
+  const products = [...new Set(stockOutList.map(i => i.product).filter(Boolean))].sort();
+  const models = [...new Set(stockOutList.map(i => i.model).filter(Boolean))].sort();
+
+  if (productFilterSuggestions) {
+    productFilterSuggestions.innerHTML = products.map(p => `<option value="${escapeHtml(p)}">`).join('');
+  }
+  if (modelFilterSuggestions) {
+    modelFilterSuggestions.innerHTML = models.map(m => `<option value="${escapeHtml(m)}">`).join('');
+  }
+}
+
+function render() {
+  const productFilter = (document.getElementById('productFilter')?.value || '').toLowerCase().trim();
+  const modelFilter = (document.getElementById('modelFilter')?.value || '').toLowerCase().trim();
+  const invoiceFilter = (document.getElementById('invoiceFilter')?.value || '').toLowerCase().trim();
+  
+  const filtered = stockOutList.filter(item =>
+    (item.product || '').toLowerCase().includes(productFilter) &&
+    (item.model || '').toLowerCase().includes(modelFilter) &&
+    (item.invoice || '').toLowerCase().includes(invoiceFilter)
+  );
+
+  const body = document.getElementById('body');
+  body.innerHTML = '';
+
+  if (!filtered.length) {
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:35px;color:#667085">No stock OUT records found matching filters.</td></tr>';
+  } else {
+    filtered.forEach((item) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(item.date)}</td>
+        <td><span class="invoice-badge">${escapeHtml(item.invoice)}</span></td>
+        <td>${escapeHtml(item.product)}</td>
+        <td>${escapeHtml(item.brand || '-')}</td>
+        <td><span class="model-badge">${escapeHtml(item.model)}</span></td>
+        <td><strong>${item.qty}</strong></td>
+        <td class="actions"><button class="secondary" style="color:#b42318;border-color:#fca5a5" onclick="deleteStockOut(${item.id})">Delete</button></td>
+      `;
+      body.appendChild(tr);
+    });
+  }
+
+  document.getElementById('totalOut').textContent = filtered.length;
+  const uniqueProds = new Set(filtered.map(i => i.product));
+  document.getElementById('uniqueProducts').textContent = uniqueProds.size;
+  document.getElementById('totalQtyOut').textContent = filtered.reduce((a, i) => a + (Number(i.qty) || 0), 0);
+
+  updateFilterSuggestions();
+}
+
+function deleteStockOut(id) {
+  if (!confirm('Delete this stock OUT record? This will restore the stock to Main Inventory.')) return;
+  const entry = stockOutList.find(e => e.id === id);
+  if (!entry) return;
+
+  // Reverse from main inventory
+  const mainInventory = JSON.parse(localStorage.getItem(MAIN_INVENTORY_KEY) || '[]');
+  const idx = mainInventory.findIndex(r => 
+    (r.model || '').trim().toLowerCase() === entry.model.trim().toLowerCase()
+  );
+  if (idx >= 0) {
+    mainInventory[idx].qty = (Number(mainInventory[idx].qty) || 0) + entry.qty;
+  } else {
+    mainInventory.push({
+      product: entry.product,
+      brand: entry.brand,
+      model: entry.model,
+      qty: entry.qty
+    });
+  }
+  localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(mainInventory));
+
+  stockOutList = stockOutList.filter(e => e.id !== id);
+  localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(stockOutList));
+  render();
+  toast('Stock OUT record deleted & inventory restored');
+}
+
+function exportStockOutCSV() {
+  const headers = ['Date', 'Invoice #', 'Product', 'Brand', 'Model', 'Quantity'];
+  const csv = [headers, ...stockOutList.map(i => [
+    i.date, i.invoice, i.product, i.brand || '', i.model, i.qty
+  ])].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'stock-out.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function clearAllStockOut() {
+  if (!confirm('Delete ALL stock OUT records? This will also restore main inventory.')) return;
+  
+  // Reverse all from main inventory
+  const mainInventory = JSON.parse(localStorage.getItem(MAIN_INVENTORY_KEY) || '[]');
+  stockOutList.forEach(entry => {
+    const idx = mainInventory.findIndex(r => 
+      (r.model || '').trim().toLowerCase() === entry.model.trim().toLowerCase()
+    );
+    if (idx >= 0) {
+      mainInventory[idx].qty = (Number(mainInventory[idx].qty) || 0) + entry.qty;
+    } else {
+      mainInventory.push({
+        product: entry.product,
+        brand: entry.brand,
+        model: entry.model,
+        qty: entry.qty
+      });
+    }
+  });
+  localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(mainInventory));
+
+  stockOutList = [];
+  localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(stockOutList));
+  render();
+  toast('All stock OUT records cleared');
+}
+
+// Initialize on page load
+render();
+</script>
+</body>
+</html>
