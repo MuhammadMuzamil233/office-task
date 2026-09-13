@@ -580,8 +580,20 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
 
 app.get("/api/logistics/demands", authMiddleware, logisticsMiddleware, async (req, res) => {
   try {
-    const demands = await Demand.find().sort({ submittedAt: -1 });
-    res.json(demands.map(demandToJson));
+    const demands = await Demand.find().sort({ submittedAt: 1 });
+    // Admin ki demands last mein, baaki pehle (FIFO order)
+    const adminUser = await User.findOne({ username: ADMIN_USERNAME });
+    const adminId = adminUser ? adminUser._id.toString() : null;
+    const nonAdmin = [];
+    const adminDemands = [];
+    for (const d of demands) {
+      if (adminId && d.employeeId && d.employeeId.toString() === adminId) {
+        adminDemands.push(d);
+      } else {
+        nonAdmin.push(d);
+      }
+    }
+    res.json([...nonAdmin, ...adminDemands].map(demandToJson));
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not load logistics demands" });
