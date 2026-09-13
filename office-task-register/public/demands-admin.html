@@ -220,13 +220,30 @@
       color: #fff;
       font-weight: 700;
     }
+
+    #users-table {
+      min-width: 950px;
+    }
+    .user-role-select, .user-status-select {
+      font-size: 13px;
+      padding: 6px 8px;
+    }
+    .primary-badge {
+      font-size: 10px;
+      background: #b08d3e;
+      color: #fff;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
   </style>
 </head>
 <body>
   <main>
     <header class="book">
-      <h1>Demand Management</h1>
-          <span><button class="button" id="history">Demand history</button> <button class="button" id="back">Back to tasks</button></span>
+      <h1>Demand & User Management</h1>
+          <span><a href="#usersSection" class="button" style="text-decoration:none;display:inline-block;color:#fff;">Active Users</a> <button class="button" id="history">Demand history</button> <button class="button" id="back">Back to tasks</button></span>
     </header>
 
     <section class="card">
@@ -274,6 +291,30 @@
           <tbody id="list">
             <tr>
               <td colspan="11" class="empty">Loading demands...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" id="usersSection">
+      <h2>Active Users & Access Management (<span id="userCount">0</span>)</h2>
+      <div class="scroll">
+        <table class="table" id="users-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Username</th>
+              <th>Role / Access</th>
+              <th>Account Status</th>
+              <th>Last Active</th>
+              <th>Registered At</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="user-list">
+            <tr>
+              <td colspan="7" class="empty">Loading users...</td>
             </tr>
           </tbody>
         </table>
@@ -353,8 +394,102 @@
         allDemands = await api("/api/admin/demands");
         render();
         await loadAccessRequests();
+        await loadUsers();
       } catch (error) {
         document.getElementById("list").innerHTML = `<tr><td colspan="11" class="error">${esc(error.message)}</td></tr>`;
+      }
+    }
+
+
+    async function loadUsers() {
+      const list = document.getElementById("user-list");
+      try {
+        const users = await api("/api/admin/users");
+        document.getElementById("userCount").textContent = users.length;
+        list.innerHTML = "";
+        if (!users.length) {
+          list.innerHTML = '<tr><td colspan="7" class="empty">No users found.</td></tr>';
+          return;
+        }
+        users.forEach(u => {
+          const row = document.createElement("tr");
+          const isPrimary = Boolean(u.isPrimaryAdmin);
+          row.innerHTML = `
+            <td><b>${esc(u.name)}</b>${isPrimary ? ' <span class="primary-badge">PRIMARY ADMIN</span>' : ''}</td>
+            <td>@${esc(u.username)}</td>
+            <td>
+              <select class="user-role-select" ${isPrimary ? 'disabled title="Primary admin role cannot be changed"' : ''}>
+                <option value="user" ${u.role === 'user' ? 'selected' : ''}>Employee (User)</option>
+                <option value="logistics" ${u.role === 'logistics' ? 'selected' : ''}>Logistics</option>
+                <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Administrator</option>
+              </select>
+            </td>
+            <td>
+              <select class="user-status-select" ${isPrimary ? 'disabled title="Primary admin cannot be deactivated"' : ''}>
+                <option value="true" ${u.isActive ? 'selected' : ''}>🟢 Active</option>
+                <option value="false" ${!u.isActive ? 'selected' : ''}>🔴 Disabled / Inactive</option>
+              </select>
+            </td>
+            <td>${date(u.lastActive)}</td>
+            <td>${date(u.createdAt)}</td>
+            <td>
+              <div class="actions">
+                <button class="action save-access-btn" ${isPrimary ? 'disabled' : ''}>Save Access</button>
+                <button class="action reset-pwd-btn" style="background:#4a69bd;border-color:#4a69bd;">Reset Password</button>
+              </div>
+            </td>
+          `;
+
+          const roleSelect = row.querySelector(".user-role-select");
+          const statusSelect = row.querySelector(".user-status-select");
+          const saveBtn = row.querySelector(".save-access-btn");
+          const resetBtn = row.querySelector(".reset-pwd-btn");
+
+          if (!isPrimary) {
+            saveBtn.onclick = async () => {
+              try {
+                saveBtn.disabled = true;
+                saveBtn.textContent = "Saving...";
+                await api("/api/admin/users/" + u.id, {
+                  method: "PATCH",
+                  body: JSON.stringify({
+                    role: roleSelect.value,
+                    isActive: statusSelect.value === "true"
+                  })
+                });
+                saveBtn.textContent = "Saved ✓";
+                setTimeout(() => { saveBtn.textContent = "Save Access"; saveBtn.disabled = false; }, 1500);
+                loadUsers();
+              } catch (err) {
+                alert(err.message);
+                saveBtn.textContent = "Save Access";
+                saveBtn.disabled = false;
+              }
+            };
+          }
+
+          resetBtn.onclick = async () => {
+            const newPwd = prompt(`Enter new password for @${u.username} (minimum 4 characters):`);
+            if (!newPwd) return;
+            if (newPwd.length < 4) {
+              alert("Password must be at least 4 characters.");
+              return;
+            }
+            try {
+              await api("/api/admin/reset-password", {
+                method: "POST",
+                body: JSON.stringify({ username: u.username, newPassword: newPwd })
+              });
+              alert(`Password successfully reset for @${u.username}!`);
+            } catch (err) {
+              alert(err.message);
+            }
+          };
+
+          list.appendChild(row);
+        });
+      } catch (err) {
+        list.innerHTML = `<tr><td colspan="7" class="error">${esc(err.message)}</td></tr>`;
       }
     }
 
@@ -366,7 +501,7 @@
         requests.forEach(request => {
           const row = document.createElement("div");
           row.className = "admin-request";
-          row.innerHTML = `<span><b>${esc(request.name)}</b><small> @${esc(request.username)} · Request: ${esc(request.requested_role || "admin")}</small></span><span class="actions"><button class="action approve">Approve</button><button class="action reject">Reject</button></span>`;
+          row.innerHTML = `<span><b>${esc(request.name)}</b><small> @${esc(request.username)} · Request: ${esc(request.requested_role || "admin")}</small></span><span class="actions"><button class="action approve">${demand.is_urgent && demand.status === "pending" ? "✓ Approve Urgent" : "Approve"}</button><button class="action reject">Reject</button></span>`;
           row.querySelector(".approve").onclick = () => processAccessRequest(request.id, "approved");
           row.querySelector(".reject").onclick = () => processAccessRequest(request.id, "rejected");
           list.appendChild(row);
@@ -437,7 +572,7 @@
           row.className = (index === 0 ? "demand-head item-row" : "item-row") + (demand.is_urgent ? " urgent-row" : "");
           
           row.innerHTML = `
-            <td>${index === 0 ? `<b>${esc(demand.employee_name)}</b>${demand.is_urgent ? ' <span class="badge-urgent">URGENT</span>' : ''}` : ""}</td>
+            <td>${index === 0 ? `<b>${esc(demand.employee_name)}</b>${demand.is_urgent ? (demand.status === 'pending' ? ' <span class="badge-urgent" title="Urgent requested by employee - approve to notify logistics">⚡ URGENT REQUESTED</span>' : ' <span class="badge-urgent">⚡ URGENT</span>') : ''}` : ""}</td>
             <td>${index === 0 ? esc(demand.date) : ""}</td>
             <td>${esc(item.name)}</td>
             <td>${esc(item.warehouse || "-")}</td>

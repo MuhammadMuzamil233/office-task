@@ -39,7 +39,9 @@ const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true, lowercase: true, trim: true },
   name: { type: String, required: true, trim: true },
   passwordHash: { type: String, required: true },
-  role: { type: String, enum: ["user", "admin", "logistics"], default: "user" }
+  role: { type: String, enum: ["user", "admin", "logistics"], default: "user" },
+  isActive: { type: Boolean, default: true },
+  lastActive: { type: Date, default: Date.now }
 }, { timestamps: true });
 
 const taskSchema = new mongoose.Schema({
@@ -64,6 +66,7 @@ const demandSchema = new mongoose.Schema({
   products: { type: mongoose.Schema.Types.Mixed, required: true },
   quantity: { type: mongoose.Schema.Types.Mixed, default: null },
   isUrgent: { type: Boolean, default: false },
+  urgentNotified: { type: Boolean, default: false },
   status: { type: String, enum: ["pending", "approved", "rejected", "completed", "cancelled", "on_the_way"], default: "pending" },
   adminRemarks: { type: String, default: "", trim: true, maxlength: 2000 },
   submittedAt: { type: Date, default: Date.now }
@@ -77,6 +80,7 @@ const demandHistorySchema = new mongoose.Schema({
   products: { type: mongoose.Schema.Types.Mixed, required: true },
   quantity: { type: mongoose.Schema.Types.Mixed, default: null },
   isUrgent: { type: Boolean, default: false },
+  urgentNotified: { type: Boolean, default: false },
   status: { type: String, default: "completed" },
   adminRemarks: { type: String, default: "", trim: true, maxlength: 2000 },
   submittedAt: { type: Date, required: true },
@@ -166,11 +170,18 @@ function signToken(user) {
   return jwt.sign({ id: user._id.toString(), username: user.username, name: user.name, role: user.role }, JWT_SECRET, { expiresIn: "30d" });
 }
 
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
   const token = req.cookies.token;
   if (!token) return res.status(401).json({ error: "Not logged in" });
   try {
     req.user = jwt.verify(token, JWT_SECRET);
+    const dbUser = await User.findById(req.user.id).select("role isActive");
+    if (!dbUser) return res.status(401).json({ error: "User no longer exists" });
+    if (dbUser.isActive === false) {
+      return res.status(403).json({ error: "Your account has been deactivated by administrator." });
+    }
+    req.user.role = dbUser.role;
+    User.findByIdAndUpdate(req.user.id, { lastActive: new Date() }).exec().catch(() => {});
     next();
   } catch (e) {
     return res.status(401).json({ error: "Session expired, please log in again" });
@@ -192,10 +203,7 @@ async function adminMiddleware(req, res, next) {
 async function logisticsMiddleware(req, res, next) {
   try {
     const user = await User.findById(req.user.id).select("role");
-    const approvedRequest = user && user.role === "logistics"
-      ? await AdminRequest.findOne({ userId: user._id, requestedRole: "logistics", status: "approved" })
-      : null;
-    if (!user || (user.role !== "admin" && !approvedRequest)) {
+    if (!user || (user.role !== "admin" && user.role !== "logistics")) {
       return res.status(403).json({ error: "Logistics access required" });
     }
     next();
@@ -278,6 +286,9 @@ app.post("/api/login", async (req, res) => {
     if (!match) {
       return res.status(401).json({ error: "Incorrect username or password" });
     }
+    if (user.isActive === false) {
+      return res.status(403).json({ error: "Your account has been deactivated by administrator." });
+    }
     if (user.username === ADMIN_USERNAME && user.role !== "admin") {
       user.role = "admin";
       await user.save();
@@ -354,7 +365,7 @@ app.get("/api/notifications", authMiddleware, async (req, res) => {
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
     await Notification.deleteMany({ createdAt: { $lt: cutoff } });
     const notifications = await Notification.find({ recipientId: req.user.id, createdAt: { $gte: cutoff } }).sort({ createdAt: -1 }).limit(30);
-    res.json(notifications.map(notification => ({ id: notification._id.toString(), message: notification.message, task_id: notification.taskId.toString(), created_at: notification.createdAt, read_at: notification.readAt })));
+    res.json(notifications.map(notification => ({ id: notification._id.toString(), message: notification.message, task_id: notification.taskId ? notification.taskId.toString() : null, created_at: notification.createdAt, read_at: notification.readAt })));
   } catch (e) {
     res.status(500).json({ error: "Could not load notifications" });
   }
@@ -415,6 +426,77 @@ app.patch("/api/admin-requests/:id", authMiddleware, adminMiddleware, async (req
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not process admin request" });
+  }
+});
+
+// ---------- Admin User Management routes ----------
+app.get("/api/admin/users", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const users = await User.find().sort({ createdAt: -1 });
+    res.json(users.map(u => ({
+      id: u._id.toString(),
+      username: u.username,
+      name: u.name,
+      role: u.role || "user",
+      isActive: u.isActive !== false,
+      lastActive: u.lastActive || u.updatedAt || u.createdAt,
+      createdAt: u.createdAt,
+      isPrimaryAdmin: u.username.toLowerCase() === ADMIN_USERNAME
+    })));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not load users" });
+  }
+});
+
+app.patch("/api/admin/users/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { role, isActive } = req.body;
+    const targetUser = await User.findById(req.params.id);
+    if (!targetUser) return res.status(404).json({ error: "User not found" });
+
+    const isPrimaryAdmin = targetUser.username.toLowerCase() === ADMIN_USERNAME;
+
+    if (isPrimaryAdmin) {
+      if (role && role !== "admin") {
+        return res.status(400).json({ error: "Cannot change role of primary admin" });
+      }
+      if (isActive === false) {
+        return res.status(400).json({ error: "Cannot deactivate primary admin" });
+      }
+    }
+
+    if (targetUser._id.toString() === req.user.id && isActive === false) {
+      return res.status(400).json({ error: "You cannot deactivate your own account" });
+    }
+
+    if (role && ["user", "logistics", "admin"].includes(role)) {
+      targetUser.role = role;
+      if (role === "logistics") {
+        await AdminRequest.updateMany(
+          { userId: targetUser._id, requestedRole: "logistics" },
+          { status: "approved" }
+        );
+      }
+    }
+    if (typeof isActive === "boolean") {
+      targetUser.isActive = isActive;
+    }
+
+    await targetUser.save();
+    res.json({
+      id: targetUser._id.toString(),
+      username: targetUser.username,
+      name: targetUser.name,
+      role: targetUser.role,
+      isActive: targetUser.isActive !== false,
+      lastActive: targetUser.lastActive || targetUser.updatedAt || targetUser.createdAt,
+      createdAt: targetUser.createdAt,
+      isPrimaryAdmin
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not update user access" });
   }
 });
 
@@ -499,18 +581,62 @@ app.get("/api/admin/demands/history", authMiddleware, adminMiddleware, async (re
 
 app.post("/api/demands", authMiddleware, async (req, res) => {
   try {
-    const { date, products } = req.body || {};
+    const { date, products, isUrgent } = req.body || {};
     const items = Array.isArray(products) ? products.map(item => ({ name: String(item.name || "").trim().slice(0, 200), quantity: Number(item.quantity), warehouse: String(item.warehouse || "").trim(), invoiceNumber: String(item.invoiceNumber || "").trim().slice(0, 100) })) : [];
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || !items.length || items.some(item => !item.name || !Number.isInteger(item.quantity) || item.quantity < 1 || !demandWarehouses.includes(item.warehouse))) {
       return res.status(400).json({ error: "Date, product, quantity, and a valid warehouse are required" });
     }
-    const demand = await Demand.create({ employeeId: req.user.id, employeeName: req.user.name, date, products: items });
+    const demand = await Demand.create({
+      employeeId: req.user.id,
+      employeeName: req.user.name,
+      date,
+      products: items,
+      isUrgent: Boolean(isUrgent),
+      urgentNotified: false
+    });
     res.json(demandToJson(demand));
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not add demand" });
   }
 });
+
+async function notifyLogisticsUrgentDemand(demand, actorName) {
+  try {
+    const logisticsUsers = await User.find({ role: "logistics", isActive: { $ne: false } }).select("_id");
+    if (!logisticsUsers.length) return;
+    const itemsSummary = Array.isArray(demand.products)
+      ? demand.products.map(p => `${p.name} (${p.quantity})`).join(", ")
+      : (demand.products || "Items");
+    const msg = `🚨 URGENT DEMAND: ${demand.employeeName} - ${String(itemsSummary).slice(0, 100)}`;
+    await Notification.insertMany(
+      logisticsUsers.map(u => ({
+        recipientId: u._id,
+        actorName: actorName || "Admin",
+        message: msg,
+        taskId: null
+      }))
+    );
+    if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+      const subscriptions = await PushSubscription.find({ userId: { $in: logisticsUsers.map(u => u._id) } });
+      await Promise.all(subscriptions.map(async sub => {
+        try {
+          await webpush.sendNotification(sub.toObject(), JSON.stringify({
+            title: "🚨 URGENT DEMAND",
+            body: msg,
+            url: "/logistics.html"
+          }));
+        } catch (err) {
+          if (err.statusCode === 404 || err.statusCode === 410) {
+            await PushSubscription.deleteOne({ _id: sub._id });
+          }
+        }
+      }));
+    }
+  } catch (notifyErr) {
+    console.error("Logistics notification error:", notifyErr);
+  }
+}
 
 app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
@@ -528,6 +654,7 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         products: [{ ...completedItem.toObject?.() || completedItem, status: "completed" }],
         quantity: completedItem.quantity,
         isUrgent: Boolean(demand.isUrgent),
+        urgentNotified: Boolean(demand.urgentNotified),
         status: "completed",
         adminRemarks: demand.adminRemarks,
         submittedAt: demand.submittedAt,
@@ -553,6 +680,7 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         products: demand.products,
         quantity: demand.quantity,
         isUrgent: Boolean(demand.isUrgent),
+        urgentNotified: Boolean(demand.urgentNotified),
         status: "completed",
         adminRemarks: demand.adminRemarks,
         submittedAt: demand.submittedAt,
@@ -577,47 +705,24 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
     }
     if (["pending", "approved", "rejected", "completed", "cancelled", "on_the_way"].includes(status)) updates.status = status;
     if (typeof adminRemarks === "string") updates.adminRemarks = adminRemarks.trim().slice(0, 2000);
-    if (typeof isUrgent === "boolean") updates.isUrgent = isUrgent;
+    if (typeof isUrgent === "boolean") {
+      updates.isUrgent = isUrgent;
+      if (!isUrgent) updates.urgentNotified = false;
+    }
     if (!Object.keys(updates).length) return res.status(400).json({ error: "A valid demand update is required" });
     const demand = await Demand.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true });
     if (!demand) return res.status(404).json({ error: "Demand not found" });
 
-    if (isUrgent === true) {
-      try {
-        const logisticsUsers = await User.find({ role: "logistics" }).select("_id");
-        if (logisticsUsers.length) {
-          const itemsSummary = Array.isArray(demand.products)
-            ? demand.products.map(p => `${p.name} (${p.quantity})`).join(", ")
-            : (demand.products || "Items");
-          const msg = `🚨 URGENT DEMAND: ${demand.employeeName} - ${itemsSummary.slice(0, 100)}`;
-          await Notification.insertMany(
-            logisticsUsers.map(u => ({
-              recipientId: u._id,
-              actorName: req.user.name,
-              message: msg,
-              taskId: null
-            }))
-          );
-          if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-            const subscriptions = await PushSubscription.find({ userId: { $in: logisticsUsers.map(u => u._id) } });
-            await Promise.all(subscriptions.map(async sub => {
-              try {
-                await webpush.sendNotification(sub.toObject(), JSON.stringify({
-                  title: "🚨 URGENT DEMAND",
-                  body: msg,
-                  url: "/logistics.html"
-                }));
-              } catch (err) {
-                if (err.statusCode === 404 || err.statusCode === 410) {
-                  await PushSubscription.deleteOne({ _id: sub._id });
-                }
-              }
-            }));
-          }
-        }
-      } catch (notifyErr) {
-        console.error("Logistics notification error:", notifyErr);
-      }
+    // Logistics notification only after admin approval OR admin manually marking urgent
+    const shouldNotify = (
+      (isUrgent === true) ||
+      (status === "approved" && demand.isUrgent)
+    ) && !demand.urgentNotified;
+
+    if (shouldNotify) {
+      await notifyLogisticsUrgentDemand(demand, req.user.name);
+      demand.urgentNotified = true;
+      await demand.save();
     }
 
     res.json(demandToJson(demand));

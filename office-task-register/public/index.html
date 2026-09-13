@@ -189,6 +189,8 @@
   .demand-form button{background:var(--teal);color:#fff;border:0;border-radius:4px;padding:10px 16px;font-weight:600;cursor:pointer;}
   .demand-form .remove-item{background:transparent;border:1px solid var(--stamp-red);color:var(--stamp-red);padding:8px 10px;}
   .demand-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.demand-actions button[type=button]{background:transparent;border:1px solid var(--teal);color:var(--teal)}
+  .urgent-checkbox-label{display:flex;align-items:center;gap:6px;font-weight:600;color:var(--stamp-red);font-size:13px;cursor:pointer;padding:6px 12px;background:#fdf2f0;border:1px solid #f0c0b8;border-radius:4px;}
+  .urgent-checkbox-label input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--stamp-red);}
   .employee-demand-block{border-bottom:1px solid var(--ledger-line)}.employee-demand-block:last-child{border-bottom:0}.employee-demand-title{padding:12px 20px 6px;font:600 14px 'IBM Plex Serif',serif;color:var(--teal)}.demand-table{width:100%;border-collapse:collapse;font-size:13px}.demand-table th,.demand-table td{padding:10px 20px;border-bottom:1px solid var(--ledger-line);text-align:left}.demand-table th{background:#F1ECE0;color:#68766d;font:600 11px 'IBM Plex Mono',monospace;text-transform:uppercase}.demand-table tr:last-child td{border-bottom:0}.demand-meta{color:#78827d;font-size:12px}.demand-status{font:600 11px 'IBM Plex Mono',monospace;text-transform:uppercase;color:var(--teal-light);white-space:nowrap}
   .badge-urgent{display:inline-block;padding:2px 6px;font-size:10px;font-weight:700;color:#fff;background:#c0392b;border-radius:3px;margin-left:4px;vertical-align:middle;}
 
@@ -314,7 +316,7 @@
     <h2>Submit a Demand</h2>
     <form class="demand-form" id="demandForm">
       <div id="demandItems"><div class="demand-item"><input class="demand-product" type="text" maxlength="200" placeholder="Product name" required><select class="demand-warehouse" required><option value="">Select warehouse</option><option>FC Faizabad WH</option><option>FC I10 WH</option></select><input class="demand-quantity" type="number" min="1" step="1" placeholder="Quantity" required><input class="demand-invoice" type="text" maxlength="100" placeholder="Invoice number (optional)"></div></div>
-      <div class="demand-actions"><input id="demandDate" type="date" required><button type="button" id="addDemandItem">Add another item</button><button type="submit">Submit demand</button></div>
+      <div class="demand-actions"><input id="demandDate" type="date" required><label class="urgent-checkbox-label"><input type="checkbox" id="demandUrgent"> ⚡ Mark as Urgent (Requires Admin Approval)</label><button type="button" id="addDemandItem">Add another item</button><button type="submit">Submit demand</button></div>
     </form>
     <div id="myDemands"><div class="loading">Loading your demands...</div></div>
   </section>
@@ -803,8 +805,11 @@
     e.preventDefault();
     try{
       const products = [...document.querySelectorAll("#demandItems .demand-item")].map(row => ({ name:row.querySelector(".demand-product").value, warehouse:row.querySelector(".demand-warehouse").value, quantity:Number(row.querySelector(".demand-quantity").value), invoiceNumber:row.querySelector(".demand-invoice").value }));
-      const demand = await api("/api/demands", { method:"POST", body: JSON.stringify({ date:document.getElementById("demandDate").value, products }) });
-      myDemands.unshift(demand); e.target.reset(); document.getElementById("demandDate").value = todayStr(); await loadDemands();
+      const isUrgent = Boolean(document.getElementById("demandUrgent")?.checked);
+      const demand = await api("/api/demands", { method:"POST", body: JSON.stringify({ date:document.getElementById("demandDate").value, products, isUrgent }) });
+      myDemands.unshift(demand); e.target.reset(); document.getElementById("demandDate").value = todayStr();
+      if(document.getElementById("demandUrgent")) document.getElementById("demandUrgent").checked = false;
+      await loadDemands();
     }catch(e){ showError(e.message); }
   });
 

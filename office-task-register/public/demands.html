@@ -191,6 +191,27 @@
       vertical-align: middle;
     }
 
+    .urgent-checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      color: var(--red);
+      font-size: 13px;
+      cursor: pointer;
+      padding: 6px 12px;
+      background: #fdf2f0;
+      border: 1px solid #f0c0b8;
+      border-radius: 4px;
+    }
+
+    .urgent-checkbox-label input[type=checkbox] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      accent-color: var(--red);
+    }
+
     @media(max-width: 600px) {
       .book {
         flex-direction: column;
@@ -228,6 +249,9 @@
         </div>
         <div class="form-actions">
           <input id="date" type="date" required>
+          <label class="urgent-checkbox-label">
+            <input type="checkbox" id="urgentDemand"> ⚡ Mark as Urgent (Requires Admin Approval)
+          </label>
           <button class="add" type="button" id="add">Add another item</button>
           <button class="submit" type="submit">Submit demand</button>
         </div>
@@ -338,15 +362,18 @@
           quantity: Number(row.querySelector(".quantity").value),
           invoiceNumber: row.querySelector(".invoice")?.value || ""
         }));
+        const isUrgent = Boolean(document.getElementById("urgentDemand")?.checked);
         await api("/api/demands", {
           method: "POST",
           body: JSON.stringify({
             date: document.getElementById("date").value,
-            products
+            products,
+            isUrgent
           })
         });
         event.target.reset();
         document.getElementById("date").value = new Date().toISOString().slice(0, 10);
+        if (document.getElementById("urgentDemand")) document.getElementById("urgentDemand").checked = false;
         document.getElementById("items").innerHTML = `
           <div class="item">
             <input class="product" maxlength="200" placeholder="Product name" required>
