@@ -580,7 +580,7 @@ function render() {
 }
 
 async function deleteStockIn(id) {
-  if (!confirm('Delete this stock IN record? This will deduct the stock from Main Inventory.')) return;
+  if (!confirm('Delete this stock IN record?')) return;
   const entry = stockInList.find(e => String(e.id) === String(id));
   if (!entry) {
     toast('❌ Record not found');
@@ -593,33 +593,11 @@ async function deleteStockIn(id) {
       await InventoryAPI.deleteTransaction(entry.txId, entry.itemIndex);
     }
 
-    // 2. Reverse from main inventory
-    let mainInventory = [];
-    try {
-      const invData = await InventoryAPI.loadInventory();
-      mainInventory = invData.rows || [];
-    } catch(e) {
-      mainInventory = JSON.parse(localStorage.getItem(MAIN_INVENTORY_KEY) || '[]');
-    }
-
-    const idx = mainInventory.findIndex(r => 
-      (r.model || '').trim().toLowerCase() === String(entry.model || '').trim().toLowerCase()
-    );
-    if (idx >= 0) {
-      const currentQty = Number(mainInventory[idx].qty !== undefined ? mainInventory[idx].qty : mainInventory[idx].quantity) || 0;
-      const deductQty = Number(entry.qty) || 0;
-      const newQty = Math.max(0, currentQty - deductQty);
-      mainInventory[idx].qty = newQty;
-      mainInventory[idx].quantity = newQty;
-      localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(mainInventory));
-      await InventoryAPI.saveInventory(mainInventory);
-    }
-
-    // 3. Remove from stockInList
+    // 2. Remove from stockInList (Actual stock is NOT modified)
     stockInList = stockInList.filter(e => String(e.id) !== String(id));
     localStorage.setItem(STOCK_IN_KEY, JSON.stringify(stockInList));
     render();
-    toast('✓ Stock IN record deleted & inventory adjusted');
+    toast('✓ Stock IN record deleted');
   } catch (err) {
     console.error("Delete stock IN error:", err);
     toast('❌ Error deleting record: ' + (err.message || 'Server error'));
@@ -641,39 +619,15 @@ function exportStockInCSV() {
 }
 
 async function clearAllStockIn() {
-  if (!confirm('Delete ALL stock IN records? This will also adjust main inventory.')) return;
+  if (!confirm('Delete ALL stock IN records?')) return;
   
   try {
     await InventoryAPI.clearTransactions('in');
 
-    let mainInventory = [];
-    try {
-      const invData = await InventoryAPI.loadInventory();
-      mainInventory = invData.rows || [];
-    } catch(e) {
-      mainInventory = JSON.parse(localStorage.getItem(MAIN_INVENTORY_KEY) || '[]');
-    }
-
-    stockInList.forEach(entry => {
-      const idx = mainInventory.findIndex(r => 
-        (r.model || '').trim().toLowerCase() === String(entry.model || '').trim().toLowerCase()
-      );
-      if (idx >= 0) {
-        const currentQty = Number(mainInventory[idx].qty !== undefined ? mainInventory[idx].qty : mainInventory[idx].quantity) || 0;
-        const deductQty = Number(entry.qty) || 0;
-        const newQty = Math.max(0, currentQty - deductQty);
-        mainInventory[idx].qty = newQty;
-        mainInventory[idx].quantity = newQty;
-      }
-    });
-
-    localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(mainInventory));
-    await InventoryAPI.saveInventory(mainInventory);
-
     stockInList = [];
     localStorage.setItem(STOCK_IN_KEY, JSON.stringify(stockInList));
     render();
-    toast('✓ All stock IN records cleared & inventory adjusted');
+    toast('✓ All stock IN records cleared');
   } catch (err) {
     console.error("Clear all stock in error:", err);
     toast('❌ Error clearing records: ' + (err.message || 'Server error'));

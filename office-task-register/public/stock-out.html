@@ -621,7 +621,7 @@ function render() {
 }
 
 async function deleteStockOut(id) {
-  if (!confirm('Delete this stock OUT record? This will restore the stock to Main Inventory.')) return;
+  if (!confirm('Delete this stock OUT record?')) return;
   const entry = stockOutList.find(e => String(e.id) === String(id));
   if (!entry) {
     toast('❌ Record not found');
@@ -634,41 +634,11 @@ async function deleteStockOut(id) {
       await InventoryAPI.deleteTransaction(entry.txId, entry.itemIndex);
     }
 
-    // 2. Restore to main inventory
-    let mainInventory = [];
-    try {
-      const invData = await InventoryAPI.loadInventory();
-      mainInventory = invData.rows || [];
-    } catch(e) {
-      mainInventory = JSON.parse(localStorage.getItem(MAIN_INVENTORY_KEY) || '[]');
-    }
-
-    const idx = mainInventory.findIndex(r => 
-      (r.model || '').trim().toLowerCase() === String(entry.model || '').trim().toLowerCase()
-    );
-    if (idx >= 0) {
-      const currentQty = Number(mainInventory[idx].qty !== undefined ? mainInventory[idx].qty : mainInventory[idx].quantity) || 0;
-      const restoreQty = Number(entry.qty) || 0;
-      const newQty = currentQty + restoreQty;
-      mainInventory[idx].qty = newQty;
-      mainInventory[idx].quantity = newQty;
-    } else {
-      mainInventory.push({
-        product: entry.product,
-        brand: entry.brand,
-        model: entry.model,
-        qty: Number(entry.qty) || 0,
-        quantity: Number(entry.qty) || 0
-      });
-    }
-    localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(mainInventory));
-    await InventoryAPI.saveInventory(mainInventory);
-
-    // 3. Remove from stockOutList
+    // 2. Remove from stockOutList (Actual stock is NOT modified)
     stockOutList = stockOutList.filter(e => String(e.id) !== String(id));
     localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(stockOutList));
     render();
-    toast('✓ Stock OUT record deleted & inventory restored');
+    toast('✓ Stock OUT record deleted');
   } catch (err) {
     console.error("Delete stock OUT error:", err);
     toast('❌ Error deleting record: ' + (err.message || 'Server error'));
@@ -690,47 +660,15 @@ function exportStockOutCSV() {
 }
 
 async function clearAllStockOut() {
-  if (!confirm('Delete ALL stock OUT records? This will also restore main inventory.')) return;
+  if (!confirm('Delete ALL stock OUT records?')) return;
   
   try {
     await InventoryAPI.clearTransactions('out');
 
-    let mainInventory = [];
-    try {
-      const invData = await InventoryAPI.loadInventory();
-      mainInventory = invData.rows || [];
-    } catch(e) {
-      mainInventory = JSON.parse(localStorage.getItem(MAIN_INVENTORY_KEY) || '[]');
-    }
-
-    stockOutList.forEach(entry => {
-      const idx = mainInventory.findIndex(r => 
-        (r.model || '').trim().toLowerCase() === String(entry.model || '').trim().toLowerCase()
-      );
-      if (idx >= 0) {
-        const currentQty = Number(mainInventory[idx].qty !== undefined ? mainInventory[idx].qty : mainInventory[idx].quantity) || 0;
-        const restoreQty = Number(entry.qty) || 0;
-        const newQty = currentQty + restoreQty;
-        mainInventory[idx].qty = newQty;
-        mainInventory[idx].quantity = newQty;
-      } else {
-        mainInventory.push({
-          product: entry.product,
-          brand: entry.brand,
-          model: entry.model,
-          qty: Number(entry.qty) || 0,
-          quantity: Number(entry.qty) || 0
-        });
-      }
-    });
-
-    localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(mainInventory));
-    await InventoryAPI.saveInventory(mainInventory);
-
     stockOutList = [];
     localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(stockOutList));
     render();
-    toast('✓ All stock OUT records cleared & inventory restored');
+    toast('✓ All stock OUT records cleared');
   } catch (err) {
     console.error("Clear all stock out error:", err);
     toast('❌ Error clearing records: ' + (err.message || 'Server error'));
