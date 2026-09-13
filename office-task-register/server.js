@@ -62,6 +62,8 @@ const taskSchema = new mongoose.Schema({
 const demandSchema = new mongoose.Schema({
   employeeId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   employeeName: { type: String, required: true, trim: true },
+  employeeUsername: { type: String, default: "" },
+  creatorRole: { type: String, default: "user" },
   date: { type: String, required: true },
   products: { type: mongoose.Schema.Types.Mixed, required: true },
   quantity: { type: mongoose.Schema.Types.Mixed, default: null },
@@ -76,6 +78,8 @@ const demandHistorySchema = new mongoose.Schema({
   originalDemandId: { type: mongoose.Schema.Types.ObjectId, required: true },
   employeeId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   employeeName: { type: String, required: true, trim: true },
+  employeeUsername: { type: String, default: "" },
+  creatorRole: { type: String, default: "user" },
   date: { type: String, required: true },
   products: { type: mongoose.Schema.Types.Mixed, required: true },
   quantity: { type: mongoose.Schema.Types.Mixed, default: null },
@@ -553,6 +557,8 @@ function demandToJson(demand) {
   return {
     id: demand._id.toString(),
     employee_name: demand.employeeName,
+    employee_username: demand.employeeUsername || "",
+    creator_role: demand.creatorRole || "user",
     date: demand.date,
     products: items.map(item => `${item.name} (${item.quantity})`).join(", "),
     quantity: items.reduce((total, item) => total + item.quantity, 0),
@@ -574,7 +580,7 @@ async function sortDemandsWithPriority(demands) {
   for (const d of demands) {
     if (d.isUrgent) {
       urgentDemands.push(d);
-    } else if (adminId && d.employeeId && d.employeeId.toString() === adminId) {
+    } else if (d.creatorRole === "admin" || (adminId && d.employeeId && d.employeeId.toString() === adminId)) {
       adminDemands.push(d);
     } else {
       nonAdmin.push(d);
@@ -653,9 +659,12 @@ app.post("/api/demands", authMiddleware, async (req, res) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || !items.length || items.some(item => !item.name || !Number.isInteger(item.quantity) || item.quantity < 1 || !demandWarehouses.includes(item.warehouse))) {
       return res.status(400).json({ error: "Date, product, quantity, and a valid warehouse are required" });
     }
+    const isUserAdmin = req.user.role === "admin" || (ADMIN_USERNAME && req.user.username && req.user.username.toLowerCase() === ADMIN_USERNAME);
     const demand = await Demand.create({
       employeeId: req.user.id,
       employeeName: req.user.name,
+      employeeUsername: req.user.username || "",
+      creatorRole: isUserAdmin ? "admin" : "user",
       date,
       products: items,
       isUrgent: Boolean(isUrgent),
@@ -808,6 +817,28 @@ async function autoStockInInventoryItem(item, actorName) {
   console.log("Auto stock-in transaction created with warehouse:", item.warehouse || "Completed Demand Auto-Stock", "qty:", addQty);
 }
 
+async function isDemandCreatedByAdmin(demand) {
+  if (!demand) return false;
+  if (demand.creatorRole === "admin") return true;
+  if (demand.employeeId) {
+    try {
+      const creator = await User.findById(demand.employeeId).select("role username");
+      if (creator) {
+        if (creator.role === "admin") return true;
+        if (ADMIN_USERNAME && creator.username && creator.username.toLowerCase() === ADMIN_USERNAME) return true;
+      }
+    } catch (e) {
+      console.error("Error checking creator user:", e);
+    }
+  }
+  const empName = String(demand.employeeName || "").toLowerCase().trim();
+  const empUser = String(demand.employeeUsername || "").toLowerCase().trim();
+  if (ADMIN_USERNAME && (empName === ADMIN_USERNAME || empUser === ADMIN_USERNAME)) {
+    return true;
+  }
+  return false;
+}
+
 app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { date, products, quantity, status, adminRemarks, completeItemIndex, isUrgent } = req.body || {};
@@ -817,18 +848,24 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
       if (completeItemIndex < 0 || completeItemIndex >= demand.products.length) return res.status(400).json({ error: "Invalid demand item" });
       const completedItem = demand.products[completeItemIndex];
 
-      // Check if model exists in inventory BEFORE completing
-      const match = await findMatchingInventoryItem(completedItem);
-      if (!match) {
-        return res.status(400).json({
-          error: "Model '" + (completedItem.inventoryModel || completedItem.name) + "' inventory mein mojood nahi hai! Pehle inventory mein model add karein."
-        });
+      const isAdminDemand = await isDemandCreatedByAdmin(demand);
+
+      // ONLY ADMIN DEMANDS REQUIRE EXISTING MODEL IN INVENTORY
+      if (isAdminDemand) {
+        const match = await findMatchingInventoryItem(completedItem);
+        if (!match) {
+          return res.status(400).json({
+            error: "Model '" + (completedItem.inventoryModel || completedItem.name) + "' inventory mein mojood nahi hai! Pehle inventory mein model add karein."
+          });
+        }
       }
 
       await DemandHistory.create({
         originalDemandId: demand._id,
         employeeId: demand.employeeId,
         employeeName: demand.employeeName,
+        employeeUsername: demand.employeeUsername || "",
+        creatorRole: demand.creatorRole || (isAdminDemand ? "admin" : "user"),
         date: demand.date,
         products: [{ ...completedItem.toObject?.() || completedItem, status: "completed" }],
         quantity: completedItem.quantity,
@@ -839,7 +876,12 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         submittedAt: demand.submittedAt,
         completedAt: new Date()
       });
-      await autoStockInInventoryItem(completedItem, req.user.name);
+
+      // ONLY ADMIN DEMANDS ADD STOCK TO INVENTORY AND RECORD STOCK-IN TRANSACTION!
+      if (isAdminDemand) {
+        await autoStockInInventoryItem(completedItem, req.user.name);
+      }
+
       demand.products.splice(completeItemIndex, 1);
       if (!demand.products.length) {
         await Demand.deleteOne({ _id: demand._id });
@@ -857,24 +899,30 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         ? demand.products
         : [{ name: demand.products, quantity: demand.quantity, warehouse: "FC Faizabad WH" }];
 
-      // Validate ALL models exist in inventory BEFORE completing
-      const missing = [];
-      for (const p of prods) {
-        if (p) {
-          const m = await findMatchingInventoryItem(p);
-          if (!m) missing.push(p.inventoryModel || p.name || "Item");
+      const isAdminDemand = await isDemandCreatedByAdmin(demand);
+
+      // ONLY ADMIN DEMANDS REQUIRE EXISTING MODELS IN INVENTORY
+      if (isAdminDemand) {
+        const missing = [];
+        for (const p of prods) {
+          if (p) {
+            const m = await findMatchingInventoryItem(p);
+            if (!m) missing.push(p.inventoryModel || p.name || "Item");
+          }
         }
-      }
-      if (missing.length > 0) {
-        return res.status(400).json({
-          error: "Yeh model(s) inventory mein mojood nahi hain: " + missing.join(", ") + "! Pehle inventory mein model add karein."
-        });
+        if (missing.length > 0) {
+          return res.status(400).json({
+            error: "Yeh model(s) inventory mein mojood nahi hain: " + missing.join(", ") + "! Pehle inventory mein model add karein."
+          });
+        }
       }
 
       await DemandHistory.create({
         originalDemandId: demand._id,
         employeeId: demand.employeeId,
         employeeName: demand.employeeName,
+        employeeUsername: demand.employeeUsername || "",
+        creatorRole: demand.creatorRole || (isAdminDemand ? "admin" : "user"),
         date: demand.date,
         products: demand.products,
         quantity: demand.quantity,
@@ -885,11 +933,16 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         submittedAt: demand.submittedAt,
         completedAt: new Date()
       });
-      for (const p of prods) {
-        if (p) {
-          await autoStockInInventoryItem(p, req.user.name);
+
+      // ONLY ADMIN DEMANDS ADD STOCK TO INVENTORY AND RECORD STOCK-IN TRANSACTION!
+      if (isAdminDemand) {
+        for (const p of prods) {
+          if (p) {
+            await autoStockInInventoryItem(p, req.user.name);
+          }
         }
       }
+
       await Demand.deleteOne({ _id: demand._id });
       return res.json({ ok: true, archived: true });
     }

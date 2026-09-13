@@ -572,7 +572,7 @@
           row.className = (index === 0 ? "demand-head item-row" : "item-row") + (demand.is_urgent ? " urgent-row" : "");
           
           row.innerHTML = `
-            <td>${index === 0 ? `<b>${esc(demand.employee_name)}</b>${demand.is_urgent ? (demand.status === 'pending' ? ' <span class="badge-urgent" title="Urgent requested by employee - approve to notify logistics">⚡ URGENT REQUESTED</span>' : ' <span class="badge-urgent">⚡ URGENT</span>') : ''}` : ""}</td>
+            <td>${index === 0 ? `<b>${esc(demand.employee_name)}</b>${demand.creator_role === 'admin' ? ' <span style="background:#172554;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;">ADMIN DEMAND</span>' : ''}${demand.is_urgent ? (demand.status === 'pending' ? ' <span class="badge-urgent" title="Urgent requested by employee - approve to notify logistics">⚡ URGENT REQUESTED</span>' : ' <span class="badge-urgent">⚡ URGENT</span>') : ''}` : ""}</td>
             <td>${index === 0 ? esc(demand.date) : ""}</td>
             <td>${esc(item.name)}</td>
             <td>${esc(item.warehouse || "-")}</td>
