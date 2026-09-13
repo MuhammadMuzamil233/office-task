@@ -659,6 +659,24 @@ app.post("/api/demands", authMiddleware, async (req, res) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || !items.length || items.some(item => !item.name || !Number.isInteger(item.quantity) || item.quantity < 1 || !demandWarehouses.includes(item.warehouse))) {
       return res.status(400).json({ error: "Date, product, quantity, and a valid warehouse are required" });
     }
+    // Merge duplicate models in the same demand
+    const mergedItems = [];
+    items.forEach(item => {
+      const modelKey = String(item.inventoryModel || item.name || "").trim().toLowerCase();
+      const whKey = String(item.warehouse || "").trim().toLowerCase();
+      const existing = mergedItems.find(x => {
+        const xKey = String(x.inventoryModel || x.name || "").trim().toLowerCase();
+        const xWh = String(x.warehouse || "").trim().toLowerCase();
+        return xKey && xKey === modelKey && xWh === whKey;
+      });
+      if (existing) {
+        existing.quantity += item.quantity;
+        if (!existing.invoiceNumber && item.invoiceNumber) existing.invoiceNumber = item.invoiceNumber;
+      } else {
+        mergedItems.push(item);
+      }
+    });
+
     const isUserAdmin = req.user.role === "admin" || (ADMIN_USERNAME && req.user.username && req.user.username.toLowerCase() === ADMIN_USERNAME);
     const demand = await Demand.create({
       employeeId: req.user.id,
@@ -666,7 +684,7 @@ app.post("/api/demands", authMiddleware, async (req, res) => {
       employeeUsername: req.user.username || "",
       creatorRole: isUserAdmin ? "admin" : "user",
       date,
-      products: items,
+      products: mergedItems,
       isUrgent: Boolean(isUrgent),
       urgentNotified: false
     });
@@ -1184,7 +1202,28 @@ function inventoryItemToJson(item) {
 // GET /api/inventory - Get all inventory rows & extra fields
 app.get("/api/inventory", authMiddleware, async (req, res) => {
   try {
-    const items = await InventoryItem.find().sort({ createdAt: -1 });
+    const rawItems = await InventoryItem.find().sort({ createdAt: -1 });
+    // Auto-heal/merge duplicate models in MongoDB
+    const items = [];
+    const seenModels = new Map();
+    for (const it of rawItems) {
+      const m = String(it.model || "").trim().toLowerCase();
+      if (m) {
+        if (seenModels.has(m)) {
+          const primary = seenModels.get(m);
+          primary.quantity = (Number(primary.quantity) || 0) + (Number(it.quantity) || 0);
+          if (!primary.product && it.product) primary.product = it.product;
+          if (!primary.brand && it.brand) primary.brand = it.brand;
+          await primary.save();
+          await InventoryItem.findByIdAndDelete(it._id).catch(() => {});
+        } else {
+          seenModels.set(m, it);
+          items.push(it);
+        }
+      } else {
+        items.push(it);
+      }
+    }
     const config = await InventoryConfig.findOne({ key: "extra_fields" });
     const extraFields = config && Array.isArray(config.value) ? config.value : [
       { key: "warehouseName", label: "Warehouse Name" },
@@ -1268,7 +1307,27 @@ app.post("/api/inventory/save-all", authMiddleware, adminMiddleware, async (req,
         extra
       };
     });
-    const created = docs.length ? await InventoryItem.insertMany(docs) : [];
+    // Deduplicate docs by model before inserting
+    const modelDocsMap = new Map();
+    const finalDocs = [];
+    docs.forEach(doc => {
+      const m = String(doc.model || "").trim().toLowerCase();
+      if (m) {
+        if (modelDocsMap.has(m)) {
+          const existing = modelDocsMap.get(m);
+          existing.quantity += doc.quantity;
+          if (!existing.product && doc.product) existing.product = doc.product;
+          if (!existing.brand && doc.brand) existing.brand = doc.brand;
+          existing.extra = { ...(doc.extra || {}), ...(existing.extra || {}) };
+        } else {
+          modelDocsMap.set(m, doc);
+          finalDocs.push(doc);
+        }
+      } else {
+        finalDocs.push(doc);
+      }
+    });
+    const created = finalDocs.length ? await InventoryItem.insertMany(finalDocs) : [];
     res.json({ ok: true, count: created.length });
   } catch (e) {
     console.error(e);
@@ -1288,10 +1347,23 @@ app.post("/api/inventory/item", authMiddleware, adminMiddleware, async (req, res
     delete extra.model;
     delete extra._id;
     delete extra.id;
+    const cleanModel = String(model || "").trim();
+    if (cleanModel) {
+      const existing = await InventoryItem.findOne({
+        model: { $regex: new RegExp("^" + escapeRegex(cleanModel) + "$", "i") }
+      });
+      if (existing) {
+        existing.quantity = (Number(existing.quantity) || 0) + finalQty;
+        if (!existing.product && product) existing.product = String(product).trim();
+        if (!existing.brand && brand) existing.brand = String(brand).trim();
+        await existing.save();
+        return res.json(inventoryItemToJson(existing));
+      }
+    }
     const item = await InventoryItem.create({
       product: String(product || "").trim(),
       brand: String(brand || "").trim(),
-      model: String(model || "").trim(),
+      model: cleanModel,
       quantity: finalQty,
       extra
     });

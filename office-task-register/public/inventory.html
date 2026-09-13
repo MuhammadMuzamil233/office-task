@@ -514,14 +514,29 @@ async function syncInventoryFromServer(){
     const data = await InventoryAPI.loadInventory();
     if (data && Array.isArray(data.rows)) {
       if (data.rows.length) {
-        rows = data.rows.map(item => {
+        const dedupedRows = [];
+        const seen = new Set();
+        data.rows.forEach(item => {
+          const m = normalize(item.model);
           const q = Number(item.qty !== undefined && item.qty !== null && item.qty !== "" ? item.qty : (item.quantity !== undefined && item.quantity !== null && item.quantity !== "" ? item.quantity : 0)) || 0;
-          return {
-            ...item,
-            quantity: q,
-            qty: q
-          };
+          if (m) {
+            if (seen.has(m)) {
+              const prev = dedupedRows.find(x => normalize(x.model) === m);
+              if (prev) {
+                prev.qty = (Number(prev.qty) || 0) + q;
+                prev.quantity = prev.qty;
+                if (!prev.product && item.product) prev.product = item.product;
+                if (!prev.brand && item.brand) prev.brand = item.brand;
+              }
+            } else {
+              seen.add(m);
+              dedupedRows.push({ ...item, quantity: q, qty: q });
+            }
+          } else {
+            dedupedRows.push({ ...item, quantity: q, qty: q });
+          }
         });
+        rows = dedupedRows;
         localStorage.setItem(KEY, JSON.stringify(rows));
       } else {
         rows = [];
@@ -550,8 +565,9 @@ window.addEventListener("focus", () => {
 
 function normalize(value){return String(value??'').trim().toLocaleLowerCase()}
 function hasDuplicateModel(index, candidate){
-  if(!normalize(candidate.product) && !normalize(candidate.brand) && !normalize(candidate.model)) return false;
-  return rows.some((row,i)=>i!==index && normalize(row.product)===normalize(candidate.product) && normalize(row.brand)===normalize(candidate.brand) && normalize(row.model)===normalize(candidate.model) && normalize(row.model));
+  const cleanM = normalize(candidate.model);
+  if(!cleanM) return false;
+  return rows.some((row,i)=>i!==index && normalize(row.model)===cleanM);
 }
 function status(q){q=Number(q)||0;return q<1?'out':q<2?'low':'ok'}
 function statusText(s){return s==='out'?'Out of Stock':s==='low'?'Low Stock':'In Stock'}
@@ -2188,7 +2204,12 @@ function importPaste(){
 
   let added=0; let merged=0;
   parsed.forEach(item => {
-    const existingIndex=rows.findIndex(r=>normalize(r.product)===normalize(item.product)&&normalize(r.brand)===normalize(item.brand)&&normalize(r.model)===normalize(item.model));
+    const cleanM = normalize(item.model);
+    const existingIndex = rows.findIndex(r => {
+      const rM = normalize(r.model);
+      if (cleanM && rM && cleanM === rM) return true;
+      return normalize(r.product) === normalize(item.product) && normalize(r.brand) === normalize(item.brand) && rM === cleanM;
+    });
     if(existingIndex>=0){
       const mergedQ=(Number(rows[existingIndex].qty)||0)+item.qty; rows[existingIndex].qty=mergedQ; rows[existingIndex].quantity=mergedQ;
       if(item.entryTime && !rows[existingIndex].entryTime){rows[existingIndex].entryTime=item.entryTime;}

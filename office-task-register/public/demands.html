@@ -235,9 +235,10 @@
     <section class="card">
       <h2>Submit Demand</h2>
       <form class="form" id="form">
+        <datalist id="inventoryModelsList"></datalist>
         <div id="items">
           <div class="item">
-            <input class="product" maxlength="200" placeholder="Product name" required>
+            <input class="product" list="inventoryModelsList" maxlength="200" placeholder="Product name / model" required>
             <select class="warehouse" required>
               <option value="">Select warehouse</option>
               <option>FC Faizabad WH</option>
@@ -339,7 +340,7 @@
       const row = document.createElement("div");
       row.className = "item";
       row.innerHTML = `
-        <input class="product" maxlength="200" placeholder="Product name" required>
+        <input class="product" list="inventoryModelsList" maxlength="200" placeholder="Product name / model" required>
         <select class="warehouse" required>
           <option value="">Select warehouse</option>
           <option>FC Faizabad WH</option>
@@ -356,21 +357,40 @@
     document.getElementById("form").onsubmit = async event => {
       event.preventDefault();
       try {
-        const products = [...document.querySelectorAll(".item")].map(row => {
+        const rawProducts = [...document.querySelectorAll(".item")].map(row => {
           const prodInput = row.querySelector(".product");
           const fromInv = prodInput ? prodInput.getAttribute("data-from-inventory") === "1" : false;
           const invId = prodInput ? (prodInput.getAttribute("data-inventory-id") || "") : "";
           const invModel = prodInput ? (prodInput.getAttribute("data-inventory-model") || "") : "";
           return {
-            name: prodInput.value,
+            name: prodInput.value.trim(),
             warehouse: row.querySelector(".warehouse").value,
             quantity: Number(row.querySelector(".quantity").value),
-            invoiceNumber: row.querySelector(".invoice")?.value || "",
+            invoiceNumber: row.querySelector(".invoice")?.value?.trim() || "",
             fromInventory: fromInv,
             inventoryItemId: invId,
             inventoryModel: invModel
           };
         });
+
+        // Ensure each model only appears ONCE in demand (merge quantities)
+        const products = [];
+        rawProducts.forEach(item => {
+          const mKey = String(item.inventoryModel || item.name || "").trim().toLowerCase();
+          const whKey = String(item.warehouse || "").trim().toLowerCase();
+          const existing = products.find(x => {
+            const xKey = String(x.inventoryModel || x.name || "").trim().toLowerCase();
+            const xWh = String(x.warehouse || "").trim().toLowerCase();
+            return xKey && xKey === mKey && xWh === whKey;
+          });
+          if (existing) {
+            existing.quantity += item.quantity;
+            if (!existing.invoiceNumber && item.invoiceNumber) existing.invoiceNumber = item.invoiceNumber;
+          } else {
+            products.push(item);
+          }
+        });
+
         const isUrgent = Boolean(document.getElementById("urgentDemand")?.checked);
         await api("/api/demands", {
           method: "POST",
@@ -385,7 +405,7 @@
         if (document.getElementById("urgentDemand")) document.getElementById("urgentDemand").checked = false;
         document.getElementById("items").innerHTML = `
           <div class="item">
-            <input class="product" maxlength="200" placeholder="Product name" required>
+            <input class="product" list="inventoryModelsList" maxlength="200" placeholder="Product name / model" required>
             <select class="warehouse" required>
               <option value="">Select warehouse</option>
               <option>FC Faizabad WH</option>
@@ -428,6 +448,20 @@
         }
       }
     })();
+
+    // Populate inventory models datalist
+    api("/api/inventory").then(data => {
+      const dl = document.getElementById("inventoryModelsList");
+      if (dl && data && Array.isArray(data.rows)) {
+        dl.innerHTML = "";
+        const unique = [...new Set(data.rows.map(r => r.model).filter(Boolean))].sort();
+        unique.forEach(m => {
+          const opt = document.createElement("option");
+          opt.value = m;
+          dl.appendChild(opt);
+        });
+      }
+    }).catch(() => {});
 
     load();
   </script>
