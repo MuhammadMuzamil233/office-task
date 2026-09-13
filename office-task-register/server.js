@@ -544,9 +544,12 @@ function demandToJson(demand) {
         pickedQuantity: Number.isInteger(item.pickedQuantity) ? item.pickedQuantity : null,
         warehouse: item.warehouse || "",
         invoiceNumber: item.invoiceNumber || "",
-        status: item.status || demand.status
+        status: item.status || demand.status,
+        fromInventory: Boolean(item.fromInventory),
+        inventoryItemId: item.inventoryItemId ? String(item.inventoryItemId) : "",
+        inventoryModel: item.inventoryModel ? String(item.inventoryModel) : ""
       }))
-    : [{ name: demand.products, quantity: demand.quantity || 1, pickedQuantity: null, warehouse: "", invoiceNumber: "", status: demand.status }];
+    : [{ name: demand.products, quantity: demand.quantity || 1, pickedQuantity: null, warehouse: "", invoiceNumber: "", status: demand.status, fromInventory: false, inventoryItemId: "", inventoryModel: "" }];
   return {
     id: demand._id.toString(),
     employee_name: demand.employeeName,
@@ -615,7 +618,15 @@ app.get("/api/admin/demands/history", authMiddleware, adminMiddleware, async (re
 app.post("/api/demands", authMiddleware, async (req, res) => {
   try {
     const { date, products, isUrgent } = req.body || {};
-    const items = Array.isArray(products) ? products.map(item => ({ name: String(item.name || "").trim().slice(0, 200), quantity: Number(item.quantity), warehouse: String(item.warehouse || "").trim(), invoiceNumber: String(item.invoiceNumber || "").trim().slice(0, 100) })) : [];
+    const items = Array.isArray(products) ? products.map(item => ({
+      name: String(item.name || "").trim().slice(0, 200),
+      quantity: Number(item.quantity),
+      warehouse: String(item.warehouse || "").trim(),
+      invoiceNumber: String(item.invoiceNumber || "").trim().slice(0, 100),
+      fromInventory: Boolean(item.fromInventory),
+      inventoryItemId: item.inventoryItemId ? String(item.inventoryItemId).trim() : "",
+      inventoryModel: item.inventoryModel ? String(item.inventoryModel).trim() : ""
+    })) : [];
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || !items.length || items.some(item => !item.name || !Number.isInteger(item.quantity) || item.quantity < 1 || !demandWarehouses.includes(item.warehouse))) {
       return res.status(400).json({ error: "Date, product, quantity, and a valid warehouse are required" });
     }
@@ -671,6 +682,57 @@ async function notifyLogisticsUrgentDemand(demand, actorName) {
   }
 }
 
+
+function escapeRegex(text) {
+  return String(text || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function autoStockInInventoryItem(item, actorName) {
+  try {
+    if (!item || !item.fromInventory) return;
+    const addQty = Number.isInteger(item.pickedQuantity) && item.pickedQuantity > 0 ? item.pickedQuantity : Number(item.quantity) || 0;
+    if (addQty <= 0) return;
+
+    let invItem = null;
+    if (item.inventoryItemId && mongoose.Types.ObjectId.isValid(item.inventoryItemId)) {
+      invItem = await InventoryItem.findById(item.inventoryItemId);
+    }
+    if (!invItem && item.inventoryModel) {
+      invItem = await InventoryItem.findOne({
+        model: { $regex: new RegExp("^" + escapeRegex(item.inventoryModel.trim()) + "$", "i") }
+      });
+    }
+    if (!invItem && item.name) {
+      invItem = await InventoryItem.findOne({
+        model: { $regex: new RegExp("^" + escapeRegex(item.name.trim()) + "$", "i") }
+      });
+    }
+
+    if (invItem) {
+      invItem.quantity = (Number(invItem.quantity) || 0) + addQty;
+      await invItem.save();
+
+      await StockTransaction.create({
+        type: "in",
+        date: todayStr(),
+        invoiceNo: item.invoiceNumber || "",
+        sourceDestination: item.warehouse || "Completed Demand Auto-Stock",
+        items: [{
+          product: invItem.product || item.name || "",
+          brand: invItem.brand || "",
+          model: invItem.model || item.inventoryModel || item.name || "",
+          quantity: addQty,
+          remarks: "Auto stock-in from completed demand (" + (actorName || "Admin") + ")"
+        }],
+        createdBy: actorName || "Admin"
+      });
+      console.log("Auto stock-in completed for", invItem.model, "added qty:", addQty);
+    }
+  } catch (err) {
+    console.error("Auto stock-in error:", err);
+  }
+}
+
 app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { date, products, quantity, status, adminRemarks, completeItemIndex, isUrgent } = req.body || {};
@@ -693,6 +755,9 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         submittedAt: demand.submittedAt,
         completedAt: new Date()
       });
+      if (completedItem.fromInventory) {
+        await autoStockInInventoryItem(completedItem, req.user.name);
+      }
       demand.products.splice(completeItemIndex, 1);
       if (!demand.products.length) {
         await Demand.deleteOne({ _id: demand._id });
@@ -719,6 +784,13 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         submittedAt: demand.submittedAt,
         completedAt: new Date()
       });
+      if (Array.isArray(demand.products)) {
+        for (const p of demand.products) {
+          if (p && p.fromInventory) {
+            await autoStockInInventoryItem(p, req.user.name);
+          }
+        }
+      }
       await Demand.deleteOne({ _id: demand._id });
       return res.json({ ok: true, archived: true });
     }
@@ -730,7 +802,16 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
     const updates = {};
     if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) updates.date = date;
     if (Array.isArray(products) && products.length && products.every(item => item && String(item.name || "").trim() && Number.isInteger(Number(item.quantity)) && Number(item.quantity) >= 1 && demandWarehouses.includes(String(item.warehouse || "")))) {
-      updates.products = products.map(item => ({ name: String(item.name).trim().slice(0, 200), quantity: Number(item.quantity), pickedQuantity: Number.isInteger(Number(item.pickedQuantity)) ? Number(item.pickedQuantity) : null, warehouse: String(item.warehouse).trim(), invoiceNumber: String(item.invoiceNumber || "").trim().slice(0, 100) }));
+      updates.products = products.map(item => ({
+        name: String(item.name).trim().slice(0, 200),
+        quantity: Number(item.quantity),
+        pickedQuantity: Number.isInteger(Number(item.pickedQuantity)) ? Number(item.pickedQuantity) : null,
+        warehouse: String(item.warehouse).trim(),
+        invoiceNumber: String(item.invoiceNumber || "").trim().slice(0, 100),
+        fromInventory: Boolean(item.fromInventory),
+        inventoryItemId: item.inventoryItemId ? String(item.inventoryItemId).trim() : "",
+        inventoryModel: item.inventoryModel ? String(item.inventoryModel).trim() : ""
+      }));
       updates.quantity = null;
     } else if (typeof products === "string" && products.trim() && Number.isInteger(Number(quantity)) && Number(quantity) >= 1) {
       updates.products = [{ name: products.trim().slice(0, 200), quantity: Number(quantity) }];
@@ -948,8 +1029,45 @@ app.get("/api/inventory", authMiddleware, async (req, res) => {
       { key: "invoiceNumber", label: "Invoice Number" },
       { key: "entryTime", label: "Entry Time" }
     ];
+
+    // Find active demands with items on the way from inventory
+    const activeDemands = await Demand.find({
+      $or: [
+        { status: "on_the_way" },
+        { "products.status": "on_the_way" }
+      ]
+    });
+
+    const onTheWayMapById = {};
+    const onTheWayMapByModel = {};
+
+    activeDemands.forEach(d => {
+      if (Array.isArray(d.products)) {
+        d.products.forEach(p => {
+          const itemStatus = p.status || d.status;
+          if (p.fromInventory && itemStatus === "on_the_way") {
+            const qty = Number.isInteger(p.pickedQuantity) && p.pickedQuantity > 0 ? p.pickedQuantity : (Number(p.quantity) || 0);
+            if (p.inventoryItemId) {
+              onTheWayMapById[p.inventoryItemId] = (onTheWayMapById[p.inventoryItemId] || 0) + qty;
+            }
+            const modelKey = String(p.inventoryModel || p.name || "").trim().toLowerCase();
+            if (modelKey) {
+              onTheWayMapByModel[modelKey] = (onTheWayMapByModel[modelKey] || 0) + qty;
+            }
+          }
+        });
+      }
+    });
+
+    const rows = items.map(it => {
+      const json = inventoryItemToJson(it);
+      const mKey = String(json.model || "").trim().toLowerCase();
+      json.onTheWayQty = onTheWayMapById[json.id] || onTheWayMapByModel[mKey] || 0;
+      return json;
+    });
+
     res.json({
-      rows: items.map(inventoryItemToJson),
+      rows,
       extraFields
     });
   } catch (e) {

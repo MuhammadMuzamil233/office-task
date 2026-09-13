@@ -58,6 +58,8 @@ tr.lowrow{background:#fffaf0}tr.outrow{background:#fff5f5}.actions button{paddin
 .badge-merge{background:#e0f2fe;color:#0369a1;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:600}
 
 @media(max-width:800px){.cards{grid-template-columns:repeat(2,1fr)}.hint{width:100%;margin-left:0}}
+
+.badge-ontheway{background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:3px;margin-left:6px;vertical-align:middle;white-space:nowrap}
 </style>
 <script src="/inventory-api.js"></script>
 </head>
@@ -255,59 +257,6 @@ Printer&#9;HP&#9;LaserJet&#9;1&#9;2026-08-29 11:00"></textarea>
 </div>
 </div>
 
-
-<!-- Add Demand from Inventory Modal -->
-<div class="modal" id="demandModal">
-  <div class="dialog" style="max-width:560px;">
-    <h2 style="color:#0f3d3e;">⚡ Add Demand from Inventory</h2>
-    <p style="font-size:13px;color:#64748b;margin:-6px 0 16px;">Create a demand order directly for the logistics team and admin review.</p>
-    
-    <form id="demandModalForm" onsubmit="submitDemandFromInventory(event)">
-      <div style="margin-bottom:12px;">
-        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Product / Item</label>
-        <input type="text" id="demandModalProduct" required style="width:100%;font-weight:600;">
-        <small style="color:#64748b;font-size:11px;">Available in Stock: <b id="demandModalStock" style="color:#0284c7;">0</b> units</small>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
-        <div>
-          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Warehouse *</label>
-          <select id="demandModalWarehouse" required style="width:100%;">
-            <option value="FC Faizabad WH">FC Faizabad WH</option>
-            <option value="FC I10 WH">FC I10 WH</option>
-          </select>
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Demanded Quantity *</label>
-          <input type="number" id="demandModalQuantity" min="1" step="1" value="1" required style="width:100%;">
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
-        <div>
-          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Invoice Number (Optional)</label>
-          <input type="text" id="demandModalInvoice" placeholder="INV-..." style="width:100%;">
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Date *</label>
-          <input type="date" id="demandModalDate" required style="width:100%;">
-        </div>
-      </div>
-
-      <div style="margin-bottom:18px;">
-        <label style="display:flex;align-items:center;gap:8px;font-weight:600;color:#c0392b;cursor:pointer;background:#fdf2f0;border:1px solid #f0c0b8;padding:8px 12px;border-radius:6px;">
-          <input type="checkbox" id="demandModalUrgent" style="width:16px;height:16px;accent-color:#c0392b;">
-          ⚡ Mark as Urgent (Requires Admin Approval)
-        </label>
-      </div>
-
-      <div style="display:flex;justify-content:flex-end;gap:10px;">
-        <button type="button" class="secondary" onclick="closeDemandModal()">Cancel</button>
-        <button type="submit" id="submitDemandBtn" style="background:#0f3d3e;border-color:#0f3d3e;color:#fff;">Submit Demand</button>
-      </div>
-    </form>
-  </div>
-</div>
 
 <div class="toast" id="toast"></div>
 
@@ -536,7 +485,50 @@ function removeCustomColumn(){
   openManageColumnsModal();
 }
 
-function save(){localStorage.setItem(KEY,JSON.stringify(rows));render();}
+
+async function save(){
+  localStorage.setItem(KEY, JSON.stringify(rows));
+  render();
+  try {
+    await InventoryAPI.saveInventory(rows);
+  } catch (e) {
+    console.warn("Cloud inventory save error:", e);
+  }
+}
+
+function demandRowFromInventory(i) {
+  const r = rows[i];
+  if (!r) return;
+  const model = r.model || "";
+  const id = r.id || r._id || "";
+  const params = new URLSearchParams({
+    fromInventory: "1",
+    model: model,
+    inventoryId: id
+  });
+  window.open('/demands.html?' + params.toString(), '_blank');
+}
+
+async function initInventory(){
+  InventoryAPI.injectNavbar('inventory');
+  await InventoryAPI.checkAdmin();
+  try {
+    const data = await InventoryAPI.loadInventory();
+    if (data && Array.isArray(data.rows) && data.rows.length) {
+      // Map API rows: API has quantity, local uses qty
+      rows = data.rows.map(item => ({
+        ...item,
+        qty: item.qty !== undefined ? item.qty : (item.quantity !== undefined ? item.quantity : 0)
+      }));
+      localStorage.setItem(KEY, JSON.stringify(rows));
+    }
+  } catch (e) {
+    console.error("Failed to load inventory from server:", e);
+  }
+  render();
+}
+window.addEventListener("DOMContentLoaded", initInventory);
+
 function normalize(value){return String(value??'').trim().toLocaleLowerCase()}
 function hasDuplicateModel(index, candidate){
   if(!normalize(candidate.product) && !normalize(candidate.brand) && !normalize(candidate.model)) return false;
@@ -576,9 +568,9 @@ function render(){
    <td><input value="${esc(r.brand)}" onchange="update(${i},'brand',this.value)"></td>
    <td><input value="${esc(r.model)}" onchange="update(${i},'model',this.value)"></td>
    ${customCells}
-   <td><input type="number" min="0" step="1" value="${Number(r.qty)||0}" onchange="update(${i},'qty',this.value)"></td>
+   <td><div style="display:flex;align-items:center;gap:4px;"><input type="number" min="0" step="1" value="${Number(r.qty)||0}" onchange="update(${i},'qty',this.value)">${r.onTheWayQty > 0 ? `<span class="badge-ontheway" title="${r.onTheWayQty} units on the way">🚚 On the Way (${r.onTheWayQty})</span>` : ''}</div></td>
    <td><span class="status ${s}">${statusText(s)}</span></td>
-   <td class="actions"><button type="button" style="background:#0f3d3e;border-color:#0f3d3e;color:#fff;padding:5px 9px;font-size:11px;" onclick="openDemandModalForRow(${i})">⚡ Demand</button><button class="danger" onclick="removeRow(${i})">Delete</button></td>`;
+   <td class="actions"><button type="button" style="background:#0f3d3e;border-color:#0f3d3e;color:#fff;padding:5px 9px;font-size:11px;" onclick="demandRowFromInventory(${i})">⚡ Demand</button><button class="danger" onclick="removeRow(${i})">Delete</button></td>`;
    body.appendChild(tr);
  });
  document.getElementById('totalModels').textContent=rows.length;

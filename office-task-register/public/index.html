@@ -840,7 +840,7 @@
   document.getElementById("historyBtn").addEventListener("click", () => { window.location.href = "/history.html"; });
   document.getElementById("demandBtn").addEventListener("click", () => { window.location.href = "/demands.html"; });
   document.getElementById("adminBtn").addEventListener("click", () => { window.location.href = "/demands-admin.html"; });
-  document.getElementById("inventoryBtn").addEventListener("click", () => { window.location.href = "/inventory.html"; });
+  document.getElementById("inventoryBtn").addEventListener("click", () => { window.open("/inventory.html", "_blank"); });
   document.getElementById("logisticsBtn").addEventListener("click", () => { window.location.href = "/logistics.html"; });
   document.getElementById("insertTaskMention").addEventListener("click", () => insertMention("taskMentionUser", "taskInput"));
   document.getElementById("enableNotificationsBtn").addEventListener("click", () => enableNotifications().catch(e => showError(e.message)));

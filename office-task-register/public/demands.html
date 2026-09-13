@@ -356,12 +356,21 @@
     document.getElementById("form").onsubmit = async event => {
       event.preventDefault();
       try {
-        const products = [...document.querySelectorAll(".item")].map(row => ({
-          name: row.querySelector(".product").value,
-          warehouse: row.querySelector(".warehouse").value,
-          quantity: Number(row.querySelector(".quantity").value),
-          invoiceNumber: row.querySelector(".invoice")?.value || ""
-        }));
+        const products = [...document.querySelectorAll(".item")].map(row => {
+          const prodInput = row.querySelector(".product");
+          const fromInv = prodInput ? prodInput.getAttribute("data-from-inventory") === "1" : false;
+          const invId = prodInput ? (prodInput.getAttribute("data-inventory-id") || "") : "";
+          const invModel = prodInput ? (prodInput.getAttribute("data-inventory-model") || "") : "";
+          return {
+            name: prodInput.value,
+            warehouse: row.querySelector(".warehouse").value,
+            quantity: Number(row.querySelector(".quantity").value),
+            invoiceNumber: row.querySelector(".invoice")?.value || "",
+            fromInventory: fromInv,
+            inventoryItemId: invId,
+            inventoryModel: invModel
+          };
+        });
         const isUrgent = Boolean(document.getElementById("urgentDemand")?.checked);
         await api("/api/demands", {
           method: "POST",
@@ -395,6 +404,31 @@
     api("/api/me").then(me => {
       if (me.role === "logistics") location.href = "/logistics.html";
     }).catch(() => location.href = "/");
+
+    // Pre-fill model if navigated from inventory
+    (function checkInventoryParams() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("fromInventory") === "1") {
+        const model = params.get("model") || "";
+        const invId = params.get("inventoryId") || "";
+        const firstProd = document.querySelector(".item .product");
+        if (firstProd && model) {
+          firstProd.value = model;
+          firstProd.setAttribute("data-from-inventory", "1");
+          firstProd.setAttribute("data-inventory-id", invId);
+          firstProd.setAttribute("data-inventory-model", model);
+          firstProd.style.borderColor = "#0284c7";
+          firstProd.style.background = "#f0f9ff";
+
+          const hint = document.createElement("small");
+          hint.id = "inventoryOriginHint";
+          hint.style.cssText = "color:#0284c7;font-size:11px;font-weight:600;display:block;margin-top:2px;";
+          hint.textContent = "📦 Linked from Office Inventory: " + model;
+          firstProd.parentNode.insertBefore(hint, firstProd.nextSibling);
+        }
+      }
+    })();
+
     load();
   </script>
 </body>
