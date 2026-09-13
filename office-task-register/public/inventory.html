@@ -514,13 +514,17 @@ async function initInventory(){
   await InventoryAPI.checkAdmin();
   try {
     const data = await InventoryAPI.loadInventory();
-    if (data && Array.isArray(data.rows) && data.rows.length) {
-      // Map API rows: API has quantity, local uses qty
-      rows = data.rows.map(item => ({
-        ...item,
-        qty: item.qty !== undefined ? item.qty : (item.quantity !== undefined ? item.quantity : 0)
-      }));
-      localStorage.setItem(KEY, JSON.stringify(rows));
+    if (data && Array.isArray(data.rows)) {
+      if (data.rows.length) {
+        rows = data.rows.map(item => ({
+          ...item,
+          qty: item.qty !== undefined ? item.qty : (item.quantity !== undefined ? item.quantity : 0)
+        }));
+        localStorage.setItem(KEY, JSON.stringify(rows));
+      } else if (rows && rows.length) {
+        // Seed MongoDB from local inventory so server always has the latest data
+        await InventoryAPI.saveInventory(rows);
+      }
     }
   } catch (e) {
     console.error("Failed to load inventory from server:", e);

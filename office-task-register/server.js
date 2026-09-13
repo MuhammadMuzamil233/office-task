@@ -683,6 +683,10 @@ async function notifyLogisticsUrgentDemand(demand, actorName) {
 }
 
 
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function escapeRegex(text) {
   return String(text || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -697,37 +701,70 @@ async function autoStockInInventoryItem(item, actorName) {
     if (item.inventoryItemId && mongoose.Types.ObjectId.isValid(item.inventoryItemId)) {
       invItem = await InventoryItem.findById(item.inventoryItemId);
     }
-    if (!invItem && item.inventoryModel) {
+    const cleanModel = String(item.inventoryModel || "").trim();
+    const cleanName = String(item.name || "").trim();
+
+    if (!invItem && cleanModel) {
       invItem = await InventoryItem.findOne({
-        model: { $regex: new RegExp("^" + escapeRegex(item.inventoryModel.trim()) + "$", "i") }
+        model: { $regex: new RegExp("^" + escapeRegex(cleanModel) + "$", "i") }
       });
     }
-    if (!invItem && item.name) {
+    if (!invItem && cleanName) {
+      // 1. Exact model match
       invItem = await InventoryItem.findOne({
-        model: { $regex: new RegExp("^" + escapeRegex(item.name.trim()) + "$", "i") }
+        model: { $regex: new RegExp("^" + escapeRegex(cleanName) + "$", "i") }
       });
+      // 2. Substring model or product match
+      if (!invItem) {
+        invItem = await InventoryItem.findOne({
+          $or: [
+            { model: { $regex: new RegExp(escapeRegex(cleanName), "i") } },
+            { product: { $regex: new RegExp(escapeRegex(cleanName), "i") } }
+          ]
+        });
+      }
     }
 
     if (invItem) {
       invItem.quantity = (Number(invItem.quantity) || 0) + addQty;
+      if (item.warehouse) {
+        if (!invItem.extra) invItem.extra = {};
+        invItem.extra.warehouseName = item.warehouse;
+        invItem.markModified("extra");
+      }
       await invItem.save();
-
-      await StockTransaction.create({
-        type: "in",
-        date: todayStr(),
-        invoiceNo: item.invoiceNumber || "",
-        sourceDestination: item.warehouse || "Completed Demand Auto-Stock",
-        items: [{
-          product: invItem.product || item.name || "",
-          brand: invItem.brand || "",
-          model: invItem.model || item.inventoryModel || item.name || "",
-          quantity: addQty,
-          remarks: "Auto stock-in from completed demand (" + (actorName || "Admin") + ")"
-        }],
-        createdBy: actorName || "Admin"
+      console.log("Auto stock-in updated qty for", invItem.model, "new qty:", invItem.quantity);
+    } else {
+      // Create new inventory item if not found so stock is tracked
+      const finalModel = cleanModel || cleanName || "Standard Item";
+      invItem = await InventoryItem.create({
+        product: cleanName || cleanModel || "Demand Item",
+        brand: "",
+        model: finalModel,
+        quantity: addQty,
+        extra: {
+          warehouseName: item.warehouse || ""
+        }
       });
-      console.log("Auto stock-in completed for", invItem.model, "added qty:", addQty);
+      console.log("Auto stock-in created new inventory item", finalModel, "qty:", addQty);
     }
+
+    // Always create StockTransaction
+    await StockTransaction.create({
+      type: "in",
+      date: todayStr(),
+      invoiceNo: item.invoiceNumber || "",
+      sourceDestination: item.warehouse || "Completed Demand Auto-Stock",
+      items: [{
+        product: (invItem && invItem.product) || cleanName || "",
+        brand: (invItem && invItem.brand) || "",
+        model: (invItem && invItem.model) || cleanModel || cleanName || "",
+        quantity: addQty,
+        remarks: "Auto stock-in from completed demand (" + (actorName || "Admin") + ")"
+      }],
+      createdBy: actorName || "Admin"
+    });
+    console.log("Auto stock-in transaction created with warehouse:", item.warehouse || "Completed Demand Auto-Stock", "qty:", addQty);
   } catch (err) {
     console.error("Auto stock-in error:", err);
   }
@@ -1083,12 +1120,12 @@ app.post("/api/inventory/save-all", authMiddleware, adminMiddleware, async (req,
     }
     await InventoryItem.deleteMany({});
     const docs = rows.map(r => {
-      const { id, _id, product, brand, model, quantity, ...extra } = r;
+      const { id, _id, product, brand, model, quantity, qty, ...extra } = r;
       return {
         product: String(product || "").trim(),
         brand: String(brand || "").trim(),
         model: String(model || "").trim(),
-        quantity: Number(quantity) || 0,
+        quantity: Number(quantity !== undefined ? quantity : (qty !== undefined ? qty : 0)) || 0,
         extra
       };
     });

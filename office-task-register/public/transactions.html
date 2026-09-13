@@ -229,6 +229,47 @@ function clearHistory() {
   toast('All transaction history cleared');
 }
 
+InventoryAPI.injectNavbar('transactions');
+window.addEventListener("DOMContentLoaded", async () => {
+  await InventoryAPI.checkAdmin();
+  try {
+    const txs = await InventoryAPI.getTransactions();
+    if (Array.isArray(txs) && txs.length) {
+      const inList = [];
+      const outList = [];
+      txs.forEach(tx => {
+        const isOut = tx.type === 'out';
+        const dStr = tx.date || (tx.createdAt ? String(tx.createdAt).split('T')[0] : '');
+        const ref = tx.sourceDestination || tx.invoiceNo || (isOut ? 'Stock OUT' : 'Main Warehouse');
+        if (Array.isArray(tx.items) && tx.items.length) {
+          tx.items.forEach((it, idx) => {
+            const entry = {
+              id: tx.id ? String(tx.id) + '_' + idx : String(Date.now() + idx),
+              date: dStr,
+              product: it.product || it.name || '-',
+              brand: it.brand || '',
+              model: it.model || it.name || '-',
+              qty: Number(it.quantity !== undefined ? it.quantity : it.qty) || 0
+            };
+            if (isOut) {
+              entry.invoice = ref;
+              outList.push(entry);
+            } else {
+              entry.warehouse = ref;
+              inList.push(entry);
+            }
+          });
+        }
+      });
+      if (inList.length) localStorage.setItem(STOCK_IN_KEY, JSON.stringify(inList));
+      if (outList.length) localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(outList));
+    }
+  } catch (e) {
+    console.error("Failed to load server transactions:", e);
+  }
+  render();
+});
+
 render();
 </script>
 </body>

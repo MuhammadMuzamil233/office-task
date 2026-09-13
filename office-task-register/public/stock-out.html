@@ -142,18 +142,46 @@ let stockOutList = JSON.parse(localStorage.getItem(STOCK_OUT_KEY) || '[]');
 InventoryAPI.injectNavbar('stock-out');
 window.addEventListener("DOMContentLoaded", async () => {
   await InventoryAPI.checkAdmin();
-  const inv = await InventoryAPI.loadInventory();
-  if (inv.rows && inv.rows.length) {
-    localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(inv.rows));
-    populateModelSuggestions();
+  try {
+    const inv = await InventoryAPI.loadInventory();
+    if (inv.rows && inv.rows.length) {
+      localStorage.setItem(MAIN_INVENTORY_KEY, JSON.stringify(inv.rows));
+      if (typeof populateModelSuggestions === "function") populateModelSuggestions();
+    }
+  } catch (e) {
+    console.error("Failed to load inventory:", e);
   }
-  const txs = await InventoryAPI.getTransactions('out');
-  if (txs && txs.length) {
-    stockOutList = txs;
-    localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(txs));
-    renderStockOutList();
-    updateStats();
+  try {
+    const txs = await InventoryAPI.getTransactions('out');
+    if (Array.isArray(txs) && txs.length) {
+      const flatList = [];
+      txs.forEach(tx => {
+        const invNo = tx.invoiceNo || tx.sourceDestination || '-';
+        const dStr = tx.date || (tx.createdAt ? String(tx.createdAt).split('T')[0] : '');
+        if (Array.isArray(tx.items) && tx.items.length) {
+          tx.items.forEach((it, idx) => {
+            flatList.push({
+              id: tx.id ? String(tx.id) + '_' + idx : String(Date.now() + idx),
+              txId: tx.id,
+              date: dStr,
+              invoice: invNo,
+              product: it.product || it.name || '-',
+              brand: it.brand || '',
+              model: it.model || it.name || '-',
+              qty: Number(it.quantity !== undefined ? it.quantity : it.qty) || 0
+            });
+          });
+        }
+      });
+      if (flatList.length) {
+        stockOutList = flatList;
+        localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(flatList));
+      }
+    }
+  } catch (e) {
+    console.error("Failed to load stock out transactions:", e);
   }
+  render();
 });
 
 let rowCounter = 0;
