@@ -689,7 +689,7 @@ function escapeRegex(text) {
 
 async function autoStockInInventoryItem(item, actorName) {
   try {
-    if (!item || !item.fromInventory) return;
+    if (!item) return;
     const addQty = Number.isInteger(item.pickedQuantity) && item.pickedQuantity > 0 ? item.pickedQuantity : Number(item.quantity) || 0;
     if (addQty <= 0) return;
 
@@ -755,9 +755,7 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         submittedAt: demand.submittedAt,
         completedAt: new Date()
       });
-      if (completedItem.fromInventory) {
-        await autoStockInInventoryItem(completedItem, req.user.name);
-      }
+      await autoStockInInventoryItem(completedItem, req.user.name);
       demand.products.splice(completeItemIndex, 1);
       if (!demand.products.length) {
         await Demand.deleteOne({ _id: demand._id });
@@ -786,7 +784,7 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
       });
       if (Array.isArray(demand.products)) {
         for (const p of demand.products) {
-          if (p && p.fromInventory) {
+          if (p) {
             await autoStockInInventoryItem(p, req.user.name);
           }
         }
