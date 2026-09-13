@@ -180,6 +180,46 @@
     #summary-list-table {
       min-width: 600px;
     }
+
+    .badge-urgent {
+      display: inline-block;
+      padding: 2px 6px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #fff;
+      background: #c0392b;
+      border-radius: 3px;
+      letter-spacing: 0.5px;
+      margin-left: 4px;
+      vertical-align: middle;
+      animation: pulse-urgent 1.5s infinite;
+    }
+
+    @keyframes pulse-urgent {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    .urgent-row {
+      background: #fff8f5;
+    }
+
+    .urgent-row.demand-head td {
+      border-top: 3px solid #c0392b !important;
+    }
+
+    .urgent-btn {
+      border-color: #e67e22;
+      background: transparent;
+      color: #d35400;
+    }
+
+    .urgent-btn.urgent-active {
+      background: #c0392b;
+      border-color: #c0392b;
+      color: #fff;
+      font-weight: 700;
+    }
   </style>
 </head>
 <body>
@@ -394,10 +434,10 @@
 
         demand.items.forEach((item, index) => {
           const row = document.createElement("tr");
-          row.className = index === 0 ? "demand-head item-row" : "item-row";
+          row.className = (index === 0 ? "demand-head item-row" : "item-row") + (demand.is_urgent ? " urgent-row" : "");
           
           row.innerHTML = `
-            <td>${index === 0 ? `<b>${esc(demand.employee_name)}</b>` : ""}</td>
+            <td>${index === 0 ? `<b>${esc(demand.employee_name)}</b>${demand.is_urgent ? ' <span class="badge-urgent">URGENT</span>' : ''}` : ""}</td>
             <td>${index === 0 ? esc(demand.date) : ""}</td>
             <td>${esc(item.name)}</td>
             <td>${esc(item.warehouse || "-")}</td>
@@ -410,6 +450,7 @@
             <td>
               ${index === 0 ? `
                 <div class="actions">
+                  <button class="action urgent-btn ${demand.is_urgent ? 'urgent-active' : ''}">${demand.is_urgent ? '⚡ Urgent (Active)' : '⚡ Mark Urgent'}</button>
                   <button class="action approve">Approve</button>
                   <button class="action reject">Reject</button>
                   <button class="action complete">Complete all</button>
@@ -424,6 +465,13 @@
               await api("/api/admin/demands/" + demand.id, {
                 method: "PATCH",
                 body: JSON.stringify({ status })
+              });
+              load();
+            };
+            row.querySelector(".urgent-btn").onclick = async () => {
+              await api("/api/admin/demands/" + demand.id, {
+                method: "PATCH",
+                body: JSON.stringify({ isUrgent: !demand.is_urgent })
               });
               load();
             };

@@ -63,6 +63,7 @@ const demandSchema = new mongoose.Schema({
   date: { type: String, required: true },
   products: { type: mongoose.Schema.Types.Mixed, required: true },
   quantity: { type: mongoose.Schema.Types.Mixed, default: null },
+  isUrgent: { type: Boolean, default: false },
   status: { type: String, enum: ["pending", "approved", "rejected", "completed", "cancelled", "on_the_way"], default: "pending" },
   adminRemarks: { type: String, default: "", trim: true, maxlength: 2000 },
   submittedAt: { type: Date, default: Date.now }
@@ -75,6 +76,7 @@ const demandHistorySchema = new mongoose.Schema({
   date: { type: String, required: true },
   products: { type: mongoose.Schema.Types.Mixed, required: true },
   quantity: { type: mongoose.Schema.Types.Mixed, default: null },
+  isUrgent: { type: Boolean, default: false },
   status: { type: String, default: "completed" },
   adminRemarks: { type: String, default: "", trim: true, maxlength: 2000 },
   submittedAt: { type: Date, required: true },
@@ -93,7 +95,7 @@ const notificationSchema = new mongoose.Schema({
   recipientId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
   actorName: { type: String, required: true },
   message: { type: String, required: true, maxlength: 300 },
-  taskId: { type: mongoose.Schema.Types.ObjectId, ref: "Task", required: true },
+  taskId: { type: mongoose.Schema.Types.ObjectId, ref: "Task", default: null },
   readAt: { type: Date, default: null }
 }, { timestamps: true });
 
@@ -437,6 +439,7 @@ function demandToJson(demand) {
     products: items.map(item => `${item.name} (${item.quantity})`).join(", "),
     quantity: items.reduce((total, item) => total + item.quantity, 0),
     items,
+    is_urgent: Boolean(demand.isUrgent),
     status: demand.status,
     admin_remarks: demand.adminRemarks,
     submitted_at: demand.submittedAt,
@@ -444,22 +447,29 @@ function demandToJson(demand) {
   };
 }
 
+async function sortDemandsWithPriority(demands) {
+  const adminUser = await User.findOne({ username: ADMIN_USERNAME });
+  const adminId = adminUser ? adminUser._id.toString() : null;
+  const urgentDemands = [];
+  const nonAdmin = [];
+  const adminDemands = [];
+  for (const d of demands) {
+    if (d.isUrgent) {
+      urgentDemands.push(d);
+    } else if (adminId && d.employeeId && d.employeeId.toString() === adminId) {
+      adminDemands.push(d);
+    } else {
+      nonAdmin.push(d);
+    }
+  }
+  return [...urgentDemands, ...nonAdmin, ...adminDemands];
+}
+
 app.get("/api/demands", authMiddleware, async (req, res) => {
   try {
     const demands = await Demand.find().sort({ submittedAt: 1 });
-    // Admin ki demands last mein, baaki pehle (FIFO order)
-    const adminUser = await User.findOne({ username: ADMIN_USERNAME });
-    const adminId = adminUser ? adminUser._id.toString() : null;
-    const nonAdmin = [];
-    const adminDemands = [];
-    for (const d of demands) {
-      if (adminId && d.employeeId && d.employeeId.toString() === adminId) {
-        adminDemands.push(d);
-      } else {
-        nonAdmin.push(d);
-      }
-    }
-    res.json([...nonAdmin, ...adminDemands].map(demandToJson));
+    const sorted = await sortDemandsWithPriority(demands);
+    res.json(sorted.map(demandToJson));
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not load demands" });
@@ -469,19 +479,8 @@ app.get("/api/demands", authMiddleware, async (req, res) => {
 app.get("/api/admin/demands", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const demands = await Demand.find().sort({ submittedAt: 1 });
-    // Admin ki demands last mein, baaki pehle (FIFO order)
-    const adminUser = await User.findOne({ username: ADMIN_USERNAME });
-    const adminId = adminUser ? adminUser._id.toString() : null;
-    const nonAdmin = [];
-    const adminDemands = [];
-    for (const d of demands) {
-      if (adminId && d.employeeId && d.employeeId.toString() === adminId) {
-        adminDemands.push(d);
-      } else {
-        nonAdmin.push(d);
-      }
-    }
-    res.json([...nonAdmin, ...adminDemands].map(demandToJson));
+    const sorted = await sortDemandsWithPriority(demands);
+    res.json(sorted.map(demandToJson));
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not load demands" });
@@ -515,7 +514,7 @@ app.post("/api/demands", authMiddleware, async (req, res) => {
 
 app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { date, products, quantity, status, adminRemarks, completeItemIndex } = req.body || {};
+    const { date, products, quantity, status, adminRemarks, completeItemIndex, isUrgent } = req.body || {};
     if (Number.isInteger(completeItemIndex)) {
       const demand = await Demand.findById(req.params.id);
       if (!demand || !Array.isArray(demand.products)) return res.status(404).json({ error: "Demand item not found" });
@@ -528,6 +527,7 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         date: demand.date,
         products: [{ ...completedItem.toObject?.() || completedItem, status: "completed" }],
         quantity: completedItem.quantity,
+        isUrgent: Boolean(demand.isUrgent),
         status: "completed",
         adminRemarks: demand.adminRemarks,
         submittedAt: demand.submittedAt,
@@ -552,6 +552,7 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         date: demand.date,
         products: demand.products,
         quantity: demand.quantity,
+        isUrgent: Boolean(demand.isUrgent),
         status: "completed",
         adminRemarks: demand.adminRemarks,
         submittedAt: demand.submittedAt,
@@ -576,9 +577,49 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
     }
     if (["pending", "approved", "rejected", "completed", "cancelled", "on_the_way"].includes(status)) updates.status = status;
     if (typeof adminRemarks === "string") updates.adminRemarks = adminRemarks.trim().slice(0, 2000);
+    if (typeof isUrgent === "boolean") updates.isUrgent = isUrgent;
     if (!Object.keys(updates).length) return res.status(400).json({ error: "A valid demand update is required" });
     const demand = await Demand.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true });
     if (!demand) return res.status(404).json({ error: "Demand not found" });
+
+    if (isUrgent === true) {
+      try {
+        const logisticsUsers = await User.find({ role: "logistics" }).select("_id");
+        if (logisticsUsers.length) {
+          const itemsSummary = Array.isArray(demand.products)
+            ? demand.products.map(p => `${p.name} (${p.quantity})`).join(", ")
+            : (demand.products || "Items");
+          const msg = `🚨 URGENT DEMAND: ${demand.employeeName} - ${itemsSummary.slice(0, 100)}`;
+          await Notification.insertMany(
+            logisticsUsers.map(u => ({
+              recipientId: u._id,
+              actorName: req.user.name,
+              message: msg,
+              taskId: null
+            }))
+          );
+          if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+            const subscriptions = await PushSubscription.find({ userId: { $in: logisticsUsers.map(u => u._id) } });
+            await Promise.all(subscriptions.map(async sub => {
+              try {
+                await webpush.sendNotification(sub.toObject(), JSON.stringify({
+                  title: "🚨 URGENT DEMAND",
+                  body: msg,
+                  url: "/logistics.html"
+                }));
+              } catch (err) {
+                if (err.statusCode === 404 || err.statusCode === 410) {
+                  await PushSubscription.deleteOne({ _id: sub._id });
+                }
+              }
+            }));
+          }
+        }
+      } catch (notifyErr) {
+        console.error("Logistics notification error:", notifyErr);
+      }
+    }
+
     res.json(demandToJson(demand));
   } catch (e) {
     console.error(e);
@@ -589,19 +630,8 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
 app.get("/api/logistics/demands", authMiddleware, logisticsMiddleware, async (req, res) => {
   try {
     const demands = await Demand.find().sort({ submittedAt: 1 });
-    // Admin ki demands last mein, baaki pehle (FIFO order)
-    const adminUser = await User.findOne({ username: ADMIN_USERNAME });
-    const adminId = adminUser ? adminUser._id.toString() : null;
-    const nonAdmin = [];
-    const adminDemands = [];
-    for (const d of demands) {
-      if (adminId && d.employeeId && d.employeeId.toString() === adminId) {
-        adminDemands.push(d);
-      } else {
-        nonAdmin.push(d);
-      }
-    }
-    res.json([...nonAdmin, ...adminDemands].map(demandToJson));
+    const sorted = await sortDemandsWithPriority(demands);
+    res.json(sorted.map(demandToJson));
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not load logistics demands" });

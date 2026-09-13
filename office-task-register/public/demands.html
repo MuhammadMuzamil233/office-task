@@ -179,6 +179,18 @@
       color: var(--red);
     }
 
+    .badge-urgent {
+      display: inline-block;
+      padding: 2px 6px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #fff;
+      background: #c0392b;
+      border-radius: 3px;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+
     @media(max-width: 600px) {
       .book {
         flex-direction: column;
@@ -285,7 +297,7 @@
             const body = table.querySelector("tbody");
             itemsOf(demand).forEach(item => {
               const row = document.createElement("tr");
-              row.innerHTML = `<td>${esc(demand.date)}</td><td>${esc(item.name)}</td><td>${esc(item.warehouse || "-")}</td><td>${item.quantity}</td><td>${item.pickedQuantity == null ? "-" : item.pickedQuantity}</td><td>${esc(item.invoiceNumber || "-")}</td><td class="status">${esc(item.status || demand.status)}</td><td class="remarks">${esc(demand.admin_remarks || "-")}</td><td>${new Date(demand.submitted_at).toLocaleString("en-GB")}</td>`;
+              row.innerHTML = `<td>${esc(demand.date)}${demand.is_urgent ? ' <span class="badge-urgent">URGENT</span>' : ''}</td><td>${esc(item.name)}</td><td>${esc(item.warehouse || "-")}</td><td>${item.quantity}</td><td>${item.pickedQuantity == null ? "-" : item.pickedQuantity}</td><td>${esc(item.invoiceNumber || "-")}</td><td class="status">${esc(item.status || demand.status)}</td><td class="remarks">${esc(demand.admin_remarks || "-")}</td><td>${new Date(demand.submitted_at).toLocaleString("en-GB")}</td>`;
               body.appendChild(row);
             });
             group.appendChild(table);
