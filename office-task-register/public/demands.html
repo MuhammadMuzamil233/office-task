@@ -82,7 +82,7 @@
 
     .item {
       display: grid;
-      grid-template-columns: 1fr 180px 100px auto;
+      grid-template-columns: 1fr 180px 100px 1fr auto;
       gap: 10px;
       margin-bottom: 10px;
       align-items: center;
@@ -211,6 +211,7 @@
               <option>FC I10 WH</option>
             </select>
             <input class="quantity" type="number" min="1" step="1" placeholder="Quantity" required>
+            <input class="invoice" maxlength="100" placeholder="Invoice number (optional)">
           </div>
         </div>
         <div class="form-actions">
@@ -280,11 +281,11 @@
           employeeDemands.forEach(demand => {
             const table = document.createElement("table");
             table.className = "table";
-            table.innerHTML = '<thead><tr><th>Date</th><th>Product</th><th>Warehouse</th><th>Quantity</th><th>Status</th><th>Admin Remarks</th><th>Submitted At</th></tr></thead><tbody></tbody>';
+            table.innerHTML = '<thead><tr><th>Date</th><th>Product</th><th>Warehouse</th><th>Demanded</th><th>Picked</th><th>Invoice Number</th><th>Status</th><th>Admin Remarks</th><th>Submitted At</th></tr></thead><tbody></tbody>';
             const body = table.querySelector("tbody");
             itemsOf(demand).forEach(item => {
               const row = document.createElement("tr");
-              row.innerHTML = `<td>${esc(demand.date)}</td><td>${esc(item.name)}</td><td>${esc(item.warehouse || "-")}</td><td>${item.quantity}</td><td class="status">${esc(item.status || demand.status)}</td><td class="remarks">${esc(demand.admin_remarks || "-")}</td><td>${new Date(demand.submitted_at).toLocaleString("en-GB")}</td>`;
+              row.innerHTML = `<td>${esc(demand.date)}</td><td>${esc(item.name)}</td><td>${esc(item.warehouse || "-")}</td><td>${item.quantity}</td><td>${item.pickedQuantity == null ? "-" : item.pickedQuantity}</td><td>${esc(item.invoiceNumber || "-")}</td><td class="status">${esc(item.status || demand.status)}</td><td class="remarks">${esc(demand.admin_remarks || "-")}</td><td>${new Date(demand.submitted_at).toLocaleString("en-GB")}</td>`;
               body.appendChild(row);
             });
             group.appendChild(table);
@@ -309,6 +310,7 @@
           <option>FC I10 WH</option>
         </select>
         <input class="quantity" type="number" min="1" step="1" placeholder="Quantity" required>
+        <input class="invoice" maxlength="100" placeholder="Invoice number (optional)">
         <button type="button" class="remove">Remove</button>
       `;
       row.querySelector(".remove").onclick = () => row.remove();
@@ -321,7 +323,8 @@
         const products = [...document.querySelectorAll(".item")].map(row => ({
           name: row.querySelector(".product").value,
           warehouse: row.querySelector(".warehouse").value,
-          quantity: Number(row.querySelector(".quantity").value)
+          quantity: Number(row.querySelector(".quantity").value),
+          invoiceNumber: row.querySelector(".invoice")?.value || ""
         }));
         await api("/api/demands", {
           method: "POST",
@@ -341,6 +344,7 @@
               <option>FC I10 WH</option>
             </select>
             <input class="quantity" type="number" min="1" step="1" placeholder="Quantity" required>
+            <input class="invoice" maxlength="100" placeholder="Invoice number (optional)">
           </div>
         `;
         load();

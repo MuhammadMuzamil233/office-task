@@ -222,7 +222,9 @@
               <th>Date</th>
               <th>Product</th>
               <th>Warehouse</th>
-              <th>Item Quantity</th>
+              <th>Demanded Quantity</th>
+              <th>Picked Quantity</th>
+              <th>Invoice Number</th>
               <th>Total Quantity</th>
               <th>Status</th>
               <th>Submitted At</th>
@@ -231,7 +233,7 @@
           </thead>
           <tbody id="list">
             <tr>
-              <td colspan="9" class="empty">Loading demands...</td>
+              <td colspan="11" class="empty">Loading demands...</td>
             </tr>
           </tbody>
         </table>
@@ -312,7 +314,7 @@
         render();
         await loadAccessRequests();
       } catch (error) {
-        document.getElementById("list").innerHTML = `<tr><td colspan="9" class="error">${esc(error.message)}</td></tr>`;
+        document.getElementById("list").innerHTML = `<tr><td colspan="11" class="error">${esc(error.message)}</td></tr>`;
       }
     }
 
@@ -400,6 +402,8 @@
             <td>${esc(item.name)}</td>
             <td>${esc(item.warehouse || "-")}</td>
             <td>${item.quantity}</td>
+            <td>${item.pickedQuantity == null ? "-" : item.pickedQuantity}</td>
+            <td>${esc(item.invoiceNumber || "-")}</td>
             <td>${index === 0 ? total : ""}</td>
             <td>${esc(item.status || demand.status)}</td>
             <td>${index === 0 ? date(demand.submitted_at) : ""}</td>
@@ -448,7 +452,7 @@
       });
 
       if (!filteredDemands.length) {
-        list.innerHTML = '<tr><td colspan="9" class="empty">No demands matching the selected filters.</td></tr>';
+        list.innerHTML = '<tr><td colspan="11" class="empty">No demands matching the selected filters.</td></tr>';
       }
 
       // Render Aggregated Summary

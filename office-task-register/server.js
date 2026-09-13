@@ -421,8 +421,15 @@ const demandWarehouses = ["FC Faizabad WH", "FC I10 WH"];
 
 function demandToJson(demand) {
   const items = Array.isArray(demand.products)
-  ? demand.products.map(item => ({ name: item.name, quantity: item.quantity, warehouse: item.warehouse || "", status: item.status || demand.status }))
-    : [{ name: demand.products, quantity: demand.quantity || 1, warehouse: "" }];
+    ? demand.products.map(item => ({
+        name: item.name,
+        quantity: item.quantity,
+        pickedQuantity: Number.isInteger(item.pickedQuantity) ? item.pickedQuantity : null,
+        warehouse: item.warehouse || "",
+        invoiceNumber: item.invoiceNumber || "",
+        status: item.status || demand.status
+      }))
+    : [{ name: demand.products, quantity: demand.quantity || 1, pickedQuantity: null, warehouse: "", invoiceNumber: "", status: demand.status }];
   return {
     id: demand._id.toString(),
     employee_name: demand.employeeName,
@@ -494,7 +501,7 @@ app.get("/api/admin/demands/history", authMiddleware, adminMiddleware, async (re
 app.post("/api/demands", authMiddleware, async (req, res) => {
   try {
     const { date, products } = req.body || {};
-    const items = Array.isArray(products) ? products.map(item => ({ name: String(item.name || "").trim().slice(0, 200), quantity: Number(item.quantity), warehouse: String(item.warehouse || "").trim() })) : [];
+    const items = Array.isArray(products) ? products.map(item => ({ name: String(item.name || "").trim().slice(0, 200), quantity: Number(item.quantity), warehouse: String(item.warehouse || "").trim(), invoiceNumber: String(item.invoiceNumber || "").trim().slice(0, 100) })) : [];
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || !items.length || items.some(item => !item.name || !Number.isInteger(item.quantity) || item.quantity < 1 || !demandWarehouses.includes(item.warehouse))) {
       return res.status(400).json({ error: "Date, product, quantity, and a valid warehouse are required" });
     }
@@ -531,6 +538,7 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         await Demand.deleteOne({ _id: demand._id });
         return res.json({ ok: true, archived: true, demandDeleted: true });
       }
+      demand.markModified("products");
       await demand.save();
       return res.json(demandToJson(demand));
     }
@@ -560,7 +568,7 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
     const updates = {};
     if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) updates.date = date;
     if (Array.isArray(products) && products.length && products.every(item => item && String(item.name || "").trim() && Number.isInteger(Number(item.quantity)) && Number(item.quantity) >= 1 && demandWarehouses.includes(String(item.warehouse || "")))) {
-      updates.products = products.map(item => ({ name: String(item.name).trim().slice(0, 200), quantity: Number(item.quantity), warehouse: String(item.warehouse).trim() }));
+      updates.products = products.map(item => ({ name: String(item.name).trim().slice(0, 200), quantity: Number(item.quantity), pickedQuantity: Number.isInteger(Number(item.pickedQuantity)) ? Number(item.pickedQuantity) : null, warehouse: String(item.warehouse).trim(), invoiceNumber: String(item.invoiceNumber || "").trim().slice(0, 100) }));
       updates.quantity = null;
     } else if (typeof products === "string" && products.trim() && Number.isInteger(Number(quantity)) && Number(quantity) >= 1) {
       updates.products = [{ name: products.trim().slice(0, 200), quantity: Number(quantity) }];
@@ -602,7 +610,7 @@ app.get("/api/logistics/demands", authMiddleware, logisticsMiddleware, async (re
 
 app.patch("/api/logistics/demands/:id", authMiddleware, logisticsMiddleware, async (req, res) => {
   try {
-    const { itemIndexes, status } = req.body || {};
+    const { itemIndexes, status, pickedQuantity } = req.body || {};
     if (!Array.isArray(itemIndexes) || !itemIndexes.length || status !== "on_the_way" || itemIndexes.some(index => !Number.isInteger(index) || index < 0)) {
       return res.status(400).json({ error: "Select at least one item" });
     }
@@ -613,7 +621,14 @@ app.patch("/api/logistics/demands/:id", authMiddleware, logisticsMiddleware, asy
     if (uniqueIndexes.some(index => index >= demand.products.length)) {
       return res.status(400).json({ error: "Invalid demand item" });
     }
-    demand.products = demand.products.map((item, index) => uniqueIndexes.includes(index) ? { ...item.toObject?.() || item, status } : item);
+    const selectedItems = uniqueIndexes.map(index => demand.products[index]);
+    const hasPickedQuantity = pickedQuantity !== undefined && pickedQuantity !== null && pickedQuantity !== "";
+    const normalizedPickedQuantity = hasPickedQuantity ? Number(pickedQuantity) : null;
+    if (hasPickedQuantity && (!Number.isInteger(normalizedPickedQuantity) || normalizedPickedQuantity < 0 || selectedItems.some(item => normalizedPickedQuantity > Number(item.quantity)))) {
+      return res.status(400).json({ error: "Pickup quantity must be a whole number between 0 and the demanded quantity" });
+    }
+    demand.products = demand.products.map((item, index) => uniqueIndexes.includes(index) ? { ...item.toObject?.() || item, pickedQuantity: hasPickedQuantity ? normalizedPickedQuantity : Number(item.quantity), status } : item);
+    demand.markModified("products");
     await demand.save();
     res.json(demandToJson(demand));
   } catch (e) {
