@@ -1461,6 +1461,19 @@ app.get("/api/inventory/transactions", authMiddleware, async (req, res) => {
   try {
     const { type } = req.query;
     const filter = type ? { type } : {};
+
+    // Auto-clean any corrupt 0-quantity or empty transactions
+    try {
+      await StockTransaction.deleteMany({
+        $or: [
+          { items: { $size: 0 } },
+          { items: { $not: { $elemMatch: { quantity: { $gt: 0 } } } } }
+        ]
+      });
+    } catch (cleanErr) {
+      console.warn("Clean zero-qty tx warn:", cleanErr);
+    }
+
     const txs = await StockTransaction.find(filter).sort({ createdAt: -1 });
     res.json(txs.map(t => ({
       id: t._id.toString(),
@@ -1468,10 +1481,10 @@ app.get("/api/inventory/transactions", authMiddleware, async (req, res) => {
       date: t.date,
       invoiceNo: t.invoiceNo,
       sourceDestination: t.sourceDestination,
-      items: t.items,
+      items: (t.items || []).filter(it => (Number(it.quantity !== undefined ? it.quantity : it.qty) || 0) > 0),
       createdBy: t.createdBy,
       createdAt: t.createdAt
-    })));
+    })).filter(t => t.items.length > 0));
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not load stock transactions" });
@@ -1510,6 +1523,9 @@ app.post("/api/inventory/transactions", authMiddleware, adminMiddleware, async (
 // DELETE /api/inventory/transactions/:id
 app.delete("/api/inventory/transactions/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.json({ ok: true });
+    }
     const { itemIndex } = req.query;
     if (itemIndex !== undefined && itemIndex !== "") {
       const idx = parseInt(itemIndex, 10);

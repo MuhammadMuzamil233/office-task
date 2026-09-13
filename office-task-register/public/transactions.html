@@ -248,14 +248,16 @@ async function loadTransactionsData() {
         const ref = tx.sourceDestination || tx.invoiceNo || (isOut ? 'Stock OUT' : 'Main Warehouse');
         if (Array.isArray(tx.items) && tx.items.length) {
           tx.items.forEach((it, idx) => {
-            const entry = {
-              id: tx.id ? String(tx.id) + '_' + idx : String(Date.now() + idx),
-              date: dStr,
-              product: it.product || it.name || '-',
-              brand: it.brand || '',
-              model: it.model || it.name || '-',
-              qty: Number(it.quantity !== undefined ? it.quantity : it.qty) || 0
-            };
+            const itemQty = Number(it.quantity !== undefined ? it.quantity : it.qty) || 0;
+            if (itemQty > 0) {
+              const entry = {
+                id: tx.id ? String(tx.id) + '_' + idx : String(Date.now() + idx),
+                date: dStr,
+                product: it.product || it.name || '-',
+                brand: it.brand || '',
+                model: it.model || it.name || '-',
+                qty: itemQty
+              };
             if (isOut) {
               entry.invoice = ref;
               outList.push(entry);
@@ -263,6 +265,7 @@ async function loadTransactionsData() {
               entry.warehouse = ref;
               inList.push(entry);
             }
+          }
           });
         }
       });

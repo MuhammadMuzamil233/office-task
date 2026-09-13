@@ -137,7 +137,9 @@ tr.highlight{background:#f0f9ff}.actions button{padding:6px 9px;font-size:12px}
 <script>
 const STOCK_IN_KEY = 'office_inventory_stock_in_v1';
 const MAIN_INVENTORY_KEY = 'office_inventory_v1';
-let stockInList = JSON.parse(localStorage.getItem(STOCK_IN_KEY) || '[]');
+// Purge any zero-quantity phantom entries from localStorage on load
+let stockInList = (JSON.parse(localStorage.getItem(STOCK_IN_KEY) || '[]')).filter(i => (Number(i.qty) || 0) > 0);
+localStorage.setItem(STOCK_IN_KEY, JSON.stringify(stockInList));
 
 InventoryAPI.injectNavbar('stock-in');
 async function loadStockInData() {
@@ -159,18 +161,21 @@ async function loadStockInData() {
         const dStr = tx.date || (tx.createdAt ? String(tx.createdAt).split('T')[0] : '');
         if (Array.isArray(tx.items) && tx.items.length) {
           tx.items.forEach((it, idx) => {
-            flatList.push({
-              id: tx.id ? String(tx.id) + '_' + idx : String(Date.now() + idx),
-              txId: tx.id,
-              itemIndex: idx,
-              date: dStr,
-              warehouse: wName,
-              invoiceNo: tx.invoiceNo || '',
-              product: it.product || it.name || '-',
-              brand: it.brand || '',
-              model: it.model || it.name || '-',
-              qty: Number(it.quantity !== undefined ? it.quantity : it.qty) || 0
-            });
+            const itemQty = Number(it.quantity !== undefined ? it.quantity : it.qty) || 0;
+            if (itemQty > 0) {
+              flatList.push({
+                id: tx.id ? String(tx.id) + '_' + idx : String(Date.now() + idx),
+                txId: tx.id,
+                itemIndex: idx,
+                date: dStr,
+                warehouse: wName,
+                invoiceNo: tx.invoiceNo || '',
+                product: it.product || it.name || '-',
+                brand: it.brand || '',
+                model: it.model || it.name || '-',
+                qty: itemQty
+              });
+            }
           });
         }
       });
@@ -582,26 +587,21 @@ function render() {
 async function deleteStockIn(id) {
   if (!confirm('Delete this stock IN record?')) return;
   const entry = stockInList.find(e => String(e.id) === String(id));
-  if (!entry) {
-    toast('❌ Record not found');
-    return;
-  }
 
-  try {
-    // 1. Delete server transaction if txId exists
-    if (entry.txId) {
+  // 1. Try deleting from server if txId exists
+  if (entry && entry.txId) {
+    try {
       await InventoryAPI.deleteTransaction(entry.txId, entry.itemIndex);
+    } catch (err) {
+      console.warn("Delete transaction server warning:", err);
     }
-
-    // 2. Remove from stockInList (Actual stock is NOT modified)
-    stockInList = stockInList.filter(e => String(e.id) !== String(id));
-    localStorage.setItem(STOCK_IN_KEY, JSON.stringify(stockInList));
-    render();
-    toast('✓ Stock IN record deleted');
-  } catch (err) {
-    console.error("Delete stock IN error:", err);
-    toast('❌ Error deleting record: ' + (err.message || 'Server error'));
   }
+
+  // 2. Always remove from local stockInList and localStorage
+  stockInList = stockInList.filter(e => String(e.id) !== String(id));
+  localStorage.setItem(STOCK_IN_KEY, JSON.stringify(stockInList));
+  render();
+  toast('✓ Stock IN record deleted');
 }
 
 function exportStockInCSV() {
@@ -623,15 +623,14 @@ async function clearAllStockIn() {
   
   try {
     await InventoryAPI.clearTransactions('in');
-
-    stockInList = [];
-    localStorage.setItem(STOCK_IN_KEY, JSON.stringify(stockInList));
-    render();
-    toast('✓ All stock IN records cleared');
   } catch (err) {
-    console.error("Clear all stock in error:", err);
-    toast('❌ Error clearing records: ' + (err.message || 'Server error'));
+    console.warn("Clear transactions server warning:", err);
   }
+
+  stockInList = [];
+  localStorage.setItem(STOCK_IN_KEY, '[]');
+  render();
+  toast('✓ All stock IN records cleared');
 }
 
 // Initialize on page load

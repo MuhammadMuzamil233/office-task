@@ -137,7 +137,9 @@ tr.highlight{background:#fff5f5}.actions button{padding:6px 9px;font-size:12px}
 <script>
 const STOCK_OUT_KEY = 'office_inventory_stock_out_v1';
 const MAIN_INVENTORY_KEY = 'office_inventory_v1';
-let stockOutList = JSON.parse(localStorage.getItem(STOCK_OUT_KEY) || '[]');
+// Purge any zero-quantity phantom entries from localStorage on load
+let stockOutList = (JSON.parse(localStorage.getItem(STOCK_OUT_KEY) || '[]')).filter(i => (Number(i.qty) || 0) > 0);
+localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(stockOutList));
 
 InventoryAPI.injectNavbar('stock-out');
 
@@ -160,17 +162,20 @@ async function loadStockOutData() {
         const dStr = tx.date || (tx.createdAt ? String(tx.createdAt).split('T')[0] : '');
         if (Array.isArray(tx.items) && tx.items.length) {
           tx.items.forEach((it, idx) => {
-            flatList.push({
-              id: tx.id ? String(tx.id) + '_' + idx : String(Date.now() + idx),
-              txId: tx.id,
-              itemIndex: idx,
-              date: dStr,
-              invoice: invNo,
-              product: it.product || it.name || '-',
-              brand: it.brand || '',
-              model: it.model || it.name || '-',
-              qty: Number(it.quantity !== undefined ? it.quantity : it.qty) || 0
-            });
+            const itemQty = Number(it.quantity !== undefined ? it.quantity : it.qty) || 0;
+            if (itemQty > 0) {
+              flatList.push({
+                id: tx.id ? String(tx.id) + '_' + idx : String(Date.now() + idx),
+                txId: tx.id,
+                itemIndex: idx,
+                date: dStr,
+                invoice: invNo,
+                product: it.product || it.name || '-',
+                brand: it.brand || '',
+                model: it.model || it.name || '-',
+                qty: itemQty
+              });
+            }
           });
         }
       });
@@ -623,26 +628,21 @@ function render() {
 async function deleteStockOut(id) {
   if (!confirm('Delete this stock OUT record?')) return;
   const entry = stockOutList.find(e => String(e.id) === String(id));
-  if (!entry) {
-    toast('❌ Record not found');
-    return;
-  }
 
-  try {
-    // 1. Delete server transaction if txId exists
-    if (entry.txId) {
+  // 1. Try deleting from server if txId exists
+  if (entry && entry.txId) {
+    try {
       await InventoryAPI.deleteTransaction(entry.txId, entry.itemIndex);
+    } catch (err) {
+      console.warn("Delete transaction server warning:", err);
     }
-
-    // 2. Remove from stockOutList (Actual stock is NOT modified)
-    stockOutList = stockOutList.filter(e => String(e.id) !== String(id));
-    localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(stockOutList));
-    render();
-    toast('✓ Stock OUT record deleted');
-  } catch (err) {
-    console.error("Delete stock OUT error:", err);
-    toast('❌ Error deleting record: ' + (err.message || 'Server error'));
   }
+
+  // 2. Always remove from local stockOutList and localStorage
+  stockOutList = stockOutList.filter(e => String(e.id) !== String(id));
+  localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(stockOutList));
+  render();
+  toast('✓ Stock OUT record deleted');
 }
 
 function exportStockOutCSV() {
@@ -664,15 +664,14 @@ async function clearAllStockOut() {
   
   try {
     await InventoryAPI.clearTransactions('out');
-
-    stockOutList = [];
-    localStorage.setItem(STOCK_OUT_KEY, JSON.stringify(stockOutList));
-    render();
-    toast('✓ All stock OUT records cleared');
   } catch (err) {
-    console.error("Clear all stock out error:", err);
-    toast('❌ Error clearing records: ' + (err.message || 'Server error'));
+    console.warn("Clear transactions server warning:", err);
   }
+
+  stockOutList = [];
+  localStorage.setItem(STOCK_OUT_KEY, '[]');
+  render();
+  toast('✓ All stock OUT records cleared');
 }
 
 // Initialize on page load

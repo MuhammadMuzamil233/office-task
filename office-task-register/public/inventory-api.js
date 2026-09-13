@@ -120,51 +120,8 @@ const InventoryAPI = {
   async getTransactions(type) {
     try {
       const path = "/api/inventory/transactions" + (type ? "?type=" + type : "");
-      let txs = await this.request(path);
-
-      // Check migration from localStorage if empty
-      if (txs.length === 0) {
-        try {
-          const inRaw = localStorage.getItem('office_inventory_stock_in_v1');
-          const outRaw = localStorage.getItem('office_inventory_stock_out_v1');
-          const localIn = inRaw ? JSON.parse(inRaw) : [];
-          const localOut = outRaw ? JSON.parse(outRaw) : [];
-
-          for (const item of localIn) {
-            await this.request("/api/inventory/transactions", {
-              method: "POST",
-              body: JSON.stringify({
-                type: "in",
-                date: item.date,
-                invoiceNo: item.invoiceNo || item.invoiceNumber || "",
-                sourceDestination: item.vendor || item.source || "",
-                items: Array.isArray(item.items) ? item.items : [item]
-              })
-            });
-          }
-
-          for (const item of localOut) {
-            await this.request("/api/inventory/transactions", {
-              method: "POST",
-              body: JSON.stringify({
-                type: "out",
-                date: item.date,
-                invoiceNo: item.invoiceNo || item.invoiceNumber || "",
-                sourceDestination: item.receiver || item.destination || "",
-                items: Array.isArray(item.items) ? item.items : [item]
-              })
-            });
-          }
-
-          if (localIn.length || localOut.length) {
-            txs = await this.request(path);
-          }
-        } catch (mErr) {
-          console.warn("Tx migration warn:", mErr);
-        }
-      }
-
-      return txs;
+      const txs = await this.request(path);
+      return Array.isArray(txs) ? txs : [];
     } catch (e) {
       console.error("Load transactions error:", e);
       return [];
