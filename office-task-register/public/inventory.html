@@ -387,17 +387,44 @@ function renderTableHeader(){
   row.innerHTML = headersHtml;
 }
 
-function deleteSpecificColumn(key, label){
+let isModalOperationInProgress = false;
+
+async function deleteSpecificColumn(key, label){
+  const cleanKey = String(key || '').trim().toLowerCase();
+  if (['product', 'brand', 'model', 'qty', 'quantity'].includes(cleanKey)) {
+    toast('❌ Standard columns (Product, Brand, Model, Quantity) cannot be removed.');
+    return;
+  }
   if(!confirm(`Remove custom column "${label}" and its data from inventory?`)) return;
-  const fields = getExtraFields();
-  const updated = fields.filter(f => f.key !== key);
-  saveExtraFields(updated);
-  rows.forEach(row => delete row[key]);
-  buildCustomColumnFields();
-  save();
-  toast(`Removed column: ${label}`);
-  if(document.getElementById('manageColumnsModal')?.classList.contains('show')){
-    renderManageColumnsList();
+
+  isModalOperationInProgress = true;
+  try {
+    const fields = getExtraFields();
+    const updated = fields.filter(f => f.key !== key && f.key.toLowerCase() !== cleanKey);
+    saveExtraFields(updated);
+    try {
+      await InventoryAPI.saveConfig("extra_fields", updated);
+    } catch(e) {
+      console.warn("Save extra_fields to server warn:", e);
+    }
+
+    // Only delete that specific custom property from rows
+    rows.forEach(row => {
+      delete row[key];
+      if (row.extra && typeof row.extra === 'object') {
+        delete row.extra[key];
+      }
+    });
+
+    buildCustomColumnFields();
+    renderTableHeader();
+    await save();
+    toast(`✓ Removed column: ${label}`);
+    if(document.getElementById('manageColumnsModal')?.classList.contains('show')){
+      renderManageColumnsList();
+    }
+  } finally {
+    setTimeout(() => { isModalOperationInProgress = false; }, 1000);
   }
 }
 
@@ -442,7 +469,7 @@ function renderManageColumnsList(){
   container.innerHTML = html;
 }
 
-function removeSelectedColumns(){
+async function removeSelectedColumns(){
   const checkboxes = document.querySelectorAll('.col-delete-checkbox:checked');
   if(!checkboxes.length){
     toast('Select at least one column to remove');
@@ -451,19 +478,37 @@ function removeSelectedColumns(){
   const keysToRemove = Array.from(checkboxes).map(cb => cb.value);
   if(!confirm(`Remove ${keysToRemove.length} selected column(s) from inventory?`)) return;
   
-  const fields = getExtraFields();
-  const updated = fields.filter(f => !keysToRemove.includes(f.key));
-  saveExtraFields(updated);
-  rows.forEach(row => {
-    keysToRemove.forEach(k => delete row[k]);
-  });
-  buildCustomColumnFields();
-  save();
-  toast(`Removed ${keysToRemove.length} column(s)`);
-  renderManageColumnsList();
+  isModalOperationInProgress = true;
+  try {
+    const fields = getExtraFields();
+    const updated = fields.filter(f => !keysToRemove.includes(f.key));
+    saveExtraFields(updated);
+    try {
+      await InventoryAPI.saveConfig("extra_fields", updated);
+    } catch(e) {
+      console.warn("Save extra_fields to server warn:", e);
+    }
+
+    rows.forEach(row => {
+      keysToRemove.forEach(k => {
+        delete row[k];
+        if (row.extra && typeof row.extra === 'object') {
+          delete row.extra[k];
+        }
+      });
+    });
+
+    buildCustomColumnFields();
+    renderTableHeader();
+    await save();
+    toast(`✓ Removed ${keysToRemove.length} column(s)`);
+    renderManageColumnsList();
+  } finally {
+    setTimeout(() => { isModalOperationInProgress = false; }, 1000);
+  }
 }
 
-function removeAllCustomColumns(){
+async function removeAllCustomColumns(){
   const fields = getExtraFields();
   if(!fields.length){
     toast('No custom columns to remove');
@@ -471,14 +516,32 @@ function removeAllCustomColumns(){
   }
   if(!confirm(`Remove ALL ${fields.length} custom column(s) from inventory?`)) return;
   
-  saveExtraFields([]);
-  rows.forEach(row => {
-    fields.forEach(f => delete row[f.key]);
-  });
-  buildCustomColumnFields();
-  save();
-  toast('All custom columns removed');
-  renderManageColumnsList();
+  isModalOperationInProgress = true;
+  try {
+    saveExtraFields([]);
+    try {
+      await InventoryAPI.saveConfig("extra_fields", []);
+    } catch(e) {
+      console.warn("Save extra_fields to server warn:", e);
+    }
+
+    rows.forEach(row => {
+      fields.forEach(f => {
+        delete row[f.key];
+        if (row.extra && typeof row.extra === 'object') {
+          delete row.extra[f.key];
+        }
+      });
+    });
+
+    buildCustomColumnFields();
+    renderTableHeader();
+    await save();
+    toast('✓ All custom columns removed');
+    renderManageColumnsList();
+  } finally {
+    setTimeout(() => { isModalOperationInProgress = false; }, 1000);
+  }
 }
 
 function removeCustomColumn(){
@@ -538,7 +601,8 @@ async function syncInventoryFromServer(){
         });
         rows = dedupedRows;
         localStorage.setItem(KEY, JSON.stringify(rows));
-      } else {
+      } else if (rows.length === 0) {
+        // Only set to empty if local inventory is also already empty
         rows = [];
         localStorage.setItem(KEY, '[]');
       }
@@ -557,6 +621,7 @@ async function initInventory(){
 
 window.addEventListener("DOMContentLoaded", initInventory);
 window.addEventListener("focus", () => {
+  if (isModalOperationInProgress) return;
   const activeTag = document.activeElement ? document.activeElement.tagName : '';
   if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA') {
     syncInventoryFromServer();

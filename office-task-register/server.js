@@ -572,26 +572,35 @@ function demandToJson(demand) {
 }
 
 async function sortDemandsWithPriority(demands) {
-  const adminUser = await User.findOne({ username: ADMIN_USERNAME });
-  const adminId = adminUser ? adminUser._id.toString() : null;
-  const urgentDemands = [];
-  const nonAdmin = [];
-  const adminDemands = [];
+  const userUrgent = [];
+  const userRegular = [];
+  const adminUrgent = [];
+  const adminRegular = [];
+
   for (const d of demands) {
-    if (d.isUrgent) {
-      urgentDemands.push(d);
-    } else if (d.creatorRole === "admin" || (adminId && d.employeeId && d.employeeId.toString() === adminId)) {
-      adminDemands.push(d);
+    const isAdmin = await isDemandCreatedByAdmin(d);
+    if (isAdmin) {
+      if (d.isUrgent) {
+        adminUrgent.push(d);
+      } else {
+        adminRegular.push(d);
+      }
     } else {
-      nonAdmin.push(d);
+      if (d.isUrgent) {
+        userUrgent.push(d);
+      } else {
+        userRegular.push(d);
+      }
     }
   }
-  return [...urgentDemands, ...nonAdmin, ...adminDemands];
+
+  // User demands ALWAYS have highest priority, admin demands come afterwards
+  return [...userUrgent, ...userRegular, ...adminUrgent, ...adminRegular];
 }
 
 app.get("/api/demands", authMiddleware, async (req, res) => {
   try {
-    const demands = await Demand.find().sort({ submittedAt: 1 });
+    const demands = await Demand.find().sort({ submittedAt: -1, createdAt: -1 });
     const sorted = await sortDemandsWithPriority(demands);
     res.json(sorted.map(demandToJson));
   } catch (e) {
@@ -602,7 +611,7 @@ app.get("/api/demands", authMiddleware, async (req, res) => {
 
 app.get("/api/admin/demands", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const demands = await Demand.find().sort({ submittedAt: 1 });
+    const demands = await Demand.find().sort({ submittedAt: -1, createdAt: -1 });
     const sorted = await sortDemandsWithPriority(demands);
     res.json(sorted.map(demandToJson));
   } catch (e) {
@@ -1018,7 +1027,7 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
 
 app.get("/api/logistics/demands", authMiddleware, logisticsMiddleware, async (req, res) => {
   try {
-    const demands = await Demand.find().sort({ submittedAt: 1 });
+    const demands = await Demand.find().sort({ submittedAt: -1, createdAt: -1 });
     const sorted = await sortDemandsWithPriority(demands);
     res.json(sorted.map(demandToJson));
   } catch (e) {
@@ -1286,6 +1295,10 @@ app.post("/api/inventory/save-all", authMiddleware, adminMiddleware, async (req,
     const { rows } = req.body;
     if (!Array.isArray(rows)) {
       return res.status(400).json({ error: "rows array is required" });
+    }
+    // Safety guard: NEVER wipe all inventory items if rows is empty via save-all. (clear-all has its own endpoint)
+    if (rows.length === 0) {
+      return res.json({ ok: true, count: 0, message: "Ignored empty save-all to prevent accidental wipe" });
     }
     await InventoryItem.deleteMany({});
     const docs = rows.map(r => {

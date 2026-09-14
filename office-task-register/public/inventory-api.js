@@ -46,8 +46,8 @@ const InventoryAPI = {
       let rows = Array.isArray(res.rows) ? res.rows : [];
       let extraFields = Array.isArray(res.extraFields) ? res.extraFields : [];
 
-      // If MongoDB has rows, update cache; if empty, cache is also empty
-      if (rows.length === 0) {
+      // If MongoDB has rows, update cache; if empty and no local rows exist, then set empty
+      if (rows.length === 0 && (!localStorage.getItem('office_inventory_v1') || localStorage.getItem('office_inventory_v1') === '[]')) {
         localStorage.setItem('office_inventory_v1', '[]');
       }
 
