@@ -5,6 +5,7 @@
     { "source": "/demands-admin.html", "destination": "/office-task-register/public/demands-admin.html" },
     { "source": "/demand-history.html", "destination": "/office-task-register/public/demand-history.html" },
     { "source": "/logistics.html", "destination": "/office-task-register/public/logistics.html" },
+    { "source": "/supporting-staff.html", "destination": "/office-task-register/public/supporting-staff.html" },
     { "source": "/history.html", "destination": "/office-task-register/public/history.html" },
     { "source": "/demands.html", "destination": "/office-task-register/public/demands.html" },
     { "source": "/inventory.html", "destination": "/office-task-register/public/inventory.html" },

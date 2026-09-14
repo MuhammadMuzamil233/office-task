@@ -264,6 +264,7 @@
             <option value="all">All Statuses</option>
             <option value="pending">Pending</option>
             <option value="approved">Approved</option>
+            <option value="on_the_way">On the way</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
             <option value="rejected">Rejected</option>
@@ -428,6 +429,7 @@
               <select class="user-role-select" ${isPrimary ? 'disabled title="Primary admin role cannot be changed"' : ''}>
                 <option value="user" ${u.role === 'user' ? 'selected' : ''}>Employee (User)</option>
                 <option value="logistics" ${u.role === 'logistics' ? 'selected' : ''}>Logistics</option>
+                <option value="supporting_staff" ${u.role === 'supporting_staff' ? 'selected' : ''}>Supporting Staff</option>
                 <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Administrator</option>
               </select>
             </td>
@@ -508,7 +510,7 @@
         requests.forEach(request => {
           const row = document.createElement("div");
           row.className = "admin-request";
-          row.innerHTML = `<span><b>${esc(request.name)}</b><small> @${esc(request.username)} · Request: ${esc(request.requested_role || "admin")}</small></span><span class="actions"><button class="action approve">${demand.is_urgent && demand.status === "pending" ? "✓ Approve Urgent" : "Approve"}</button><button class="action reject">Reject</button></span>`;
+          row.innerHTML = `<span><b>${esc(request.name)}</b><small> @${esc(request.username)} · Request: ${esc(request.requested_role || "admin")}</small></span><span class="actions"><button class="action approve">Approve</button><button class="action reject">Reject</button></span>`;
           row.querySelector(".approve").onclick = () => processAccessRequest(request.id, "approved");
           row.querySelector(".reject").onclick = () => processAccessRequest(request.id, "rejected");
           list.appendChild(row);
@@ -588,7 +590,18 @@
             <td>${item.pickedQuantity == null ? "-" : item.pickedQuantity}</td>
             <td>${esc(item.invoiceNumber || "-")}</td>
             <td>${index === 0 ? total : ""}</td>
-            <td>${esc(item.status || demand.status)}</td>
+            <td>
+              <div>${esc(item.status || demand.status)}</div>
+              ${index === 0 ? (
+                demand.support_status === 'ok'
+                  ? `<div style="margin-top:4px;display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;">🟢 Staff OK (${esc(demand.support_checked_by || 'Staff')})</div>`
+                  : demand.support_status === 'issue'
+                  ? `<div style="margin-top:4px;display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;background:#ffebee;color:#c62828;border:1px solid #ef9a9a;" title="${esc(demand.support_remarks)}">🔴 Staff Issue: ${esc(demand.support_remarks)} (${esc(demand.support_checked_by || 'Staff')})</div>`
+                  : (demand.status === 'on_the_way' || item.status === 'on_the_way')
+                  ? `<div style="margin-top:4px;display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;background:#fff8e1;color:#f57f17;border:1px solid #ffe082;">⏳ Awaiting Staff Check</div>`
+                  : ''
+              ) : ''}
+            </td>
             <td>${index === 0 ? date(demand.submitted_at) : ""}</td>
             <td>
               <div class="actions">

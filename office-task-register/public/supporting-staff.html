@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Supporting Staff — Demand Inspection</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #1C2B27;
+      --paper: #FBF9F3;
+      --ledger: #F1ECE0;
+      --line: #D9CFB8;
+      --teal: #0F3D3E;
+      --teal-light: #185355;
+      --brass: #B08D3E;
+      --brass-light: #d4ab53;
+      --red: #A6402B;
+      --red-bg: #ffebee;
+      --green: #2e7d32;
+      --green-bg: #e8f5e9;
+      --amber: #b45309;
+      --amber-bg: #fef3c7;
+      --blue: #1e40af;
+      --blue-bg: #dbeafe;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 24px 16px 80px;
+      background: radial-gradient(circle at 15% 10%, rgba(176, 141, 62, 0.08), transparent 45%), var(--ledger);
+      font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--ink);
+    }
+
+    .wrap {
+      max-width: 1240px;
+      margin: 0 auto;
+    }
+
+    .header-box {
+      background: var(--teal);
+      color: #F1ECE0;
+      padding: 22px 28px;
+      border-bottom: 4px solid var(--brass);
+      border-radius: 6px 6px 2px 2px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      box-shadow: 0 4px 12px rgba(15, 61, 62, 0.25);
+    }
+
+    .header-box h1 {
+      margin: 0;
+      font-family: 'IBM Plex Serif', Georgia, serif;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge-role {
+      font-size: 11px;
+      background: var(--brass);
+      color: #fff;
+      padding: 3px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-weight: 600;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      border-radius: 5px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.22);
+      border-color: rgba(255, 255, 255, 0.6);
+    }
+
+    .btn-gold {
+      background: var(--brass);
+      border-color: var(--brass-light);
+      color: #fff;
+    }
+    .btn-gold:hover {
+      background: var(--brass-light);
+    }
+
+    .card {
+      margin-top: 22px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 6px 18px rgba(28, 43, 39, 0.08);
+    }
+
+    .filters-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      padding: 16px 20px;
+      background: #faf8f2;
+      border-bottom: 1px solid var(--line);
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .filter-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .filter-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #526059;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .filter-label select, .filter-label input {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 4px;
+      padding: 7px 11px;
+      font-size: 13px;
+      color: var(--ink);
+      font-family: inherit;
+      outline: none;
+    }
+
+    .filter-label select:focus, .filter-label input:focus {
+      border-color: var(--teal);
+      box-shadow: 0 0 0 2px rgba(15, 61, 62, 0.12);
+    }
+
+    .stats-strip {
+      display: flex;
+      gap: 16px;
+      padding: 12px 20px;
+      background: #f4efe4;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+      font-weight: 500;
+      color: #4b5852;
+    }
+
+    .stat-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .pill-awaiting { background: var(--amber-bg); color: var(--amber); border: 1px solid #fde68a; }
+    .pill-ok { background: var(--green-bg); color: var(--green); border: 1px solid #bbf7d0; }
+    .pill-issue { background: var(--red-bg); color: var(--red); border: 1px solid #fecaca; }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1020px;
+    }
+
+    th, td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: middle;
+      font-size: 13px;
+    }
+
+    th {
+      background: var(--ledger);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #5d6c64;
+      font-weight: 700;
+    }
+
+    tbody tr:hover {
+      background: rgba(241, 236, 224, 0.4);
+    }
+
+    .demand-head {
+      border-top: 2px solid #cfc2a8;
+      background: rgba(241, 236, 224, 0.35);
+    }
+
+    .urgent-row {
+      background: rgba(254, 243, 199, 0.35) !important;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .badge-on-the-way {
+      background: var(--blue-bg);
+      color: var(--blue);
+      border: 1px solid #93c5fd;
+    }
+
+    .badge-urgent {
+      background: #fee2e2;
+      color: #b91c1c;
+      border: 1px solid #fca5a5;
+      font-weight: 800;
+    }
+
+    .badge-status-awaiting {
+      background: var(--amber-bg);
+      color: var(--amber);
+      border: 1px solid #fcd34d;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .badge-status-ok {
+      background: var(--green-bg);
+      color: var(--green);
+      border: 1px solid #86efac;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .badge-status-issue {
+      background: var(--red-bg);
+      color: var(--red);
+      border: 1px solid #fca5a5;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .support-meta {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 4px;
+      line-height: 1.3;
+    }
+
+    .support-issue-text {
+      font-size: 12px;
+      color: #991b1b;
+      background: #fef2f2;
+      border-left: 3px solid #ef4444;
+      padding: 4px 8px;
+      margin-top: 5px;
+      border-radius: 0 4px 4px 0;
+      white-space: pre-wrap;
+    }
+
+    .action-group {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .act-btn {
+      border: 1px solid;
+      border-radius: 4px;
+      padding: 6px 11px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: background 0.15s ease, transform 0.08s ease;
+    }
+
+    .act-btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn-ok {
+      background: #2e7d32;
+      border-color: #2e7d32;
+      color: #fff;
+    }
+    .btn-ok:hover {
+      background: #246428;
+    }
+
+    .btn-issue {
+      background: #fff;
+      border-color: var(--red);
+      color: var(--red);
+    }
+    .btn-issue:hover {
+      background: #fee2e2;
+    }
+
+    .btn-recheck {
+      background: #fff;
+      border-color: #94a3b8;
+      color: #475569;
+    }
+    .btn-recheck:hover {
+      background: #f1f5f9;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 20px;
+      color: #718096;
+      font-size: 14px;
+    }
+
+    /* Modal */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(2px);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal-card {
+      background: #fff;
+      border-radius: 8px;
+      max-width: 520px;
+      width: 100%;
+      padding: 24px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25);
+      border: 1px solid #cbd5e1;
+    }
+
+    .modal-card h3 {
+      margin: 0 0 12px;
+      font-size: 18px;
+      color: #1e293b;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .modal-card p {
+      font-size: 13px;
+      color: #475569;
+      margin: 0 0 16px;
+      line-height: 1.5;
+    }
+
+    .modal-card textarea {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 100px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 10px;
+      font-family: inherit;
+      font-size: 13px;
+      color: var(--ink);
+      resize: vertical;
+      outline: none;
+    }
+
+    .modal-card textarea:focus {
+      border-color: var(--red);
+      box-shadow: 0 0 0 3px rgba(166, 64, 43, 0.15);
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .btn-submit-issue {
+      background: var(--red);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      padding: 10px 18px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .btn-submit-issue:hover {
+      background: #8b3422;
+    }
+
+    .btn-cancel {
+      background: #f1f5f9;
+      color: #475569;
+      border: 1px solid #cbd5e1;
+      border-radius: 5px;
+      padding: 10px 16px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .btn-cancel:hover {
+      background: #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="header-box">
+      <div>
+        <h1>
+          🔍 Supporting Staff Inspection
+          <span class="badge-role" id="roleBadge">Supporting Staff</span>
+        </h1>
+        <div style="font-size:12px;opacity:0.85;margin-top:4px;">
+          Signed in as <b id="userName">...</b> · Inspecting demands dispatched by logistics ("On the way")
+        </div>
+      </div>
+      <div class="header-actions">
+        <a href="/demand-history.html" class="btn btn-gold">📜 Demand History</a>
+        <a href="/" class="btn">⬅️ Home</a>
+        <button id="logoutBtn" class="btn" style="border-color:rgba(239,68,68,0.5);">🚪 Log out</button>
+      </div>
+    </header>
+
+    <div class="card">
+      <div class="filters-bar">
+        <div class="filter-group">
+          <label class="filter-label">
+            Warehouse:
+            <select id="warehouseFilter">
+              <option value="all">All Warehouses</option>
+              <option value="FC Faizabad WH">FC Faizabad WH</option>
+              <option value="FC I10 WH">FC I10 WH</option>
+            </select>
+          </label>
+          <label class="filter-label">
+            Inspection Status:
+            <select id="inspectionFilter">
+              <option value="all">All Inspection Statuses</option>
+              <option value="awaiting">⏳ Awaiting Inspection</option>
+              <option value="ok">🟢 Verified OK</option>
+              <option value="issue">🔴 Issue Reported</option>
+            </select>
+          </label>
+          <label class="filter-label">
+            Search:
+            <input type="text" id="searchInput" placeholder="Search employee, product, invoice...">
+          </label>
+        </div>
+        <div>
+          <button id="refreshBtn" class="btn" style="background:var(--teal);color:#fff;border-color:var(--teal);">🔄 Refresh</button>
+        </div>
+      </div>
+
+      <div class="stats-strip">
+        <span>Summary:</span>
+        <span class="stat-pill pill-awaiting" id="statAwaiting">⏳ 0 Awaiting Check</span>
+        <span class="stat-pill pill-ok" id="statOk">🟢 0 Verified OK</span>
+        <span class="stat-pill pill-issue" id="statIssue">🔴 0 Issue Reported</span>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Employee Name</th>
+              <th>Demand Date</th>
+              <th>Product Name</th>
+              <th>Warehouse</th>
+              <th>Demanded Qty</th>
+              <th>Picked Qty</th>
+              <th>Invoice No</th>
+              <th>Logistics Status</th>
+              <th>Staff Inspection Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr>
+              <td colspan="10" class="empty-state">Loading dispatched demands...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal for reporting issue -->
+  <div id="issueModal" class="modal-backdrop">
+    <div class="modal-card">
+      <h3>⚠️ Report Issue on Demand</h3>
+      <p id="issueModalSubtitle">Please describe the issue found during inspection (e.g. damaged goods, missing units, wrong item, invoice mismatch):</p>
+      <textarea id="issueRemarksInput" placeholder="Enter inspection issue remarks here..." maxlength="2000"></textarea>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="btnCancelIssue">Cancel</button>
+        <button type="button" class="btn-submit-issue" id="btnSubmitIssue">⚠️ Submit Issue to Admin</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentUser = null;
+    let allDemands = [];
+    let activeDemandForIssue = null;
+
+    const api = async (path, opts = {}) => {
+      const res = await fetch(path, {
+        ...opts,
+        headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+        credentials: "include"
+      });
+      let data = null;
+      try { data = await res.json(); } catch (e) {}
+      if (!res.ok) throw new Error((data && data.error) || "Request failed");
+      return data;
+    };
+
+    const esc = str => {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    };
+
+    const dateFmt = val => val ? new Date(val).toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    }) : "-";
+
+    async function init() {
+      try {
+        currentUser = await api("/api/me");
+        if (!["admin", "supporting_staff"].includes(currentUser.role)) {
+          alert("Supporting staff or admin access required.");
+          window.location.href = "/";
+          return;
+        }
+        document.getElementById("userName").textContent = currentUser.name;
+        document.getElementById("roleBadge").textContent = currentUser.role === "admin" ? "ADMIN" : "SUPPORTING STAFF";
+        await loadDemands();
+      } catch (e) {
+        window.location.href = "/";
+      }
+    }
+
+    async function loadDemands() {
+      try {
+        const body = document.getElementById("tableBody");
+        body.innerHTML = '<tr><td colspan="10" class="empty-state">Loading dispatched demands...</td></tr>';
+        allDemands = await api("/api/supporting-staff/demands");
+        render();
+      } catch (err) {
+        document.getElementById("tableBody").innerHTML = `<tr><td colspan="10" class="empty-state" style="color:var(--red);">Failed to load demands: ${esc(err.message)}</td></tr>`;
+      }
+    }
+
+    function render() {
+      const warehouseFilter = document.getElementById("warehouseFilter").value;
+      const inspectionFilter = document.getElementById("inspectionFilter").value;
+      const query = document.getElementById("searchInput").value.trim().toLowerCase();
+      const body = document.getElementById("tableBody");
+
+      let countAwaiting = 0;
+      let countOk = 0;
+      let countIssue = 0;
+
+      // Calculate stats on allDemands
+      allDemands.forEach(d => {
+        const s = d.support_status;
+        if (s === "ok") countOk++;
+        else if (s === "issue") countIssue++;
+        else countAwaiting++;
+      });
+
+      document.getElementById("statAwaiting").textContent = `⏳ ${countAwaiting} Awaiting Check`;
+      document.getElementById("statOk").textContent = `🟢 ${countOk} Verified OK`;
+      document.getElementById("statIssue").textContent = `🔴 ${countIssue} Issue Reported`;
+
+      const filtered = allDemands.filter(demand => {
+        // Inspection filter
+        const s = demand.support_status || "awaiting";
+        if (inspectionFilter === "awaiting" && s !== "awaiting" && s !== "pending") return false;
+        if (inspectionFilter === "ok" && s !== "ok") return false;
+        if (inspectionFilter === "issue" && s !== "issue") return false;
+
+        // Warehouse filter
+        if (warehouseFilter !== "all") {
+          const matchWh = demand.items.some(it => it.warehouse === warehouseFilter);
+          if (!matchWh) return false;
+        }
+
+        // Search filter
+        if (query) {
+          const empMatch = (demand.employee_name || "").toLowerCase().includes(query);
+          const itemMatch = demand.items.some(it => 
+            (it.name || "").toLowerCase().includes(query) ||
+            (it.invoiceNumber || "").toLowerCase().includes(query)
+          );
+          if (!empMatch && !itemMatch) return false;
+        }
+
+        return true;
+      });
+
+      if (!filtered.length) {
+        body.innerHTML = '<tr><td colspan="10" class="empty-state">No matching dispatched demands found.</td></tr>';
+        return;
+      }
+
+      body.innerHTML = "";
+
+      filtered.forEach(demand => {
+        const totalItems = demand.items.length;
+        const supportStatus = demand.support_status;
+
+        demand.items.forEach((item, index) => {
+          // If warehouse filter is active, skip items that don't match warehouse
+          if (warehouseFilter !== "all" && item.warehouse !== warehouseFilter) {
+            return;
+          }
+
+          const tr = document.createElement("tr");
+          if (index === 0) tr.classList.add("demand-head");
+          if (demand.is_urgent) tr.classList.add("urgent-row");
+
+          // Inspection status html
+          let inspectionBadgeHtml = '';
+          if (supportStatus === 'ok') {
+            inspectionBadgeHtml = `
+              <span class="badge badge-status-ok">🟢 Verified OK</span>
+              <div class="support-meta">Checked by <b>${esc(demand.support_checked_by || 'Staff')}</b><br>${dateFmt(demand.support_checked_at)}</div>
+            `;
+          } else if (supportStatus === 'issue') {
+            inspectionBadgeHtml = `
+              <span class="badge badge-status-issue">🔴 Issue Reported</span>
+              <div class="support-issue-text"><b>Issue:</b> ${esc(demand.support_remarks || 'Unspecified issue')}</div>
+              <div class="support-meta">Reported by <b>${esc(demand.support_checked_by || 'Staff')}</b><br>${dateFmt(demand.support_checked_at)}</div>
+            `;
+          } else {
+            inspectionBadgeHtml = `
+              <span class="badge badge-status-awaiting">⏳ Awaiting Inspection</span>
+            `;
+          }
+
+          // Action buttons
+          let actionHtml = '';
+          if (index === 0) {
+            actionHtml = `
+              <div class="action-group">
+                <button class="act-btn btn-ok" onclick="handleMarkOk('${demand.id}')">✅ OK</button>
+                <button class="act-btn btn-issue" onclick="openIssueModal('${demand.id}')">⚠️ Report Issue</button>
+              </div>
+            `;
+          }
+
+          tr.innerHTML = `
+            <td>${index === 0 ? `<b>${esc(demand.employee_name)}</b>${demand.is_urgent ? ' <span class="badge badge-urgent">⚡ URGENT</span>' : ''}` : ''}</td>
+            <td>${index === 0 ? esc(demand.date) : ''}</td>
+            <td><b>${esc(item.name)}</b></td>
+            <td>${esc(item.warehouse || '-')}</td>
+            <td>${item.quantity}</td>
+            <td><b>${item.pickedQuantity == null ? '-' : item.pickedQuantity}</b></td>
+            <td><code>${esc(item.invoiceNumber || '-')}</code></td>
+            <td><span class="badge badge-on-the-way">${esc(item.status || demand.status)}</span></td>
+            <td>${index === 0 ? inspectionBadgeHtml : ''}</td>
+            <td>${index === 0 ? actionHtml : ''}</td>
+          `;
+
+          body.appendChild(tr);
+        });
+      });
+    }
+
+    async function handleMarkOk(demandId) {
+      if (!confirm("Are you sure this delivery demand is fully OK and verified?")) return;
+      try {
+        await api(`/api/supporting-staff/demands/${demandId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: "ok" })
+        });
+        await loadDemands();
+      } catch (e) {
+        alert("Failed to mark demand OK: " + e.message);
+      }
+    }
+
+    function openIssueModal(demandId) {
+      activeDemandForIssue = demandId;
+      const demand = allDemands.find(d => d.id === demandId);
+      const sub = document.getElementById("issueModalSubtitle");
+      if (demand) {
+        sub.innerHTML = `Reporting issue for <b>${esc(demand.employee_name)}</b> (${demand.items.map(i => esc(i.name)).join(", ")}):`;
+        document.getElementById("issueRemarksInput").value = demand.support_remarks || "";
+      } else {
+        document.getElementById("issueRemarksInput").value = "";
+      }
+      document.getElementById("issueModal").style.display = "flex";
+      document.getElementById("issueRemarksInput").focus();
+    }
+
+    function closeIssueModal() {
+      document.getElementById("issueModal").style.display = "none";
+      activeDemandForIssue = null;
+    }
+
+    document.getElementById("btnCancelIssue").onclick = closeIssueModal;
+
+    document.getElementById("btnSubmitIssue").onclick = async () => {
+      const remarks = document.getElementById("issueRemarksInput").value.trim();
+      if (!remarks) {
+        alert("Please enter remarks explaining the issue.");
+        return;
+      }
+      if (!activeDemandForIssue) return;
+      try {
+        await api(`/api/supporting-staff/demands/${activeDemandForIssue}`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: "issue", remarks })
+        });
+        closeIssueModal();
+        await loadDemands();
+      } catch (e) {
+        alert("Failed to report issue: " + e.message);
+      }
+    };
+
+    document.getElementById("warehouseFilter").addEventListener("change", render);
+    document.getElementById("inspectionFilter").addEventListener("change", render);
+    document.getElementById("searchInput").addEventListener("input", render);
+    document.getElementById("refreshBtn").addEventListener("click", loadDemands);
+
+    document.getElementById("logoutBtn").addEventListener("click", async () => {
+      await api("/api/logout", { method: "POST" });
+      window.location.href = "/";
+    });
+
+    init();
+  </script>
+</body>
+</html>

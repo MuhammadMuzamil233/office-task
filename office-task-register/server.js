@@ -39,7 +39,7 @@ const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true, lowercase: true, trim: true },
   name: { type: String, required: true, trim: true },
   passwordHash: { type: String, required: true },
-  role: { type: String, enum: ["user", "admin", "logistics"], default: "user" },
+  role: { type: String, enum: ["user", "admin", "logistics", "supporting_staff"], default: "user" },
   isActive: { type: Boolean, default: true },
   lastActive: { type: Date, default: Date.now }
 }, { timestamps: true });
@@ -71,6 +71,10 @@ const demandSchema = new mongoose.Schema({
   urgentNotified: { type: Boolean, default: false },
   status: { type: String, enum: ["pending", "approved", "rejected", "completed", "cancelled", "on_the_way"], default: "pending" },
   adminRemarks: { type: String, default: "", trim: true, maxlength: 2000 },
+  supportStatus: { type: String, enum: ["pending", "ok", "issue", null], default: null },
+  supportRemarks: { type: String, default: "", trim: true, maxlength: 2000 },
+  supportCheckedBy: { type: String, default: "" },
+  supportCheckedAt: { type: Date, default: null },
   submittedAt: { type: Date, default: Date.now }
 }, { timestamps: true });
 
@@ -87,6 +91,10 @@ const demandHistorySchema = new mongoose.Schema({
   urgentNotified: { type: Boolean, default: false },
   status: { type: String, default: "completed" },
   adminRemarks: { type: String, default: "", trim: true, maxlength: 2000 },
+  supportStatus: { type: String, default: null },
+  supportRemarks: { type: String, default: "", trim: true, maxlength: 2000 },
+  supportCheckedBy: { type: String, default: "" },
+  supportCheckedAt: { type: Date, default: null },
   submittedAt: { type: Date, required: true },
   completedAt: { type: Date, default: Date.now }
 }, { timestamps: true });
@@ -95,7 +103,7 @@ const adminRequestSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   username: { type: String, required: true },
   name: { type: String, required: true },
-  requestedRole: { type: String, enum: ["admin", "logistics"], default: "admin" },
+  requestedRole: { type: String, enum: ["admin", "logistics", "supporting_staff"], default: "admin" },
   status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" }
 }, { timestamps: true });
 
@@ -249,6 +257,18 @@ async function logisticsMiddleware(req, res, next) {
   }
 }
 
+async function supportingStaffMiddleware(req, res, next) {
+  try {
+    const user = await User.findById(req.user.id).select("role");
+    if (!user || (user.role !== "admin" && user.role !== "supporting_staff")) {
+      return res.status(403).json({ error: "Supporting staff access required" });
+    }
+    next();
+  } catch (e) {
+    res.status(500).json({ error: "Could not verify supporting staff access" });
+  }
+}
+
 const COOKIE_OPTS = {
   httpOnly: true,
   sameSite: "lax",
@@ -277,7 +297,7 @@ app.use(async (req, res, next) => {
 // ---------- Auth routes ----------
 app.post("/api/register", async (req, res) => {
   try {
-    const { username, password, name, requestAdmin, requestLogistics } = req.body;
+    const { username, password, name, requestAdmin, requestLogistics, requestSupportingStaff } = req.body;
     if (!username || !password || !name) {
       return res.status(400).json({ error: "Name, username and password are all required" });
     }
@@ -296,7 +316,7 @@ app.post("/api/register", async (req, res) => {
       passwordHash,
       role: cleanUsername === ADMIN_USERNAME ? "admin" : "user"
     });
-    const requestedRole = requestLogistics ? "logistics" : requestAdmin ? "admin" : null;
+    const requestedRole = requestSupportingStaff ? "supporting_staff" : requestLogistics ? "logistics" : requestAdmin ? "admin" : null;
     if (requestedRole && user.role !== "admin") {
       await AdminRequest.create({ userId: user._id, username: user.username, name: user.name, requestedRole });
     }
@@ -507,11 +527,11 @@ app.patch("/api/admin/users/:id", authMiddleware, adminMiddleware, async (req, r
       return res.status(400).json({ error: "You cannot deactivate your own account" });
     }
 
-    if (role && ["user", "logistics", "admin"].includes(role)) {
+    if (role && ["user", "logistics", "supporting_staff", "admin"].includes(role)) {
       targetUser.role = role;
-      if (role === "logistics") {
+      if (role === "logistics" || role === "supporting_staff") {
         await AdminRequest.updateMany(
-          { userId: targetUser._id, requestedRole: "logistics" },
+          { userId: targetUser._id, requestedRole: role },
           { status: "approved" }
         );
       }
@@ -573,6 +593,10 @@ function demandToJson(demand) {
     is_urgent: hasAnyUrgent,
     status: demand.status,
     admin_remarks: demand.adminRemarks,
+    support_status: demand.supportStatus || null,
+    support_remarks: demand.supportRemarks || "",
+    support_checked_by: demand.supportCheckedBy || "",
+    support_checked_at: demand.supportCheckedAt || null,
     submitted_at: demand.submittedAt,
     updated_at: demand.updatedAt
   };
@@ -962,6 +986,10 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         urgentNotified: Boolean(demand.urgentNotified),
         status: "completed",
         adminRemarks: demand.adminRemarks,
+        supportStatus: demand.supportStatus || null,
+        supportRemarks: demand.supportRemarks || "",
+        supportCheckedBy: demand.supportCheckedBy || "",
+        supportCheckedAt: demand.supportCheckedAt || null,
         submittedAt: demand.submittedAt,
         completedAt: new Date()
       });
@@ -1023,6 +1051,10 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         urgentNotified: Boolean(demand.urgentNotified),
         status: "completed",
         adminRemarks: demand.adminRemarks,
+        supportStatus: demand.supportStatus || null,
+        supportRemarks: demand.supportRemarks || "",
+        supportCheckedBy: demand.supportCheckedBy || "",
+        supportCheckedAt: demand.supportCheckedAt || null,
         submittedAt: demand.submittedAt,
         completedAt: new Date()
       });
@@ -1127,7 +1159,7 @@ app.patch("/api/logistics/demands/:id", authMiddleware, logisticsMiddleware, asy
       return res.status(400).json({ error: "Pickup quantity must be a whole number between 0 and the demanded quantity" });
     }
     demand.products = demand.products.map((item, index) => uniqueIndexes.includes(index) ? { ...item.toObject?.() || item, pickedQuantity: hasPickedQuantity ? normalizedPickedQuantity : Number(item.quantity), status } : item);
-    if (demand.products.every(item => item.status === "on_the_way")) {
+    if (demand.products.some(item => item.status === "on_the_way")) {
       demand.status = "on_the_way";
     }
     demand.markModified("products");
@@ -1136,6 +1168,66 @@ app.patch("/api/logistics/demands/:id", authMiddleware, logisticsMiddleware, asy
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not update logistics status" });
+  }
+});
+
+// ---------- Supporting Staff Demand Inspection Routes ----------
+app.get("/api/supporting-staff/demands", authMiddleware, supportingStaffMiddleware, async (req, res) => {
+  try {
+    const demands = await Demand.find({
+      $or: [
+        { status: "on_the_way" },
+        { "products.status": "on_the_way" },
+        { supportStatus: { $in: ["ok", "issue"] } }
+      ]
+    }).sort({ updatedAt: -1, submittedAt: -1 });
+    const sorted = await sortDemandsWithPriority(demands);
+    res.json(sorted.map(demandToJson));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not load supporting staff demands" });
+  }
+});
+
+app.patch("/api/supporting-staff/demands/:id", authMiddleware, supportingStaffMiddleware, async (req, res) => {
+  try {
+    const { status, remarks } = req.body || {};
+    if (!["ok", "issue", "pending"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status: must be 'ok', 'issue', or 'pending'" });
+    }
+    const demand = await Demand.findById(req.params.id);
+    if (!demand) return res.status(404).json({ error: "Demand not found" });
+
+    demand.supportStatus = status;
+    demand.supportRemarks = String(remarks || "").trim().slice(0, 2000);
+    demand.supportCheckedBy = req.user.name;
+    demand.supportCheckedAt = new Date();
+
+    demand.markModified("supportStatus");
+    demand.markModified("supportRemarks");
+    await demand.save();
+
+    // If an issue is reported or verified, notify admins
+    try {
+      const admins = await User.find({ role: "admin", isActive: { $ne: false } }).select("_id");
+      if (admins.length) {
+        const notifMsg = status === "issue"
+          ? `⚠️ Supporting Staff ${req.user.name} reported ISSUE on demand for ${demand.employeeName}: ${demand.supportRemarks || "Issue reported"}`
+          : `✅ Supporting Staff ${req.user.name} verified demand for ${demand.employeeName} as OK`;
+        await Notification.insertMany(admins.map(a => ({
+          recipientId: a._id,
+          actorName: req.user.name,
+          message: notifMsg
+        })));
+      }
+    } catch (notifErr) {
+      console.error("Failed to notify admins of support check:", notifErr);
+    }
+
+    res.json(demandToJson(demand));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not update demand inspection status" });
   }
 });
 

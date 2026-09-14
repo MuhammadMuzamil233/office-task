@@ -234,6 +234,7 @@
       </div>
       <button type="button" id="adminRegisterBtn" class="admin-link">Create admin account</button>
       <button type="button" id="logisticsRegisterBtn" class="admin-link">Request logistics access</button>
+      <button type="button" id="supportingStaffRegisterBtn" class="admin-link">Request supporting staff access</button>
       <div id="authError" class="auth-err hidden"></div>
 
       <form id="loginForm">
@@ -282,6 +283,7 @@
           <button id="historyBtn" type="button">History</button>
           <button id="demandBtn" type="button">Demand Page</button>
           <button id="logisticsBtn" type="button" class="hidden">Logistics</button>
+          <button id="supportingStaffBtn" type="button" class="hidden">Supporting Staff</button>
           <button id="demandHistoryBtn" type="button" class="hidden">Demand History</button>
           <button id="inventoryBtn" type="button" class="hidden" style="background:#b08d3e;border-color:#b08d3e;font-weight:700;">Inventory</button>
           <button id="adminBtn" type="button" class="hidden">Admin Panel</button>
@@ -382,6 +384,7 @@
   const adminRegisterBtn = document.getElementById("adminRegisterBtn");
   const adminHint = document.getElementById("adminHint");
   const logisticsRegisterBtn = document.getElementById("logisticsRegisterBtn");
+  const supportingStaffRegisterBtn = document.getElementById("supportingStaffRegisterBtn");
   let requestedRole = null;
 
   tabLogin.addEventListener("click", () => {
@@ -408,6 +411,13 @@
     tabRegister.click();
     requestedRole = "logistics";
     adminHint.textContent = "Your logistics access request must be approved by an admin.";
+    adminHint.classList.remove("hidden");
+    document.getElementById("regUsername").focus();
+  });
+  supportingStaffRegisterBtn.addEventListener("click", () => {
+    tabRegister.click();
+    requestedRole = "supporting_staff";
+    adminHint.textContent = "Your supporting staff access request must be approved by an admin.";
     adminHint.classList.remove("hidden");
     document.getElementById("regUsername").focus();
   });
@@ -451,11 +461,12 @@
           username: document.getElementById("regUsername").value,
           password: document.getElementById("regPassword").value,
           requestAdmin: requestedRole === "admin",
-          requestLogistics: requestedRole === "logistics"
+          requestLogistics: requestedRole === "logistics",
+          requestSupportingStaff: requestedRole === "supporting_staff"
         })
       });
       await boot();
-      if(account.approvalRequestPending) showError(`${account.requestedRole === "logistics" ? "Logistics" : "Admin"} access request sent. An existing admin must approve it first.`);
+      if(account.approvalRequestPending) showError(`${account.requestedRole === "logistics" ? "Logistics" : account.requestedRole === "supporting_staff" ? "Supporting Staff" : "Admin"} access request sent. An existing admin must approve it first.`);
     }catch(err){
       showAuthError(err.message);
     }finally{
@@ -820,14 +831,15 @@
       me = await api("/api/me");
       document.getElementById("myName").textContent = me.name;
       document.querySelector(".greet").firstChild.textContent = me.role === "admin" ? "Admin signed in as " : "Signed in as ";
-      const logisticsOnly = me.role === "logistics";
-      document.getElementById("historyBtn").classList.toggle("hidden", logisticsOnly);
-      document.getElementById("demandBtn").classList.toggle("hidden", logisticsOnly);
-      document.getElementById("demandSection").classList.toggle("hidden", logisticsOnly);
+      const restrictedRole = me.role === "logistics" || me.role === "supporting_staff";
+      document.getElementById("historyBtn").classList.toggle("hidden", restrictedRole);
+      document.getElementById("demandBtn").classList.toggle("hidden", restrictedRole);
+      document.getElementById("demandSection").classList.toggle("hidden", restrictedRole);
       document.getElementById("adminBtn").classList.toggle("hidden", me.role !== "admin");
       document.getElementById("inventoryBtn").classList.toggle("hidden", me.role !== "admin");
       document.getElementById("logisticsBtn").classList.toggle("hidden", !["admin", "logistics"].includes(me.role));
-      document.getElementById("demandHistoryBtn").classList.toggle("hidden", !["admin", "logistics"].includes(me.role));
+      document.getElementById("supportingStaffBtn").classList.toggle("hidden", !["admin", "supporting_staff"].includes(me.role));
+      document.getElementById("demandHistoryBtn").classList.toggle("hidden", !["admin", "logistics", "supporting_staff"].includes(me.role));
       document.getElementById("authScreen").classList.add("hidden");
       document.getElementById("appScreen").classList.remove("hidden");
       document.getElementById("taskInput").disabled = false;
@@ -844,6 +856,7 @@
   document.getElementById("adminBtn").addEventListener("click", () => { window.location.href = "/demands-admin.html"; });
   document.getElementById("inventoryBtn").addEventListener("click", () => { window.open("/inventory.html", "_blank"); });
   document.getElementById("logisticsBtn").addEventListener("click", () => { window.location.href = "/logistics.html"; });
+  document.getElementById("supportingStaffBtn").addEventListener("click", () => { window.location.href = "/supporting-staff.html"; });
   document.getElementById("demandHistoryBtn").addEventListener("click", () => { window.location.href = "/demand-history.html"; });
   document.getElementById("insertTaskMention").addEventListener("click", () => insertMention("taskMentionUser", "taskInput"));
   document.getElementById("enableNotificationsBtn").addEventListener("click", () => enableNotifications().catch(e => showError(e.message)));
