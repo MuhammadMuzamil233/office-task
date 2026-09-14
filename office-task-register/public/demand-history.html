@@ -18,6 +18,10 @@ main{max-width:1150px;margin:auto}
 .button.danger{background:#b42318;border-color:#b42318;color:#fff}
 .button.danger:hover{background:#912018}
 .card{margin-top:22px;background:var(--paper);border:1px solid var(--line);border-radius:4px;overflow:hidden;box-shadow:0 4px 14px rgba(0,0,0,0.06)}
+.filters{display:flex;gap:12px;align-items:center;padding:12px 16px;background:var(--ledger);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.filter-item{display:flex;align-items:center;gap:6px}
+.filter-item label{font-size:11px;font-weight:600;text-transform:uppercase;color:#68766d;letter-spacing:0.5px}
+.filter-item select,.filter-item input{padding:6px 10px;border:1px solid var(--line);border-radius:4px;background:var(--paper);color:var(--ink);font-size:13px}
 .scroll{overflow-x:auto}
 .table{width:100%;border-collapse:collapse;min-width:850px}
 .table th,.table td{padding:12px 16px;text-align:left;border-bottom:1px solid var(--line)}
@@ -34,6 +38,7 @@ main{max-width:1150px;margin:auto}
   .book{padding:22px 18px}
   .book h1{font-size:22px}
   .header-actions{position:static;margin-top:16px;flex-wrap:wrap}
+  .filters{flex-direction:column;align-items:stretch}
 }
 </style>
 </head>
@@ -42,12 +47,25 @@ main{max-width:1150px;margin:auto}
   <header class="book">
     <div class="header-actions">
       <button type="button" class="button danger" id="clearAllBtn" onclick="clearAllHistory()">🗑️ Clear All History</button>
-      <button type="button" class="button" id="back">← Back to admin</button>
+      <button type="button" class="button" id="back">← Back</button>
     </div>
     <h1>Completed Demand History</h1>
-    <p>Archived demands completed by admin.</p>
+    <p id="subHeader">Archived completed demands overview.</p>
   </header>
   <section class="card">
+    <div class="filters">
+      <div class="filter-item">
+        <label for="warehouseFilter">Warehouse:</label>
+        <select id="warehouseFilter">
+          <option value="all">All warehouses</option>
+          <option value="FC Faizabad WH">FC Faizabad WH</option>
+          <option value="FC I10 WH">FC I10 WH</option>
+        </select>
+      </div>
+      <div class="filter-item" style="flex:1;min-width:200px;">
+        <input type="search" id="searchInput" placeholder="Search by employee, product, invoice..." style="width:100%;">
+      </div>
+    </div>
     <div class="scroll">
       <table class="table">
         <thead>
@@ -61,7 +79,7 @@ main{max-width:1150px;margin:auto}
             <th>Picked</th>
             <th>Status</th>
             <th>Completed at</th>
-            <th>Action</th>
+            <th id="actionHeader">Action</th>
           </tr>
         </thead>
         <tbody id="list">
@@ -93,35 +111,88 @@ const esc = v => {
 
 const items = d => Array.isArray(d.items) ? d.items : [];
 
+let allRows = [];
+let currentUser = null;
+
+function render() {
+  const list = document.getElementById('list');
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  const colSpan = isAdmin ? 10 : 9;
+
+  const warehouse = document.getElementById('warehouseFilter').value;
+  const query = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+
+  const filtered = allRows.filter(d => {
+    const demandItems = items(d);
+    if (warehouse !== 'all' && !demandItems.some(i => (i.warehouse || '') === warehouse)) {
+      return false;
+    }
+    if (query) {
+      const matchEmp = (d.employee_name || '').toLowerCase().includes(query);
+      const matchDate = (d.date || '').toLowerCase().includes(query);
+      const matchItem = demandItems.some(i =>
+        (i.name || '').toLowerCase().includes(query) ||
+        (i.invoiceNumber || '').toLowerCase().includes(query) ||
+        (i.warehouse || '').toLowerCase().includes(query)
+      );
+      if (!matchEmp && !matchDate && !matchItem) return false;
+    }
+    return true;
+  });
+
+  list.innerHTML = '';
+  if (!filtered.length) {
+    list.innerHTML = `<tr><td colspan="${colSpan}" class="empty">No demand history found.</td></tr>`;
+    return;
+  }
+
+  filtered.forEach(d => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td><b>${esc(d.employee_name)}</b>${d.creator_role === 'admin' ? ' <span style="background:#172554;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;">ADMIN</span>' : ''}</td>
+      <td>${esc(d.date)}</td>
+      <td>${items(d).map(item => `${esc(item.name)} (${item.quantity})${item.isUrgent ? ' <span style="background:#c0392b;color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;">⚡ URGENT</span>' : ''}`).join('<br>')}</td>
+      <td>${items(d).map(item => esc(item.warehouse || '-')).join('<br>')}</td>
+      <td>${items(d).map(item => esc(item.invoiceNumber || '-')).join('<br>')}</td>
+      <td>${d.quantity}</td>
+      <td>${items(d).map(item => item.pickedQuantity == null ? '-' : item.pickedQuantity).join('<br>')}</td>
+      <td><span class="status">Completed</span></td>
+      <td>${new Date(d.completedAt || d.updated_at).toLocaleString('en-GB')}</td>
+      ${isAdmin ? `<td><button type="button" class="btn-delete" onclick="deleteHistoryItem('${d.id}')">🗑️ Delete</button></td>` : ''}
+    `;
+    list.appendChild(row);
+  });
+}
+
 async function load() {
   const list = document.getElementById('list');
   try {
-    const me = await api('/api/me');
-    if (me.role !== 'admin') throw Error('Admin access required');
-    const rows = await api('/api/admin/demands/history');
-    list.innerHTML = '';
-    if (!rows.length) {
-      list.innerHTML = '<tr><td colspan="10" class="empty">No completed demands yet.</td></tr>';
-      return;
+    currentUser = await api('/api/me');
+    if (!['admin', 'logistics'].includes(currentUser.role)) {
+      throw Error('Admin or logistics access required');
     }
-    rows.forEach(d => {
-      const row = document.createElement('tr');
-      row.innerHTML = `
-        <td><b>${esc(d.employee_name)}</b>${d.creator_role === 'admin' ? ' <span style="background:#172554;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;">ADMIN</span>' : ''}</td>
-        <td>${esc(d.date)}</td>
-        <td>${items(d).map(item => `${esc(item.name)} (${item.quantity})${item.isUrgent ? ' <span style="background:#c0392b;color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;">⚡ URGENT</span>' : ''}`).join('<br>')}</td>
-        <td>${items(d).map(item => esc(item.warehouse || '-')).join('<br>')}</td>
-        <td>${items(d).map(item => esc(item.invoiceNumber || '-')).join('<br>')}</td>
-        <td>${d.quantity}</td>
-        <td>${items(d).map(item => item.pickedQuantity == null ? '-' : item.pickedQuantity).join('<br>')}</td>
-        <td><span class="status">Completed</span></td>
-        <td>${new Date(d.completedAt || d.updated_at).toLocaleString('en-GB')}</td>
-        <td><button type="button" class="btn-delete" onclick="deleteHistoryItem('${d.id}')">🗑️ Delete</button></td>
-      `;
-      list.appendChild(row);
-    });
+
+    const isAdmin = currentUser.role === 'admin';
+    const clearBtn = document.getElementById('clearAllBtn');
+    if (clearBtn) clearBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+
+    const actionHeader = document.getElementById('actionHeader');
+    if (actionHeader) actionHeader.style.display = isAdmin ? '' : 'none';
+
+    const backBtn = document.getElementById('back');
+    if (isAdmin) {
+      backBtn.textContent = '← Back to admin';
+      backBtn.onclick = () => location.href = '/demands-admin.html';
+    } else {
+      backBtn.textContent = '← Back to logistics';
+      backBtn.onclick = () => location.href = '/logistics.html';
+    }
+
+    allRows = await api('/api/admin/demands/history');
+    render();
   } catch (e) {
-    list.innerHTML = `<tr><td colspan="10" class="error">${esc(e.message)}</td></tr>`;
+    const colSpan = (currentUser && currentUser.role === 'admin') ? 10 : 9;
+    list.innerHTML = `<tr><td colspan="${colSpan}" class="error">${esc(e.message)}</td></tr>`;
   }
 }
 
@@ -145,7 +216,8 @@ async function clearAllHistory() {
   }
 }
 
-document.getElementById('back').onclick = () => location.href = '/demands-admin.html';
+document.getElementById('warehouseFilter').onchange = render;
+document.getElementById('searchInput').oninput = render;
 load();
 </script>
 </body>

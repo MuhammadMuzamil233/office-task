@@ -639,7 +639,7 @@ app.get("/api/admin/demands", authMiddleware, adminMiddleware, async (req, res) 
   }
 });
 
-app.get("/api/admin/demands/history", authMiddleware, adminMiddleware, async (req, res) => {
+app.get(["/api/admin/demands/history", "/api/logistics/demands/history"], authMiddleware, logisticsMiddleware, async (req, res) => {
   try {
     const demands = await DemandHistory.find().sort({ completedAt: -1 });
     res.json(demands.map(demandToJson));

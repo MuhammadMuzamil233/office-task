@@ -282,6 +282,7 @@
           <button id="historyBtn" type="button">History</button>
           <button id="demandBtn" type="button">Demand Page</button>
           <button id="logisticsBtn" type="button" class="hidden">Logistics</button>
+          <button id="demandHistoryBtn" type="button" class="hidden">Demand History</button>
           <button id="inventoryBtn" type="button" class="hidden" style="background:#b08d3e;border-color:#b08d3e;font-weight:700;">Inventory</button>
           <button id="adminBtn" type="button" class="hidden">Admin Panel</button>
         <button id="logoutBtn" type="button">Log out</button>
@@ -826,6 +827,7 @@
       document.getElementById("adminBtn").classList.toggle("hidden", me.role !== "admin");
       document.getElementById("inventoryBtn").classList.toggle("hidden", me.role !== "admin");
       document.getElementById("logisticsBtn").classList.toggle("hidden", !["admin", "logistics"].includes(me.role));
+      document.getElementById("demandHistoryBtn").classList.toggle("hidden", !["admin", "logistics"].includes(me.role));
       document.getElementById("authScreen").classList.add("hidden");
       document.getElementById("appScreen").classList.remove("hidden");
       document.getElementById("taskInput").disabled = false;
@@ -842,6 +844,7 @@
   document.getElementById("adminBtn").addEventListener("click", () => { window.location.href = "/demands-admin.html"; });
   document.getElementById("inventoryBtn").addEventListener("click", () => { window.open("/inventory.html", "_blank"); });
   document.getElementById("logisticsBtn").addEventListener("click", () => { window.location.href = "/logistics.html"; });
+  document.getElementById("demandHistoryBtn").addEventListener("click", () => { window.location.href = "/demand-history.html"; });
   document.getElementById("insertTaskMention").addEventListener("click", () => insertMention("taskMentionUser", "taskInput"));
   document.getElementById("enableNotificationsBtn").addEventListener("click", () => enableNotifications().catch(e => showError(e.message)));
   boot();

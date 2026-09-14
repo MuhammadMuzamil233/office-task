@@ -3,8 +3,17 @@
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/admin.html", "destination": "/office-task-register/public/admin.html" },
     { "source": "/demands-admin.html", "destination": "/office-task-register/public/demands-admin.html" },
+    { "source": "/demand-history.html", "destination": "/office-task-register/public/demand-history.html" },
+    { "source": "/logistics.html", "destination": "/office-task-register/public/logistics.html" },
     { "source": "/history.html", "destination": "/office-task-register/public/history.html" },
     { "source": "/demands.html", "destination": "/office-task-register/public/demands.html" },
+    { "source": "/inventory.html", "destination": "/office-task-register/public/inventory.html" },
+    { "source": "/inventory-api.js", "destination": "/office-task-register/public/inventory-api.js" },
+    { "source": "/stock-in.html", "destination": "/office-task-register/public/stock-in.html" },
+    { "source": "/stock-out.html", "destination": "/office-task-register/public/stock-out.html" },
+    { "source": "/transactions.html", "destination": "/office-task-register/public/transactions.html" },
+    { "source": "/virtual.html", "destination": "/office-task-register/public/virtual.html" },
+    { "source": "/compare.html", "destination": "/office-task-register/public/compare.html" },
     { "source": "/service-worker.js", "destination": "/office-task-register/public/service-worker.js" },
     { "source": "/(.*)", "destination": "/office-task-register/public/index.html" }
   ]
