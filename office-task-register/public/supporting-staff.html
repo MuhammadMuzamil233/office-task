@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Supporting Staff — Demand Inspection</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -40,6 +40,7 @@
     .wrap {
       max-width: 1240px;
       margin: 0 auto;
+      width: 100%;
     }
 
     .header-box {
@@ -47,23 +48,30 @@
       color: #F1ECE0;
       padding: 22px 28px;
       border-bottom: 4px solid var(--brass);
-      border-radius: 6px 6px 2px 2px;
+      border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 16px;
-      box-shadow: 0 4px 12px rgba(15, 61, 62, 0.25);
+      box-shadow: 0 4px 14px rgba(15, 61, 62, 0.25);
+    }
+
+    .header-title-wrap {
+      flex: 1;
+      min-width: 0;
     }
 
     .header-box h1 {
       margin: 0;
       font-family: 'IBM Plex Serif', Georgia, serif;
-      font-size: 24px;
+      font-size: 23px;
       font-weight: 700;
       letter-spacing: -0.01em;
       display: flex;
       align-items: center;
-      gap: 10px;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: #fff;
     }
 
     .badge-role {
@@ -75,30 +83,40 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
       font-family: 'IBM Plex Sans', sans-serif;
-      font-weight: 600;
+      font-weight: 700;
+      display: inline-block;
+    }
+
+    .header-user-info {
+      font-size: 12px;
+      color: #cfe3dd;
+      margin-top: 5px;
+      line-height: 1.4;
     }
 
     .header-actions {
       display: flex;
       align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
+      gap: 8px;
+      flex-shrink: 0;
     }
 
     .btn {
       border: 1px solid rgba(255, 255, 255, 0.4);
       background: rgba(255, 255, 255, 0.12);
       color: #fff;
-      border-radius: 5px;
-      padding: 8px 14px;
+      border-radius: 6px;
+      padding: 8px 13px;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      justify-content: center;
+      gap: 5px;
       transition: all 0.15s ease;
       text-decoration: none;
+      white-space: nowrap;
     }
 
     .btn:hover {
@@ -116,12 +134,12 @@
     }
 
     .card {
-      margin-top: 22px;
+      margin-top: 18px;
       background: var(--paper);
       border: 1px solid var(--line);
-      border-radius: 6px;
+      border-radius: 8px;
       overflow: hidden;
-      box-shadow: 0 6px 18px rgba(28, 43, 39, 0.08);
+      box-shadow: 0 4px 16px rgba(28, 43, 39, 0.07);
     }
 
     .filters-bar {
@@ -131,35 +149,40 @@
       padding: 16px 20px;
       background: #faf8f2;
       border-bottom: 1px solid var(--line);
-      align-items: center;
+      align-items: flex-end;
       justify-content: space-between;
     }
 
     .filter-group {
       display: flex;
       flex-wrap: wrap;
-      align-items: center;
+      align-items: flex-end;
       gap: 12px;
+      flex: 1;
     }
 
     .filter-label {
-      font-size: 13px;
-      font-weight: 600;
+      font-size: 12px;
+      font-weight: 700;
       color: #526059;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
     }
 
     .filter-label select, .filter-label input {
       border: 1px solid var(--line);
       background: #fff;
-      border-radius: 4px;
-      padding: 7px 11px;
+      border-radius: 6px;
+      padding: 8px 12px;
       font-size: 13px;
       color: var(--ink);
       font-family: inherit;
       outline: none;
+      min-width: 170px;
+      height: 38px;
     }
 
     .filter-label select:focus, .filter-label input:focus {
@@ -167,38 +190,59 @@
       box-shadow: 0 0 0 2px rgba(15, 61, 62, 0.12);
     }
 
+    .refresh-wrap {
+      display: flex;
+      align-items: flex-end;
+    }
+
     .stats-strip {
       display: flex;
-      gap: 16px;
+      align-items: center;
+      gap: 12px;
       padding: 12px 20px;
       background: #f4efe4;
       border-bottom: 1px solid var(--line);
       font-size: 13px;
-      font-weight: 500;
+      font-weight: 600;
       color: #4b5852;
+      flex-wrap: wrap;
     }
 
     .stat-pill {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 3px 10px;
-      border-radius: 12px;
+      padding: 5px 12px;
+      border-radius: 16px;
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 700;
+      line-height: 1.2;
     }
     .pill-awaiting { background: var(--amber-bg); color: var(--amber); border: 1px solid #fde68a; }
     .pill-ok { background: var(--green-bg); color: var(--green); border: 1px solid #bbf7d0; }
     .pill-issue { background: var(--red-bg); color: var(--red); border: 1px solid #fecaca; }
 
+    .scroll-hint {
+      display: none;
+      padding: 8px 16px;
+      background: #fefce8;
+      border-bottom: 1px solid #fef08a;
+      color: #854d0e;
+      font-size: 11px;
+      font-weight: 600;
+      text-align: center;
+    }
+
     .table-wrap {
       overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      width: 100%;
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 1020px;
+      min-width: 1000px;
     }
 
     th, td {
@@ -228,7 +272,7 @@
     }
 
     .urgent-row {
-      background: rgba(254, 243, 199, 0.35) !important;
+      background: rgba(254, 243, 199, 0.4) !important;
     }
 
     .badge {
@@ -251,6 +295,8 @@
       color: #b91c1c;
       border: 1px solid #fca5a5;
       font-weight: 800;
+      font-size: 10px;
+      padding: 2px 6px;
     }
 
     .badge-status-awaiting {
@@ -260,6 +306,10 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
     }
 
     .badge-status-ok {
@@ -269,6 +319,10 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
     }
 
     .badge-status-issue {
@@ -278,6 +332,10 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
     }
 
     .support-meta {
@@ -292,10 +350,12 @@
       color: #991b1b;
       background: #fef2f2;
       border-left: 3px solid #ef4444;
-      padding: 4px 8px;
+      padding: 5px 8px;
       margin-top: 5px;
       border-radius: 0 4px 4px 0;
       white-space: pre-wrap;
+      max-width: 260px;
+      word-break: break-word;
     }
 
     .action-group {
@@ -306,15 +366,17 @@
 
     .act-btn {
       border: 1px solid;
-      border-radius: 4px;
-      padding: 6px 11px;
+      border-radius: 5px;
+      padding: 7px 12px;
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 4px;
       transition: background 0.15s ease, transform 0.08s ease;
+      white-space: nowrap;
     }
 
     .act-btn:active {
@@ -339,15 +401,6 @@
       background: #fee2e2;
     }
 
-    .btn-recheck {
-      background: #fff;
-      border-color: #94a3b8;
-      color: #475569;
-    }
-    .btn-recheck:hover {
-      background: #f1f5f9;
-    }
-
     .empty-state {
       text-align: center;
       padding: 48px 20px;
@@ -360,7 +413,7 @@
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(15, 23, 42, 0.6);
+      background: rgba(15, 23, 42, 0.65);
       backdrop-filter: blur(2px);
       z-index: 9999;
       align-items: center;
@@ -370,17 +423,17 @@
 
     .modal-card {
       background: #fff;
-      border-radius: 8px;
+      border-radius: 10px;
       max-width: 520px;
       width: 100%;
-      padding: 24px;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25);
+      padding: 22px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
       border: 1px solid #cbd5e1;
     }
 
     .modal-card h3 {
-      margin: 0 0 12px;
-      font-size: 18px;
+      margin: 0 0 10px;
+      font-size: 17px;
       color: #1e293b;
       display: flex;
       align-items: center;
@@ -390,14 +443,14 @@
     .modal-card p {
       font-size: 13px;
       color: #475569;
-      margin: 0 0 16px;
+      margin: 0 0 14px;
       line-height: 1.5;
     }
 
     .modal-card textarea {
       width: 100%;
       box-sizing: border-box;
-      min-height: 100px;
+      min-height: 110px;
       border: 1px solid #cbd5e1;
       border-radius: 6px;
       padding: 10px;
@@ -417,16 +470,16 @@
       display: flex;
       justify-content: flex-end;
       gap: 10px;
-      margin-top: 18px;
+      margin-top: 16px;
     }
 
     .btn-submit-issue {
       background: var(--red);
       color: #fff;
       border: none;
-      border-radius: 5px;
-      padding: 10px 18px;
-      font-weight: 600;
+      border-radius: 6px;
+      padding: 9px 16px;
+      font-weight: 700;
       font-size: 13px;
       cursor: pointer;
     }
@@ -438,8 +491,8 @@
       background: #f1f5f9;
       color: #475569;
       border: 1px solid #cbd5e1;
-      border-radius: 5px;
-      padding: 10px 16px;
+      border-radius: 6px;
+      padding: 9px 15px;
       font-weight: 600;
       font-size: 13px;
       cursor: pointer;
@@ -447,24 +500,139 @@
     .btn-cancel:hover {
       background: #e2e8f0;
     }
+
+    /* ================= MOBILE RESPONSIVE STYLES ================= */
+    @media (max-width: 768px) {
+      body {
+        padding: 12px 10px 60px;
+      }
+
+      .header-box {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 16px 14px;
+        gap: 14px;
+        border-radius: 6px;
+      }
+
+      .header-box h1 {
+        font-size: 19px;
+        gap: 6px;
+      }
+
+      .header-user-info {
+        font-size: 11px;
+      }
+
+      .header-actions {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr 1fr;
+        gap: 6px;
+        width: 100%;
+      }
+
+      .btn {
+        padding: 8px 4px;
+        font-size: 11px;
+        border-radius: 5px;
+      }
+
+      .card {
+        margin-top: 12px;
+        border-radius: 6px;
+      }
+
+      .filters-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: 12px 14px;
+      }
+
+      .filter-group {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        width: 100%;
+      }
+
+      .filter-label {
+        width: 100%;
+        font-size: 11px;
+      }
+
+      .filter-label select,
+      .filter-label input {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+        height: 38px;
+        font-size: 13px;
+      }
+
+      .refresh-wrap {
+        width: 100%;
+      }
+
+      #refreshBtn {
+        width: 100%;
+        height: 38px;
+        font-size: 13px;
+      }
+
+      .stats-strip {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        padding: 10px;
+      }
+
+      .stats-strip > span:first-child {
+        display: none; /* Hide 'Summary:' label on mobile so cards fit full width */
+      }
+
+      .stat-pill {
+        padding: 7px 4px;
+        font-size: 11px;
+        flex-direction: column;
+        justify-content: center;
+        text-align: center;
+        gap: 3px;
+        border-radius: 6px;
+      }
+
+      .scroll-hint {
+        display: block;
+      }
+
+      th, td {
+        padding: 10px 10px;
+        font-size: 12px;
+      }
+
+      .act-btn {
+        padding: 8px 12px;
+        font-size: 12px;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header class="header-box">
-      <div>
+      <div class="header-title-wrap">
         <h1>
-          🔍 Supporting Staff Inspection
+          🔍 Demand Inspection
           <span class="badge-role" id="roleBadge">Supporting Staff</span>
         </h1>
-        <div style="font-size:12px;opacity:0.85;margin-top:4px;">
-          Signed in as <b id="userName">...</b> · Inspecting demands dispatched by logistics ("On the way")
+        <div class="header-user-info">
+          Signed in as <b id="userName">...</b> · Inspecting dispatched demands ("On the way")
         </div>
       </div>
       <div class="header-actions">
         <a href="/demand-history.html" class="btn btn-gold">📜 Demand History</a>
         <a href="/" class="btn">⬅️ Home</a>
-        <button id="logoutBtn" class="btn" style="border-color:rgba(239,68,68,0.5);">🚪 Log out</button>
+        <button id="logoutBtn" class="btn" style="border-color:rgba(239,68,68,0.6);">🚪 Log out</button>
       </div>
     </header>
 
@@ -488,12 +656,12 @@
               <option value="issue">🔴 Issue Reported</option>
             </select>
           </label>
-          <label class="filter-label">
+          <label class="filter-label" style="flex:1;">
             Search:
             <input type="text" id="searchInput" placeholder="Search employee, product, invoice...">
           </label>
         </div>
-        <div>
+        <div class="refresh-wrap">
           <button id="refreshBtn" class="btn" style="background:var(--teal);color:#fff;border-color:var(--teal);">🔄 Refresh</button>
         </div>
       </div>
@@ -503,6 +671,10 @@
         <span class="stat-pill pill-awaiting" id="statAwaiting">⏳ 0 Awaiting Check</span>
         <span class="stat-pill pill-ok" id="statOk">🟢 0 Verified OK</span>
         <span class="stat-pill pill-issue" id="statIssue">🔴 0 Issue Reported</span>
+      </div>
+
+      <div class="scroll-hint">
+        👈 Swipe table left / right to inspect &amp; verify demands 👉
       </div>
 
       <div class="table-wrap">
@@ -620,9 +792,9 @@
         else countAwaiting++;
       });
 
-      document.getElementById("statAwaiting").textContent = `⏳ ${countAwaiting} Awaiting Check`;
-      document.getElementById("statOk").textContent = `🟢 ${countOk} Verified OK`;
-      document.getElementById("statIssue").textContent = `🔴 ${countIssue} Issue Reported`;
+      document.getElementById("statAwaiting").innerHTML = `⏳ <b>${countAwaiting}</b> <span>Awaiting Check</span>`;
+      document.getElementById("statOk").innerHTML = `🟢 <b>${countOk}</b> <span>Verified OK</span>`;
+      document.getElementById("statIssue").innerHTML = `🔴 <b>${countIssue}</b> <span>Issue Reported</span>`;
 
       const filtered = allDemands.filter(demand => {
         // Inspection filter
@@ -658,7 +830,6 @@
       body.innerHTML = "";
 
       filtered.forEach(demand => {
-        const totalItems = demand.items.length;
         const supportStatus = demand.support_status;
 
         demand.items.forEach((item, index) => {
@@ -675,18 +846,18 @@
           let inspectionBadgeHtml = '';
           if (supportStatus === 'ok') {
             inspectionBadgeHtml = `
-              <span class="badge badge-status-ok">🟢 Verified OK</span>
+              <span class="badge-status-ok">🟢 Verified OK</span>
               <div class="support-meta">Checked by <b>${esc(demand.support_checked_by || 'Staff')}</b><br>${dateFmt(demand.support_checked_at)}</div>
             `;
           } else if (supportStatus === 'issue') {
             inspectionBadgeHtml = `
-              <span class="badge badge-status-issue">🔴 Issue Reported</span>
+              <span class="badge-status-issue">🔴 Issue Reported</span>
               <div class="support-issue-text"><b>Issue:</b> ${esc(demand.support_remarks || 'Unspecified issue')}</div>
               <div class="support-meta">Reported by <b>${esc(demand.support_checked_by || 'Staff')}</b><br>${dateFmt(demand.support_checked_at)}</div>
             `;
           } else {
             inspectionBadgeHtml = `
-              <span class="badge badge-status-awaiting">⏳ Awaiting Inspection</span>
+              <span class="badge-status-awaiting">⏳ Awaiting Inspection</span>
             `;
           }
 
@@ -696,7 +867,7 @@
             actionHtml = `
               <div class="action-group">
                 <button class="act-btn btn-ok" onclick="handleMarkOk('${demand.id}')">✅ OK</button>
-                <button class="act-btn btn-issue" onclick="openIssueModal('${demand.id}')">⚠️ Report Issue</button>
+                <button class="act-btn btn-issue" onclick="openIssueModal('${demand.id}')">⚠️ Issue</button>
               </div>
             `;
           }

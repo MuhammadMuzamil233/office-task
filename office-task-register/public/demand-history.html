@@ -34,12 +34,18 @@ main{max-width:1150px;margin:auto}
 .empty,.error{padding:30px 20px;text-align:center;color:#78827d;font-size:14px}
 .error{color:#a6402b}
 @media(max-width:768px){
-  body{padding:16px 10px}
-  .book{padding:22px 18px}
-  .book h1{font-size:22px}
-  .header-actions{position:static;margin-top:16px;flex-wrap:wrap}
-  .filters{flex-direction:column;align-items:stretch}
+  body{padding:12px 10px 60px}
+  .book{padding:18px 16px;display:flex;flex-direction:column;gap:12px}
+  .book h1{font-size:20px}
+  .header-actions{position:static;margin-top:4px;display:flex;gap:8px;width:100%}
+  .header-actions .button{flex:1;justify-content:center;padding:8px 10px;font-size:12px}
+  .filters{flex-direction:column;align-items:stretch;gap:8px;padding:12px 14px}
+  .filter-item{width:100%;flex-direction:column;align-items:flex-start}
+  .filter-item select,.filter-item input{width:100%;box-sizing:border-box;height:38px}
+  .scroll-hint{display:block;padding:8px 14px;background:#fefce8;color:#854d0e;font-size:11px;font-weight:600;text-align:center;border-bottom:1px solid #fef08a}
+  th,td{padding:9px 10px;font-size:12px}
 }
+.scroll-hint{display:none}
 </style>
 </head>
 <body>
@@ -66,6 +72,7 @@ main{max-width:1150px;margin:auto}
         <input type="search" id="searchInput" placeholder="Search by employee, product, invoice..." style="width:100%;">
       </div>
     </div>
+    <div class="scroll-hint">👈 Swipe table left / right to view items &amp; delete 👉</div>
     <div class="scroll">
       <table class="table">
         <thead>
@@ -147,20 +154,49 @@ function render() {
   }
 
   filtered.forEach(d => {
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td><b>${esc(d.employee_name)}</b>${d.creator_role === 'admin' ? ' <span style="background:#172554;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;">ADMIN</span>' : ''}</td>
-      <td>${esc(d.date)}</td>
-      <td>${items(d).map(item => `${esc(item.name)} (${item.quantity})${item.isUrgent ? ' <span style="background:#c0392b;color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;">⚡ URGENT</span>' : ''}`).join('<br>')}</td>
-      <td>${items(d).map(item => esc(item.warehouse || '-')).join('<br>')}</td>
-      <td>${items(d).map(item => esc(item.invoiceNumber || '-')).join('<br>')}</td>
-      <td>${d.quantity}</td>
-      <td>${items(d).map(item => item.pickedQuantity == null ? '-' : item.pickedQuantity).join('<br>')}</td>
-      <td><span class="status">Completed</span></td>
-      <td>${new Date(d.completedAt || d.updated_at).toLocaleString('en-GB')}</td>
-      ${isAdmin ? `<td><button type="button" class="btn-delete" onclick="deleteHistoryItem('${d.id}')">🗑️ Delete</button></td>` : ''}
-    `;
-    list.appendChild(row);
+    const demandItems = items(d);
+    if (!demandItems.length) {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td><b>${esc(d.employee_name)}</b>${d.creator_role === 'admin' ? ' <span style="background:#172554;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;">ADMIN</span>' : ''}</td>
+        <td>${esc(d.date)}</td>
+        <td>${esc(d.products || '-')}</td>
+        <td>-</td>
+        <td>-</td>
+        <td>${d.quantity || 0}</td>
+        <td>-</td>
+        <td><span class="status">Completed</span></td>
+        <td>${new Date(d.completedAt || d.updated_at).toLocaleString('en-GB')}</td>
+        ${isAdmin ? `<td><button type="button" class="btn-delete" onclick="deleteFullHistoryRecord('${d.id}')">🗑️ Delete</button></td>` : ''}
+      `;
+      list.appendChild(row);
+      return;
+    }
+
+    demandItems.forEach((item, itemIdx) => {
+      const row = document.createElement('tr');
+      if (itemIdx === 0) row.style.borderTop = '2px solid #cfc2a8';
+      row.innerHTML = `
+        <td>${itemIdx === 0 ? `<b>${esc(d.employee_name)}</b>${d.creator_role === 'admin' ? ' <span style="background:#172554;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;">ADMIN</span>' : ''}` : ''}</td>
+        <td>${itemIdx === 0 ? esc(d.date) : ''}</td>
+        <td><b>${esc(item.name)}</b>${item.isUrgent ? ' <span style="background:#c0392b;color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;">⚡ URGENT</span>' : ''}</td>
+        <td>${esc(item.warehouse || '-')}</td>
+        <td><code>${esc(item.invoiceNumber || '-')}</code></td>
+        <td>${item.quantity}</td>
+        <td><b>${item.pickedQuantity == null ? '-' : item.pickedQuantity}</b></td>
+        <td><span class="status">Completed</span></td>
+        <td>${itemIdx === 0 ? new Date(d.completedAt || d.updated_at).toLocaleString('en-GB') : ''}</td>
+        ${isAdmin ? `
+          <td>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+              <button type="button" class="btn-delete" title="Delete only this item from history" onclick="deleteSingleHistoryItem('${d.id}', ${itemIdx}, '${esc(item.name).replace(/'/g, "\\'")}')">🗑️ Delete Item</button>
+              ${demandItems.length > 1 && itemIdx === 0 ? `<button type="button" class="btn-delete" style="background:#4b5563;" title="Delete all items of this demand" onclick="deleteFullHistoryRecord('${d.id}')">🗑️ All</button>` : ''}
+            </div>
+          </td>
+        ` : ''}
+      `;
+      list.appendChild(row);
+    });
   });
 }
 
@@ -168,8 +204,8 @@ async function load() {
   const list = document.getElementById('list');
   try {
     currentUser = await api('/api/me');
-    if (!['admin', 'logistics'].includes(currentUser.role)) {
-      throw Error('Admin or logistics access required');
+    if (!['admin', 'logistics', 'supporting_staff'].includes(currentUser.role)) {
+      throw Error('Admin, logistics or supporting staff access required');
     }
 
     const isAdmin = currentUser.role === 'admin';
@@ -183,6 +219,9 @@ async function load() {
     if (isAdmin) {
       backBtn.textContent = '← Back to admin';
       backBtn.onclick = () => location.href = '/demands-admin.html';
+    } else if (currentUser.role === 'supporting_staff') {
+      backBtn.textContent = '← Back to inspection';
+      backBtn.onclick = () => location.href = '/supporting-staff.html';
     } else {
       backBtn.textContent = '← Back to logistics';
       backBtn.onclick = () => location.href = '/logistics.html';
@@ -196,8 +235,18 @@ async function load() {
   }
 }
 
-async function deleteHistoryItem(id) {
-  if (!confirm('Are you sure you want to delete this demand history record?')) return;
+async function deleteSingleHistoryItem(id, itemIndex, itemName) {
+  if (!confirm(`Are you sure you want to delete "${itemName || 'this item'}" from demand history?`)) return;
+  try {
+    await api(`/api/admin/demands/history/${id}/item/${itemIndex}`, { method: 'DELETE' });
+    load();
+  } catch (err) {
+    alert('❌ ' + err.message);
+  }
+}
+
+async function deleteFullHistoryRecord(id) {
+  if (!confirm('Are you sure you want to delete this full demand history record?')) return;
   try {
     await api('/api/admin/demands/history/' + id, { method: 'DELETE' });
     load();

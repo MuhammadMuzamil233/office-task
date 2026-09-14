@@ -269,6 +269,18 @@ async function supportingStaffMiddleware(req, res, next) {
   }
 }
 
+async function historyReadMiddleware(req, res, next) {
+  try {
+    const user = await User.findById(req.user.id).select("role");
+    if (!user || !["admin", "logistics", "supporting_staff"].includes(user.role)) {
+      return res.status(403).json({ error: "Demand history access required" });
+    }
+    next();
+  } catch (e) {
+    res.status(500).json({ error: "Could not verify demand history access" });
+  }
+}
+
 const COOKIE_OPTS = {
   httpOnly: true,
   sameSite: "lax",
@@ -663,7 +675,7 @@ app.get("/api/admin/demands", authMiddleware, adminMiddleware, async (req, res) 
   }
 });
 
-app.get(["/api/admin/demands/history", "/api/logistics/demands/history"], authMiddleware, logisticsMiddleware, async (req, res) => {
+app.get(["/api/admin/demands/history", "/api/logistics/demands/history"], authMiddleware, historyReadMiddleware, async (req, res) => {
   try {
     const demands = await DemandHistory.find().sort({ completedAt: -1 });
     res.json(demands.map(demandToJson));
@@ -673,15 +685,64 @@ app.get(["/api/admin/demands/history", "/api/logistics/demands/history"], authMi
   }
 });
 
-// DELETE /api/admin/demands/history/:id - Delete single history entry
+// DELETE /api/admin/demands/history/:id - Delete whole history entry OR single item via ?itemIndex=N
 app.delete("/api/admin/demands/history/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
+    const itemIndexParam = req.query.itemIndex;
+    if (itemIndexParam !== undefined && itemIndexParam !== null && itemIndexParam !== "") {
+      const itemIndex = parseInt(itemIndexParam, 10);
+      const doc = await DemandHistory.findById(req.params.id);
+      if (!doc) return res.status(404).json({ error: "Demand history item not found" });
+
+      if (Array.isArray(doc.products) && itemIndex >= 0 && itemIndex < doc.products.length) {
+        if (doc.products.length > 1) {
+          doc.products.splice(itemIndex, 1);
+          doc.quantity = doc.products.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+          doc.markModified("products");
+          await doc.save();
+          return res.json({ ok: true, id: req.params.id, itemDeleted: true, remainingItems: doc.products.length });
+        } else {
+          await DemandHistory.findByIdAndDelete(req.params.id);
+          return res.json({ ok: true, id: req.params.id, recordDeleted: true });
+        }
+      } else {
+        return res.status(400).json({ error: "Invalid item index" });
+      }
+    }
+
     const deleted = await DemandHistory.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ error: "Demand history item not found" });
     res.json({ ok: true, id: req.params.id });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not delete demand history item" });
+  }
+});
+
+// DELETE /api/admin/demands/history/:id/item/:itemIndex - Delete specific item from history
+app.delete("/api/admin/demands/history/:id/item/:itemIndex", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const itemIndex = parseInt(req.params.itemIndex, 10);
+    const doc = await DemandHistory.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: "Demand history item not found" });
+
+    if (Array.isArray(doc.products) && itemIndex >= 0 && itemIndex < doc.products.length) {
+      if (doc.products.length > 1) {
+        doc.products.splice(itemIndex, 1);
+        doc.quantity = doc.products.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+        doc.markModified("products");
+        await doc.save();
+        return res.json({ ok: true, id: req.params.id, itemDeleted: true, remainingItems: doc.products.length });
+      } else {
+        await DemandHistory.findByIdAndDelete(req.params.id);
+        return res.json({ ok: true, id: req.params.id, recordDeleted: true });
+      }
+    } else {
+      return res.status(400).json({ error: "Invalid item index" });
+    }
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not delete item from demand history" });
   }
 });
 
