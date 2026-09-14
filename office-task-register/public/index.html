@@ -255,17 +255,18 @@
   }
 
   body.dark-theme section.card {
-    background: rgba(14, 22, 38, 0.82);
+    background: rgba(14, 22, 38, 0.85) !important;
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
     box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
     margin-top: 24px;
+    overflow: hidden;
   }
 
   body.dark-theme section.card h2 {
-    background: rgba(10, 16, 28, 0.7);
+    background: rgba(10, 16, 28, 0.75) !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.07);
     color: #f8fafc;
     letter-spacing: -0.01em;
@@ -277,77 +278,197 @@
     border: 1px solid rgba(6, 182, 212, 0.3);
   }
 
-  body.dark-theme .history-tools {
-    background: rgba(8, 13, 23, 0.65);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  /* Forms and Tools */
+  body.dark-theme form#addForm,
+  body.dark-theme .mention-tools,
+  body.dark-theme .notice-tools,
+  body.dark-theme .history-tools,
+  body.dark-theme .demand-form {
+    background: rgba(8, 13, 23, 0.75) !important;
+    border-color: rgba(255, 255, 255, 0.07) !important;
   }
 
+  body.dark-theme textarea#taskInput,
+  body.dark-theme .mention-tools select,
+  body.dark-theme .demand-item input,
+  body.dark-theme .demand-item select,
+  body.dark-theme #demandDate,
   body.dark-theme .history-tools input,
-  body.dark-theme .add-tool textarea,
-  body.dark-theme .field input,
-  body.dark-theme .demand-row input,
-  body.dark-theme .demand-row select {
-    background: rgba(6, 10, 18, 0.85);
-    color: #f1f5f9;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+  body.dark-theme .field input {
+    background: rgba(6, 10, 18, 0.9) !important;
+    color: #f8fafc !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
     border-radius: 8px;
     transition: all 0.2s ease;
   }
 
+  body.dark-theme textarea#taskInput:focus,
+  body.dark-theme .mention-tools select:focus,
+  body.dark-theme .demand-item input:focus,
+  body.dark-theme .demand-item select:focus,
+  body.dark-theme #demandDate:focus,
   body.dark-theme .history-tools input:focus,
-  body.dark-theme .add-tool textarea:focus,
-  body.dark-theme .field input:focus,
-  body.dark-theme .demand-row input:focus,
-  body.dark-theme .demand-row select:focus {
-    border-color: #06b6d4;
-    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.25), 0 0 16px rgba(6, 182, 212, 0.2);
+  body.dark-theme .field input:focus {
+    border-color: #06b6d4 !important;
+    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.25), 0 0 16px rgba(6, 182, 212, 0.2) !important;
     outline: none;
-    background: #090e1a;
+    background: #090e1a !important;
+  }
+
+  body.dark-theme form#addForm button,
+  body.dark-theme button[type=submit] {
+    background: linear-gradient(135deg, #0891b2, #06b6d4) !important;
+    box-shadow: 0 0 16px rgba(6, 182, 212, 0.35);
+    color: #fff !important;
+    border: none !important;
+    border-radius: 6px;
+    font-weight: 700;
+  }
+
+  body.dark-theme .notice-tools button,
+  body.dark-theme .mention-tools button {
+    background: rgba(6, 182, 212, 0.15) !important;
+    border: 1px solid rgba(6, 182, 212, 0.4) !important;
+    color: #38bdf8 !important;
+    border-radius: 6px;
+    font-weight: 700;
+  }
+
+  body.dark-theme .urgent-checkbox-label {
+    background: rgba(244, 63, 94, 0.12) !important;
+    border: 1px solid rgba(244, 63, 94, 0.35) !important;
+    color: #fda4af !important;
+    border-radius: 6px;
+  }
+
+  body.dark-theme .demand-actions button[type=button] {
+    border: 1px solid #06b6d4 !important;
+    color: #38bdf8 !important;
+    background: rgba(6, 182, 212, 0.1) !important;
+    border-radius: 6px;
+    font-weight: 600;
+  }
+
+  body.dark-theme .demand-actions button[type=button]:hover {
+    background: rgba(6, 182, 212, 0.22) !important;
+  }
+
+  body.dark-theme .demand-form .remove-item {
+    border: 1px solid rgba(244, 63, 94, 0.4) !important;
+    color: #fda4af !important;
+    background: rgba(244, 63, 94, 0.1) !important;
+    border-radius: 6px;
+  }
+
+  /* Demand table in dark theme */
+  body.dark-theme .employee-demand-block {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  }
+
+  body.dark-theme .employee-demand-title {
+    color: #38bdf8 !important;
+    background: rgba(10, 16, 28, 0.4);
+    font-weight: 700;
+    padding: 12px 20px 8px;
+  }
+
+  body.dark-theme .demand-table th {
+    background: rgba(10, 16, 28, 0.95) !important;
+    color: #94a3b8 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    font-size: 11px;
+    letter-spacing: 0.07em;
+  }
+
+  body.dark-theme .demand-table td {
+    background: transparent !important;
+    color: #f1f5f9 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  }
+
+  body.dark-theme .demand-table tr:hover td {
+    background: rgba(255, 255, 255, 0.035) !important;
+  }
+
+  body.dark-theme .demand-status {
+    color: #38bdf8 !important;
+  }
+
+  body.dark-theme .demand-meta {
+    color: #94a3b8 !important;
   }
 
   body.dark-theme li.task {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
   }
 
   body.dark-theme li.task:hover {
-    background: rgba(255, 255, 255, 0.035);
+    background: rgba(255, 255, 255, 0.035) !important;
   }
 
   body.dark-theme .reminder-row {
-    border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.08) !important;
   }
 
   body.dark-theme .empty {
-    color: #94a3b8;
+    color: #94a3b8 !important;
   }
 
   body.dark-theme .mention-badge {
-    background: rgba(99, 102, 241, 0.2);
-    color: #a5b4fc;
-    border: 1px solid rgba(99, 102, 241, 0.4);
-    box-shadow: 0 0 10px rgba(99, 102, 241, 0.25);
+    background: rgba(99, 102, 241, 0.2) !important;
+    color: #a5b4fc !important;
+    border: 1px solid rgba(99, 102, 241, 0.4) !important;
+    box-shadow: 0 0 10px rgba(99, 102, 241, 0.25) !important;
   }
 
   body.dark-theme header.book .whoami button {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    color: #f1f5f9;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    color: #f1f5f9 !important;
     border-radius: 7px;
     transition: all 0.2s ease;
   }
 
   body.dark-theme header.book .whoami button:hover {
-    background: rgba(255, 255, 255, 0.14);
-    border-color: rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.14) !important;
+    border-color: rgba(255, 255, 255, 0.35) !important;
     transform: translateY(-1px);
   }
 
-  body.dark-theme form#addForm button {
-    background: linear-gradient(135deg, #06b6d4, #0891b2);
-    box-shadow: 0 0 16px rgba(6, 182, 212, 0.35);
-    color: #fff;
-    border: none;
-    border-radius: 6px;
+  body.dark-theme .notice-item {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+    color: #e2e8f0 !important;
+  }
+
+  body.dark-theme .notice-item.unread {
+    background: rgba(245, 158, 11, 0.08) !important;
+    border-left-color: #f59e0b !important;
+  }
+
+  body.dark-theme .task-comments {
+    background: rgba(10, 16, 28, 0.8) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    border-left-color: #06b6d4 !important;
+  }
+
+  body.dark-theme .task-comment span {
+    color: #f1f5f9 !important;
+  }
+
+  body.dark-theme .admin-tools {
+    background: rgba(10, 16, 28, 0.85) !important;
+    border-top: 2px solid rgba(255, 255, 255, 0.08) !important;
+  }
+
+  body.dark-theme .admin-task textarea {
+    background: rgba(6, 10, 18, 0.9) !important;
+    color: #f8fafc !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  }
+
+  body.dark-theme .admin-requests {
+    background: rgba(10, 16, 28, 0.85) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
   }
 
   body.dark-theme ::-webkit-scrollbar { width: 8px; height: 8px; }
