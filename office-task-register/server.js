@@ -803,28 +803,42 @@ async function findMatchingInventoryItem(item) {
   return invItem;
 }
 
-async function autoStockInInventoryItem(item, actorName) {
+async function autoStockInInventoryItem(item, actorName, allowCreateNew = false) {
   if (!item) return;
   const addQty = Number.isInteger(item.pickedQuantity) && item.pickedQuantity > 0 ? item.pickedQuantity : Number(item.quantity) || 0;
   if (addQty <= 0) return;
 
-  const invItem = await findMatchingInventoryItem(item);
+  let invItem = await findMatchingInventoryItem(item);
   if (!invItem) {
-    const modelName = item.inventoryModel || item.name || "Item";
-    throw new Error("Model '" + modelName + "' inventory mein mojood nahi hai! Pehle inventory mein model add karein.");
+    if (allowCreateNew) {
+      const modelName = String(item.inventoryModel || item.name || "Item").trim();
+      const prodName = String(item.product || "").trim();
+      const brandName = String(item.brand || "").trim();
+      invItem = await InventoryItem.create({
+        product: prodName,
+        brand: brandName,
+        model: modelName,
+        quantity: addQty,
+        extra: item.warehouse ? { warehouseName: item.warehouse } : {}
+      });
+      console.log("Created new inventory item from demand:", modelName, "qty:", addQty);
+    } else {
+      const modelName = item.inventoryModel || item.name || "Item";
+      throw new Error("Model '" + modelName + "' inventory mein mojood nahi hai! Pehle inventory mein model add karein.");
+    }
+  } else {
+    invItem.quantity = (Number(invItem.quantity) || 0) + addQty;
+    if (item.warehouse) {
+      if (!invItem.extra) invItem.extra = {};
+      invItem.extra.warehouseName = item.warehouse;
+    }
+    if (invItem.extra && invItem.extra.qty !== undefined) {
+      delete invItem.extra.qty;
+    }
+    invItem.markModified("extra");
+    await invItem.save();
+    console.log("Auto stock-in updated qty for", invItem.model, "new qty:", invItem.quantity);
   }
-
-  invItem.quantity = (Number(invItem.quantity) || 0) + addQty;
-  if (item.warehouse) {
-    if (!invItem.extra) invItem.extra = {};
-    invItem.extra.warehouseName = item.warehouse;
-  }
-  if (invItem.extra && invItem.extra.qty !== undefined) {
-    delete invItem.extra.qty;
-  }
-  invItem.markModified("extra");
-  await invItem.save();
-  console.log("Auto stock-in updated qty for", invItem.model, "new qty:", invItem.quantity);
 
   // Create StockTransaction
   await StockTransaction.create({
@@ -868,7 +882,7 @@ async function isDemandCreatedByAdmin(demand) {
 
 app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { date, products, quantity, status, adminRemarks, completeItemIndex, isUrgent } = req.body || {};
+    const { date, products, quantity, status, adminRemarks, completeItemIndex, isUrgent, addNewModelToInventory, skipInventoryUpdate } = req.body || {};
     if (Number.isInteger(completeItemIndex)) {
       const demand = await Demand.findById(req.params.id);
       if (!demand || !Array.isArray(demand.products)) return res.status(404).json({ error: "Demand item not found" });
@@ -877,12 +891,15 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
 
       const isAdminDemand = await isDemandCreatedByAdmin(demand);
 
-      // ONLY ADMIN DEMANDS REQUIRE EXISTING MODEL IN INVENTORY
-      if (isAdminDemand) {
+      // ONLY ADMIN DEMANDS CHECK INVENTORY
+      if (isAdminDemand && !skipInventoryUpdate) {
         const match = await findMatchingInventoryItem(completedItem);
-        if (!match) {
-          return res.status(400).json({
-            error: "Model '" + (completedItem.inventoryModel || completedItem.name) + "' inventory mein mojood nahi hai! Pehle inventory mein model add karein."
+        if (!match && !addNewModelToInventory) {
+          const mName = completedItem.inventoryModel || completedItem.name || "Item";
+          return res.status(409).json({
+            needsModelDecision: true,
+            modelName: mName,
+            error: "Model '" + mName + "' inventory mein mojood nahi hai."
           });
         }
       }
@@ -904,9 +921,9 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         completedAt: new Date()
       });
 
-      // ONLY ADMIN DEMANDS ADD STOCK TO INVENTORY AND RECORD STOCK-IN TRANSACTION!
-      if (isAdminDemand) {
-        await autoStockInInventoryItem(completedItem, req.user.name);
+      // ONLY ADMIN DEMANDS ADD STOCK TO INVENTORY (IF NOT SKIPPED)
+      if (isAdminDemand && !skipInventoryUpdate) {
+        await autoStockInInventoryItem(completedItem, req.user.name, Boolean(addNewModelToInventory));
       }
 
       demand.products.splice(completeItemIndex, 1);
@@ -928,8 +945,8 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
 
       const isAdminDemand = await isDemandCreatedByAdmin(demand);
 
-      // ONLY ADMIN DEMANDS REQUIRE EXISTING MODELS IN INVENTORY
-      if (isAdminDemand) {
+      // ONLY ADMIN DEMANDS CHECK INVENTORY
+      if (isAdminDemand && !skipInventoryUpdate) {
         const missing = [];
         for (const p of prods) {
           if (p) {
@@ -937,9 +954,12 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
             if (!m) missing.push(p.inventoryModel || p.name || "Item");
           }
         }
-        if (missing.length > 0) {
-          return res.status(400).json({
-            error: "Yeh model(s) inventory mein mojood nahi hain: " + missing.join(", ") + "! Pehle inventory mein model add karein."
+        if (missing.length > 0 && !addNewModelToInventory) {
+          return res.status(409).json({
+            needsModelDecision: true,
+            modelName: missing.join(", "),
+            missingModels: missing,
+            error: "Yeh model(s) inventory mein mojood nahi hain: " + missing.join(", ") + "."
           });
         }
       }
@@ -961,11 +981,11 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         completedAt: new Date()
       });
 
-      // ONLY ADMIN DEMANDS ADD STOCK TO INVENTORY AND RECORD STOCK-IN TRANSACTION!
-      if (isAdminDemand) {
+      // ONLY ADMIN DEMANDS ADD STOCK TO INVENTORY (IF NOT SKIPPED)
+      if (isAdminDemand && !skipInventoryUpdate) {
         for (const p of prods) {
           if (p) {
-            await autoStockInInventoryItem(p, req.user.name);
+            await autoStockInInventoryItem(p, req.user.name, Boolean(addNewModelToInventory));
           }
         }
       }
