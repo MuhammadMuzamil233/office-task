@@ -217,7 +217,14 @@
   }
   @media (prefers-reduced-motion: reduce){ *{transition:none !important;} }
 
-  /* ================= ULTRA-AESTHETIC OBSIDIAN & AURORA DARK THEME (ADMIN ONLY) ================= */
+  /* Full screen wide layout for Admin */
+  body.dark-theme .wrap,
+  .wrap.admin-wide {
+    max-width: 1400px !important;
+    width: 96% !important;
+    margin: 0 auto !important;
+  }
+
   body.dark-theme {
     --ink: #f8fafc;
     --ledger: #060911;
@@ -1103,11 +1110,13 @@
       document.getElementById("inventoryBtn").classList.toggle("hidden", !isAdmin);
       document.getElementById("adminThemeBtn").classList.toggle("hidden", !isAdmin);
       if (isAdmin) {
+        document.getElementById("appScreen").classList.add("admin-wide");
         const isDark = localStorage.getItem("admin_theme") !== "light";
         localStorage.setItem("admin_theme", isDark ? "dark" : "light");
         document.body.classList.toggle("dark-theme", isDark);
         updateAdminThemeBtn(isDark);
       } else {
+        document.getElementById("appScreen").classList.remove("admin-wide");
         localStorage.removeItem("admin_theme");
         document.body.classList.remove("dark-theme");
       }
