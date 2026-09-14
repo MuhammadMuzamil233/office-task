@@ -484,7 +484,7 @@
   </style>
 </head>
 <body>
-  <script>if(localStorage.getItem('admin_theme')==='dark'){document.body.classList.add('dark-theme');}</script>
+  <script>if(localStorage.getItem('admin_theme')!=='light'){document.body.classList.add('dark-theme');localStorage.setItem('admin_theme','dark');}</script>
   <main>
     <header class="book">
       <h1>Demand & User Management</h1>
