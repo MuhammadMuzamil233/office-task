@@ -237,13 +237,160 @@
       font-weight: 700;
       letter-spacing: 0.5px;
     }
+
+    /* ================= PREMIUM DARK THEME (ADMIN ONLY) ================= */
+    body.dark-theme {
+      --ink: #f1f5f9;
+      --paper: #182234;
+      --ledger: #0b111e;
+      --line: #2d3b50;
+      --teal: #14b8a6;
+      --red: #f87171;
+      --green: #4ade80;
+      background: radial-gradient(circle at 15% 10%, rgba(20, 184, 166, 0.07), transparent 45%), #0b111e;
+      color: #f1f5f9;
+    }
+
+    body.dark-theme .book {
+      background: #0f1b2b;
+      border-bottom: 4px solid #eab308;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+    }
+
+    body.dark-theme .card {
+      background: #141e2e;
+      border-color: #243247;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    }
+
+    body.dark-theme .card h2 {
+      background: #0f1726;
+      border-bottom-color: #243247;
+      color: #f8fafc;
+    }
+
+    body.dark-theme .filters-bar {
+      background: #0d1522;
+      border-bottom-color: #243247;
+    }
+
+    body.dark-theme .filters-bar label {
+      color: #2dd4bf;
+    }
+
+    body.dark-theme .filters-bar select,
+    body.dark-theme .table input,
+    body.dark-theme .table textarea,
+    body.dark-theme .table select,
+    body.dark-theme .user-role-select,
+    body.dark-theme .user-status-select {
+      background: #090f19;
+      color: #f1f5f9;
+      border-color: #2d3b50;
+    }
+
+    body.dark-theme .filters-bar select:focus,
+    body.dark-theme .table input:focus,
+    body.dark-theme .table textarea:focus,
+    body.dark-theme .table select:focus {
+      border-color: #14b8a6;
+      box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.25);
+      outline: none;
+    }
+
+    body.dark-theme .table th {
+      background: #0f1726;
+      color: #94a3b8;
+      border-bottom-color: #243247;
+    }
+
+    body.dark-theme .table td {
+      border-bottom-color: #1e293b;
+      color: #e2e8f0;
+    }
+
+    body.dark-theme .table tr:hover td {
+      background: #1a273c;
+    }
+
+    body.dark-theme .item-row td {
+      border-bottom-color: #243247;
+    }
+
+    body.dark-theme .demand-head td {
+      border-top-color: #14b8a6;
+      background: rgba(15, 23, 42, 0.6);
+      color: #f8fafc;
+    }
+
+    body.dark-theme .urgent-row {
+      background: rgba(220, 38, 38, 0.15) !important;
+    }
+
+    body.dark-theme .urgent-row.demand-head td {
+      border-top-color: #ef4444 !important;
+    }
+
+    body.dark-theme .button {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.25);
+      color: #f1f5f9;
+    }
+
+    body.dark-theme .button:hover {
+      background: rgba(255, 255, 255, 0.16);
+    }
+
+    body.dark-theme .empty {
+      color: #94a3b8;
+    }
+
+    body.dark-theme .admin-request {
+      background: #0f1726;
+      border: 1px solid #243247;
+      color: #f1f5f9;
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+    }
+
+    body.dark-theme .admin-request small {
+      color: #94a3b8;
+    }
+
+    body.dark-theme #missingModelModal > div {
+      background: #182234 !important;
+      color: #f1f5f9 !important;
+      border: 1px solid #334155 !important;
+    }
+
+    body.dark-theme #missingModelModal h3 {
+      color: #f8fafc !important;
+    }
+
+    body.dark-theme #missingModelModal p {
+      color: #cbd5e1 !important;
+    }
+
+    body.dark-theme #btnConfirmSkipModel {
+      background: #0f172a !important;
+      color: #cbd5e1 !important;
+      border-color: #334155 !important;
+    }
   </style>
 </head>
 <body>
+  <script>if(localStorage.getItem('admin_theme')==='dark'){document.body.classList.add('dark-theme');}</script>
   <main>
     <header class="book">
       <h1>Demand & User Management</h1>
-          <span><a href="/inventory.html" target="_blank" class="button" style="text-decoration:none;display:inline-block;color:#fff;background:#b08d3e;border-color:#b08d3e;font-weight:700;">📦 Office Inventory</a> <a href="#usersSection" class="button" style="text-decoration:none;display:inline-block;color:#fff;">Active Users</a> <button class="button" id="history">Demand history</button> <button class="button" id="back">Back to tasks</button></span>
+      <span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <button class="button" id="themeToggleBtn" type="button" style="border-color:#eab308;color:#fef08a;background:rgba(234,179,8,0.18);font-weight:700;border-radius:18px;">🌙 Dark Mode</button>
+        <a href="/inventory.html" target="_blank" class="button" style="text-decoration:none;display:inline-block;color:#fff;background:#b08d3e;border-color:#b08d3e;font-weight:700;">📦 Office Inventory</a>
+        <a href="#usersSection" class="button" style="text-decoration:none;display:inline-block;color:#fff;">Active Users</a>
+        <button class="button" id="history">Demand history</button>
+        <button class="button" id="back">Back to tasks</button>
+      </span>
     </header>
 
     <section class="card">
@@ -741,6 +888,24 @@
     // Set up filter change events
     document.getElementById("warehouse-filter").onchange = render;
     document.getElementById("status-filter").onchange = render;
+
+    function updateThemeBtn() {
+      const isDark = document.body.classList.contains("dark-theme");
+      const btn = document.getElementById("themeToggleBtn");
+      if (btn) {
+        btn.innerHTML = isDark ? "☀️ Light Mode" : "🌙 Dark Mode";
+        btn.style.borderColor = isDark ? "#38bdf8" : "#eab308";
+        btn.style.color = isDark ? "#bae6fd" : "#fef08a";
+        btn.style.background = isDark ? "rgba(56, 189, 248, 0.2)" : "rgba(234, 179, 8, 0.18)";
+      }
+    }
+
+    document.getElementById("themeToggleBtn").onclick = () => {
+      const isDark = document.body.classList.toggle("dark-theme");
+      localStorage.setItem("admin_theme", isDark ? "dark" : "light");
+      updateThemeBtn();
+    };
+    updateThemeBtn();
 
     document.getElementById("back").onclick = () => location.href = "/";
     document.getElementById("history").onclick = () => location.href = "/demand-history.html";

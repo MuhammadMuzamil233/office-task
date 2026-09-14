@@ -216,6 +216,105 @@
     li.task, .reminder-row, form#addForm{padding-left:16px;padding-right:16px;}
   }
   @media (prefers-reduced-motion: reduce){ *{transition:none !important;} }
+
+  /* ================= PREMIUM DARK THEME (ADMIN ONLY) ================= */
+  body.dark-theme {
+    --ink: #f1f5f9;
+    --ledger: #0b111e;
+    --ledger-line: #2d3b50;
+    --brass: #eab308;
+    --teal: #14b8a6;
+    --teal-light: #2dd4bf;
+    --stamp-red: #f87171;
+    --done-green: #4ade80;
+    --paper-shadow: rgba(0, 0, 0, 0.4);
+    background: radial-gradient(circle at 15% 10%, rgba(20, 184, 166, 0.07), transparent 45%), #0b111e;
+    color: #f1f5f9;
+  }
+
+  body.dark-theme header.book {
+    background: #0f1b2b;
+    border-bottom: 4px solid #eab308;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+
+  body.dark-theme header.book h1 {
+    color: #f8fafc;
+  }
+
+  body.dark-theme section.card {
+    background: #141e2e;
+    border-color: #243247;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  }
+
+  body.dark-theme section.card h2 {
+    background: #0f1726;
+    border-bottom-color: #243247;
+    color: #f8fafc;
+  }
+
+  body.dark-theme section.card h2 .count {
+    background: rgba(20, 184, 166, 0.15);
+    color: #2dd4bf;
+  }
+
+  body.dark-theme .history-tools {
+    background: #0f1726;
+    border-bottom-color: #243247;
+  }
+
+  body.dark-theme .history-tools input,
+  body.dark-theme .add-tool textarea,
+  body.dark-theme .field input,
+  body.dark-theme .demand-row input,
+  body.dark-theme .demand-row select {
+    background: #090f19;
+    color: #f1f5f9;
+    border-color: #2d3b50;
+  }
+
+  body.dark-theme .history-tools input:focus,
+  body.dark-theme .add-tool textarea:focus,
+  body.dark-theme .field input:focus,
+  body.dark-theme .demand-row input:focus,
+  body.dark-theme .demand-row select:focus {
+    border-color: #14b8a6;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.25);
+  }
+
+  body.dark-theme li.task {
+    border-bottom-color: #1e293b;
+  }
+
+  body.dark-theme li.task:hover {
+    background: #182436;
+  }
+
+  body.dark-theme .reminder-row {
+    border-bottom-color: #243247;
+  }
+
+  body.dark-theme .empty {
+    color: #94a3b8;
+  }
+
+  body.dark-theme .mention-badge {
+    background: #1e3a5f;
+    color: #93c5fd;
+    border-color: #3b82f6;
+  }
+
+  body.dark-theme header.book .whoami button {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #f1f5f9;
+  }
+
+  body.dark-theme header.book .whoami button:hover {
+    background: rgba(255, 255, 255, 0.16);
+  }
 </style>
 </head>
 <body>
@@ -287,6 +386,7 @@
           <button id="demandHistoryBtn" type="button" class="hidden">Demand History</button>
           <button id="inventoryBtn" type="button" class="hidden" style="background:#b08d3e;border-color:#b08d3e;font-weight:700;">Inventory</button>
           <button id="adminBtn" type="button" class="hidden">Admin Panel</button>
+          <button id="adminThemeBtn" type="button" class="hidden" style="border-color:#eab308;color:#fef08a;background:rgba(234,179,8,0.18);font-weight:700;border-radius:18px;">🌙 Dark Mode</button>
         <button id="logoutBtn" type="button">Log out</button>
       </span>
     </div>
@@ -835,8 +935,17 @@
       document.getElementById("historyBtn").classList.toggle("hidden", restrictedRole);
       document.getElementById("demandBtn").classList.toggle("hidden", restrictedRole);
       document.getElementById("demandSection").classList.toggle("hidden", restrictedRole);
-      document.getElementById("adminBtn").classList.toggle("hidden", me.role !== "admin");
-      document.getElementById("inventoryBtn").classList.toggle("hidden", me.role !== "admin");
+      const isAdmin = me.role === "admin";
+      document.getElementById("adminBtn").classList.toggle("hidden", !isAdmin);
+      document.getElementById("inventoryBtn").classList.toggle("hidden", !isAdmin);
+      document.getElementById("adminThemeBtn").classList.toggle("hidden", !isAdmin);
+      if (isAdmin) {
+        const isDark = localStorage.getItem("admin_theme") === "dark";
+        document.body.classList.toggle("dark-theme", isDark);
+        updateAdminThemeBtn(isDark);
+      } else {
+        document.body.classList.remove("dark-theme");
+      }
       document.getElementById("logisticsBtn").classList.toggle("hidden", !["admin", "logistics"].includes(me.role));
       document.getElementById("supportingStaffBtn").classList.toggle("hidden", !["admin", "supporting_staff"].includes(me.role));
       document.getElementById("demandHistoryBtn").classList.toggle("hidden", !["admin", "logistics", "supporting_staff"].includes(me.role));
@@ -850,6 +959,22 @@
       document.getElementById("authScreen").classList.remove("hidden");
     }
   }
+
+  function updateAdminThemeBtn(isDark) {
+    const btn = document.getElementById("adminThemeBtn");
+    if (btn) {
+      btn.innerHTML = isDark ? "☀️ Light Mode" : "🌙 Dark Mode";
+      btn.style.borderColor = isDark ? "#38bdf8" : "#eab308";
+      btn.style.color = isDark ? "#bae6fd" : "#fef08a";
+      btn.style.background = isDark ? "rgba(56, 189, 248, 0.2)" : "rgba(234, 179, 8, 0.18)";
+    }
+  }
+
+  document.getElementById("adminThemeBtn").addEventListener("click", () => {
+    const isDark = document.body.classList.toggle("dark-theme");
+    localStorage.setItem("admin_theme", isDark ? "dark" : "light");
+    updateAdminThemeBtn(isDark);
+  });
 
   document.getElementById("historyBtn").addEventListener("click", () => { window.location.href = "/history.html"; });
   document.getElementById("demandBtn").addEventListener("click", () => { window.location.href = "/demands.html"; });
