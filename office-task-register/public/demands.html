@@ -82,10 +82,44 @@
 
     .item {
       display: grid;
-      grid-template-columns: 1fr 180px 100px 1fr auto;
+      grid-template-columns: 1fr 180px 100px 1fr auto auto;
       gap: 10px;
       margin-bottom: 10px;
       align-items: center;
+    }
+
+    .item-urgent-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 8px 11px;
+      border: 1px solid #c0392b;
+      border-radius: 4px;
+      background: #fff;
+      color: #c0392b;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      user-select: none;
+      transition: all 0.2s;
+    }
+
+    .item-urgent-label:hover {
+      background: #fdf2f0;
+    }
+
+    .item-urgent-label:has(input:checked), .item-urgent-label.urgent-active {
+      background: #c0392b;
+      color: #fff;
+    }
+
+    .item-urgent-label input {
+      accent-color: #c0392b;
+      cursor: pointer;
+      width: 14px;
+      height: 14px;
+      margin: 0;
     }
 
     .item input, .item select, .form input[type=date] {
@@ -219,7 +253,7 @@
       .item {
         grid-template-columns: 1fr 100px;
       }
-      .item .remove {
+      .item .item-urgent-label, .item .remove {
         grid-column: 1/-1;
         width: max-content;
       }
@@ -246,6 +280,9 @@
             </select>
             <input class="quantity" type="number" min="1" step="1" placeholder="Quantity" required>
             <input class="invoice" maxlength="100" placeholder="Invoice number (optional)">
+            <label class="item-urgent-label" title="Mark this item as urgent">
+              <input type="checkbox" class="item-urgent"> ⚡ Urgent
+            </label>
           </div>
         </div>
         <div class="form-actions">
@@ -322,7 +359,7 @@
             const body = table.querySelector("tbody");
             itemsOf(demand).forEach(item => {
               const row = document.createElement("tr");
-              row.innerHTML = `<td>${esc(demand.date)}${demand.is_urgent ? ' <span class="badge-urgent">URGENT</span>' : ''}</td><td>${esc(item.name)}</td><td>${esc(item.warehouse || "-")}</td><td>${item.quantity}</td><td>${item.pickedQuantity == null ? "-" : item.pickedQuantity}</td><td>${esc(item.invoiceNumber || "-")}</td><td class="status">${esc(item.status || demand.status)}</td><td class="remarks">${esc(demand.admin_remarks || "-")}</td><td>${new Date(demand.submitted_at).toLocaleString("en-GB")}</td>`;
+              row.innerHTML = `<td>${esc(demand.date)}${demand.is_urgent ? ' <span class="badge-urgent">URGENT</span>' : ''}</td><td>${esc(item.name)}${item.isUrgent ? ' <span class="badge-urgent">⚡ URGENT</span>' : ''}</td><td>${esc(item.warehouse || "-")}</td><td>${item.quantity}</td><td>${item.pickedQuantity == null ? "-" : item.pickedQuantity}</td><td>${esc(item.invoiceNumber || "-")}</td><td class="status">${esc(item.status || demand.status)}</td><td class="remarks">${esc(demand.admin_remarks || "-")}</td><td>${new Date(demand.submitted_at).toLocaleString("en-GB")}</td>`;
               body.appendChild(row);
             });
             group.appendChild(table);
@@ -336,6 +373,20 @@
 
     document.getElementById("date").value = new Date().toISOString().slice(0, 10);
     document.getElementById("back").onclick = () => location.href = "/";
+    function wireUrgentToggle(row) {
+      const chk = row.querySelector(".item-urgent");
+      const lbl = row.querySelector(".item-urgent-label");
+      if (chk && lbl) {
+        chk.onchange = () => {
+          if (chk.checked) lbl.classList.add("urgent-active");
+          else lbl.classList.remove("urgent-active");
+        };
+      }
+    }
+
+    // Wire up first item
+    document.querySelectorAll(".item").forEach(wireUrgentToggle);
+
     document.getElementById("add").onclick = () => {
       const row = document.createElement("div");
       row.className = "item";
@@ -348,9 +399,13 @@
         </select>
         <input class="quantity" type="number" min="1" step="1" placeholder="Quantity" required>
         <input class="invoice" maxlength="100" placeholder="Invoice number (optional)">
+        <label class="item-urgent-label" title="Mark this item as urgent">
+          <input type="checkbox" class="item-urgent"> ⚡ Urgent
+        </label>
         <button type="button" class="remove">Remove</button>
       `;
       row.querySelector(".remove").onclick = () => row.remove();
+      wireUrgentToggle(row);
       document.getElementById("items").appendChild(row);
     };
 
@@ -362,6 +417,7 @@
           const fromInv = prodInput ? prodInput.getAttribute("data-from-inventory") === "1" : false;
           const invId = prodInput ? (prodInput.getAttribute("data-inventory-id") || "") : "";
           const invModel = prodInput ? (prodInput.getAttribute("data-inventory-model") || "") : "";
+          const isItemUrgent = Boolean(row.querySelector(".item-urgent")?.checked);
           return {
             name: prodInput.value.trim(),
             warehouse: row.querySelector(".warehouse").value,
@@ -369,7 +425,8 @@
             invoiceNumber: row.querySelector(".invoice")?.value?.trim() || "",
             fromInventory: fromInv,
             inventoryItemId: invId,
-            inventoryModel: invModel
+            inventoryModel: invModel,
+            isUrgent: isItemUrgent
           };
         });
 
@@ -386,18 +443,23 @@
           if (existing) {
             existing.quantity += item.quantity;
             if (!existing.invoiceNumber && item.invoiceNumber) existing.invoiceNumber = item.invoiceNumber;
+            if (item.isUrgent) existing.isUrgent = true;
           } else {
             products.push(item);
           }
         });
 
-        const isUrgent = Boolean(document.getElementById("urgentDemand")?.checked);
+        const isOverallUrgent = Boolean(document.getElementById("urgentDemand")?.checked);
+        if (isOverallUrgent) {
+          products.forEach(p => p.isUrgent = true);
+        }
+        const hasAnyUrgent = products.some(p => p.isUrgent) || isOverallUrgent;
         await api("/api/demands", {
           method: "POST",
           body: JSON.stringify({
             date: document.getElementById("date").value,
             products,
-            isUrgent
+            isUrgent: hasAnyUrgent
           })
         });
         event.target.reset();
@@ -413,8 +475,12 @@
             </select>
             <input class="quantity" type="number" min="1" step="1" placeholder="Quantity" required>
             <input class="invoice" maxlength="100" placeholder="Invoice number (optional)">
+            <label class="item-urgent-label" title="Mark this item as urgent">
+              <input type="checkbox" class="item-urgent"> ⚡ Urgent
+            </label>
           </div>
         `;
+        document.querySelectorAll(".item").forEach(wireUrgentToggle);
         load();
       } catch (error) {
         alert(error.message);

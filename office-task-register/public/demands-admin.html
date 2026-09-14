@@ -575,13 +575,14 @@
         const total = demand.items.reduce((sum, item) => sum + item.quantity, 0);
 
         demand.items.forEach((item, index) => {
+          const isItemUrgent = Boolean(item.isUrgent);
           const row = document.createElement("tr");
-          row.className = (index === 0 ? "demand-head item-row" : "item-row") + (demand.is_urgent ? " urgent-row" : "");
+          row.className = (index === 0 ? "demand-head item-row" : "item-row") + (demand.is_urgent || isItemUrgent ? " urgent-row" : "");
           
           row.innerHTML = `
             <td>${index === 0 ? `<b>${esc(demand.employee_name)}</b>${demand.creator_role === 'admin' ? ' <span style="background:#172554;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;">ADMIN DEMAND</span>' : ''}${demand.is_urgent ? (demand.status === 'pending' ? ' <span class="badge-urgent" title="Urgent requested by employee - approve to notify logistics">⚡ URGENT REQUESTED</span>' : ' <span class="badge-urgent">⚡ URGENT</span>') : ''}` : ""}</td>
             <td>${index === 0 ? esc(demand.date) : ""}</td>
-            <td>${esc(item.name)}</td>
+            <td>${esc(item.name)}${isItemUrgent ? ' <span class="badge-urgent">⚡ URGENT</span>' : ''}</td>
             <td>${esc(item.warehouse || "-")}</td>
             <td>${item.quantity}</td>
             <td>${item.pickedQuantity == null ? "-" : item.pickedQuantity}</td>
@@ -590,15 +591,15 @@
             <td>${esc(item.status || demand.status)}</td>
             <td>${index === 0 ? date(demand.submitted_at) : ""}</td>
             <td>
-              ${index === 0 ? `
-                <div class="actions">
-                  <button class="action urgent-btn ${demand.is_urgent ? 'urgent-active' : ''}">${demand.is_urgent ? '⚡ Urgent (Active)' : '⚡ Mark Urgent'}</button>
+              <div class="actions">
+                ${index === 0 ? `
+                  <button class="action urgent-btn ${demand.is_urgent ? 'urgent-active' : ''}">${demand.is_urgent ? '⚡ Urgent Demand (ON)' : '⚡ Mark Demand Urgent'}</button>
                   <button class="action approve">Approve</button>
                   <button class="action reject">Reject</button>
                   <button class="action complete">Complete all</button>
                   <button class="action cancel">Cancel</button>
-                </div>
-              ` : ""}
+                ` : ""}
+              </div>
             </td>
           `;
 
@@ -641,34 +642,58 @@
             row.querySelector(".cancel").onclick = () => update("cancelled");
           }
 
-          if (item.status !== "completed") {
-            const completeItem = document.createElement("button");
-            completeItem.className = "action complete-item";
-            completeItem.textContent = "Complete item";
-            row.querySelector("td:last-child").appendChild(completeItem);
-            
-            const runCompleteItem = async (extra = {}) => {
+          const itemActionsDiv = row.querySelector("td:last-child .actions");
+          if (itemActionsDiv) {
+            // Per-item Urgent toggle button
+            const itemUrgentBtn = document.createElement("button");
+            itemUrgentBtn.className = `action urgent-btn ${isItemUrgent ? 'urgent-active' : ''}`;
+            itemUrgentBtn.style.cssText = "padding:4px 8px;font-size:11px;";
+            itemUrgentBtn.textContent = isItemUrgent ? "⚡ Urgent (Item)" : "⚡ Mark Urgent";
+            itemUrgentBtn.title = "Toggle urgent priority for this item";
+            itemUrgentBtn.onclick = async () => {
               try {
+                itemUrgentBtn.disabled = true;
                 await api("/api/admin/demands/" + demand.id, {
                   method: "PATCH",
-                  body: JSON.stringify({ completeItemIndex: item.index, ...extra })
+                  body: JSON.stringify({ toggleItemUrgentIndex: item.index })
                 });
                 load();
               } catch (err) {
-                if (err.needsModelDecision) {
-                  showMissingModelPrompt(err.modelName, async (choice) => {
-                    if (choice === "add") {
-                      await runCompleteItem({ addNewModelToInventory: true });
-                    } else if (choice === "skip") {
-                      await runCompleteItem({ skipInventoryUpdate: true });
-                    }
-                  });
-                  return;
-                }
-                alert("❌ " + (err.message || "Failed to complete item"));
+                alert("❌ " + (err.message || "Failed to update item urgent status"));
+                itemUrgentBtn.disabled = false;
               }
             };
-            completeItem.onclick = () => runCompleteItem();
+            itemActionsDiv.appendChild(itemUrgentBtn);
+
+            if (item.status !== "completed") {
+              const completeItem = document.createElement("button");
+              completeItem.className = "action complete-item";
+              completeItem.textContent = "Complete item";
+              
+              const runCompleteItem = async (extra = {}) => {
+                try {
+                  await api("/api/admin/demands/" + demand.id, {
+                    method: "PATCH",
+                    body: JSON.stringify({ completeItemIndex: item.index, ...extra })
+                  });
+                  load();
+                } catch (err) {
+                  if (err.needsModelDecision) {
+                    showMissingModelPrompt(err.modelName, async (choice) => {
+                      if (choice === "add") {
+                        await runCompleteItem({ addNewModelToInventory: true });
+                      } else if (choice === "skip") {
+                        await runCompleteItem({ skipInventoryUpdate: true });
+                      }
+                    });
+                    return;
+                  }
+                  alert("❌ " + (err.message || "Failed to complete item"));
+                }
+              };
+              completeItem.onclick = () => runCompleteItem();
+              itemActionsDiv.appendChild(completeItem);
+            }
           }
 
           list.appendChild(row);

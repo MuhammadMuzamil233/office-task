@@ -542,28 +542,35 @@ const demandWarehouses = ["FC Faizabad WH", "FC I10 WH"];
 
 function demandToJson(demand) {
   const items = Array.isArray(demand.products)
-    ? demand.products.map(item => ({
-        name: item.name,
-        quantity: item.quantity,
-        pickedQuantity: Number.isInteger(item.pickedQuantity) ? item.pickedQuantity : null,
-        warehouse: item.warehouse || "",
-        invoiceNumber: item.invoiceNumber || "",
-        status: item.status || demand.status,
-        fromInventory: Boolean(item.fromInventory),
-        inventoryItemId: item.inventoryItemId ? String(item.inventoryItemId) : "",
-        inventoryModel: item.inventoryModel ? String(item.inventoryModel) : ""
-      }))
-    : [{ name: demand.products, quantity: demand.quantity || 1, pickedQuantity: null, warehouse: "", invoiceNumber: "", status: demand.status, fromInventory: false, inventoryItemId: "", inventoryModel: "" }];
+    ? demand.products.map(item => {
+        const itemUrgent = typeof item.isUrgent === "boolean"
+          ? item.isUrgent
+          : Boolean(demand.isUrgent);
+        return {
+          name: item.name,
+          quantity: item.quantity,
+          pickedQuantity: Number.isInteger(item.pickedQuantity) ? item.pickedQuantity : null,
+          warehouse: item.warehouse || "",
+          invoiceNumber: item.invoiceNumber || "",
+          status: item.status || demand.status,
+          fromInventory: Boolean(item.fromInventory),
+          inventoryItemId: item.inventoryItemId ? String(item.inventoryItemId) : "",
+          inventoryModel: item.inventoryModel ? String(item.inventoryModel) : "",
+          isUrgent: itemUrgent
+        };
+      })
+    : [{ name: demand.products, quantity: demand.quantity || 1, pickedQuantity: null, warehouse: "", invoiceNumber: "", status: demand.status, fromInventory: false, inventoryItemId: "", inventoryModel: "", isUrgent: Boolean(demand.isUrgent) }];
+  const hasAnyUrgent = items.some(it => it.isUrgent) || Boolean(demand.isUrgent);
   return {
     id: demand._id.toString(),
     employee_name: demand.employeeName,
     employee_username: demand.employeeUsername || "",
     creator_role: demand.creatorRole || "user",
     date: demand.date,
-    products: items.map(item => `${item.name} (${item.quantity})`).join(", "),
+    products: items.map(item => `${item.name} (${item.quantity})${item.isUrgent ? ' [URGENT]' : ''}`).join(", "),
     quantity: items.reduce((total, item) => total + item.quantity, 0),
     items,
-    is_urgent: Boolean(demand.isUrgent),
+    is_urgent: hasAnyUrgent,
     status: demand.status,
     admin_remarks: demand.adminRemarks,
     submitted_at: demand.submittedAt,
@@ -579,18 +586,30 @@ async function sortDemandsWithPriority(demands) {
 
   for (const d of demands) {
     const isAdmin = await isDemandCreatedByAdmin(d);
+    const isUrgent = Boolean(d.isUrgent) || (Array.isArray(d.products) && d.products.some(p => Boolean(p && p.isUrgent)));
     if (isAdmin) {
-      if (d.isUrgent) {
+      if (isUrgent) {
         adminUrgent.push(d);
       } else {
         adminRegular.push(d);
       }
     } else {
-      if (d.isUrgent) {
+      if (isUrgent) {
         userUrgent.push(d);
       } else {
         userRegular.push(d);
       }
+    }
+  }
+
+  // Inside each demand, sort items so urgent items come first
+  for (const d of demands) {
+    if (Array.isArray(d.products)) {
+      d.products.sort((a, b) => {
+        const aU = a && a.isUrgent ? 1 : 0;
+        const bU = b && b.isUrgent ? 1 : 0;
+        return bU - aU;
+      });
     }
   }
 
@@ -663,7 +682,8 @@ app.post("/api/demands", authMiddleware, async (req, res) => {
       invoiceNumber: String(item.invoiceNumber || "").trim().slice(0, 100),
       fromInventory: Boolean(item.fromInventory),
       inventoryItemId: item.inventoryItemId ? String(item.inventoryItemId).trim() : "",
-      inventoryModel: item.inventoryModel ? String(item.inventoryModel).trim() : ""
+      inventoryModel: item.inventoryModel ? String(item.inventoryModel).trim() : "",
+      isUrgent: Boolean(item.isUrgent) || Boolean(isUrgent)
     })) : [];
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || !items.length || items.some(item => !item.name || !Number.isInteger(item.quantity) || item.quantity < 1 || !demandWarehouses.includes(item.warehouse))) {
       return res.status(400).json({ error: "Date, product, quantity, and a valid warehouse are required" });
@@ -681,11 +701,13 @@ app.post("/api/demands", authMiddleware, async (req, res) => {
       if (existing) {
         existing.quantity += item.quantity;
         if (!existing.invoiceNumber && item.invoiceNumber) existing.invoiceNumber = item.invoiceNumber;
+        if (item.isUrgent) existing.isUrgent = true;
       } else {
         mergedItems.push(item);
       }
     });
 
+    const hasAnyUrgent = mergedItems.some(it => it.isUrgent) || Boolean(isUrgent);
     const isUserAdmin = req.user.role === "admin" || (ADMIN_USERNAME && req.user.username && req.user.username.toLowerCase() === ADMIN_USERNAME);
     const demand = await Demand.create({
       employeeId: req.user.id,
@@ -694,7 +716,7 @@ app.post("/api/demands", authMiddleware, async (req, res) => {
       creatorRole: isUserAdmin ? "admin" : "user",
       date,
       products: mergedItems,
-      isUrgent: Boolean(isUrgent),
+      isUrgent: hasAnyUrgent,
       urgentNotified: false
     });
     res.json(demandToJson(demand));
@@ -882,7 +904,30 @@ async function isDemandCreatedByAdmin(demand) {
 
 app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { date, products, quantity, status, adminRemarks, completeItemIndex, isUrgent, addNewModelToInventory, skipInventoryUpdate } = req.body || {};
+    const { date, products, quantity, status, adminRemarks, completeItemIndex, toggleItemUrgentIndex, isUrgent, addNewModelToInventory, skipInventoryUpdate } = req.body || {};
+
+    // Toggle per-item urgent status
+    if (Number.isInteger(toggleItemUrgentIndex)) {
+      const demand = await Demand.findById(req.params.id);
+      if (!demand || !Array.isArray(demand.products)) return res.status(404).json({ error: "Demand item not found" });
+      if (toggleItemUrgentIndex < 0 || toggleItemUrgentIndex >= demand.products.length) return res.status(400).json({ error: "Invalid demand item" });
+
+      const targetItem = demand.products[toggleItemUrgentIndex];
+      targetItem.isUrgent = !targetItem.isUrgent;
+      demand.isUrgent = demand.products.some(p => Boolean(p && p.isUrgent));
+      demand.markModified("products");
+
+      if (demand.isUrgent && demand.status === "approved" && !demand.urgentNotified) {
+        await notifyLogisticsUrgentDemand(demand, req.user.name);
+        demand.urgentNotified = true;
+      } else if (!demand.isUrgent) {
+        demand.urgentNotified = false;
+      }
+
+      await demand.save();
+      return res.json(demandToJson(demand));
+    }
+
     if (Number.isInteger(completeItemIndex)) {
       const demand = await Demand.findById(req.params.id);
       if (!demand || !Array.isArray(demand.products)) return res.status(404).json({ error: "Demand item not found" });
@@ -931,6 +976,7 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         await Demand.deleteOne({ _id: demand._id });
         return res.json({ ok: true, archived: true, demandDeleted: true });
       }
+      demand.isUrgent = demand.products.some(p => Boolean(p && p.isUrgent));
       demand.markModified("products");
       await demand.save();
       return res.json(demandToJson(demand));
@@ -1009,9 +1055,13 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         invoiceNumber: String(item.invoiceNumber || "").trim().slice(0, 100),
         fromInventory: Boolean(item.fromInventory),
         inventoryItemId: item.inventoryItemId ? String(item.inventoryItemId).trim() : "",
-        inventoryModel: item.inventoryModel ? String(item.inventoryModel).trim() : ""
+        inventoryModel: item.inventoryModel ? String(item.inventoryModel).trim() : "",
+        isUrgent: Boolean(item.isUrgent)
       }));
       updates.quantity = null;
+      if (updates.products.some(p => p.isUrgent)) {
+        updates.isUrgent = true;
+      }
     } else if (typeof products === "string" && products.trim() && Number.isInteger(Number(quantity)) && Number(quantity) >= 1) {
       updates.products = [{ name: products.trim().slice(0, 200), quantity: Number(quantity) }];
       updates.quantity = null;

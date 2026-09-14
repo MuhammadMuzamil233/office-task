@@ -109,7 +109,7 @@ async function load() {
       row.innerHTML = `
         <td><b>${esc(d.employee_name)}</b>${d.creator_role === 'admin' ? ' <span style="background:#172554;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;">ADMIN</span>' : ''}</td>
         <td>${esc(d.date)}</td>
-        <td>${items(d).map(item => `${esc(item.name)} (${item.quantity})`).join('<br>')}</td>
+        <td>${items(d).map(item => `${esc(item.name)} (${item.quantity})${item.isUrgent ? ' <span style="background:#c0392b;color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;">⚡ URGENT</span>' : ''}`).join('<br>')}</td>
         <td>${items(d).map(item => esc(item.warehouse || '-')).join('<br>')}</td>
         <td>${items(d).map(item => esc(item.invoiceNumber || '-')).join('<br>')}</td>
         <td>${d.quantity}</td>
