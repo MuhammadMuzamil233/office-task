@@ -1076,10 +1076,10 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
     const demand = await Demand.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true });
     if (!demand) return res.status(404).json({ error: "Demand not found" });
 
-    // Logistics notification only after admin approval OR admin manually marking urgent
+    // Logistics notification only after admin approval
     const shouldNotify = (
-      (isUrgent === true) ||
-      (status === "approved" && demand.isUrgent)
+      (status === "approved" || demand.status === "approved") &&
+      (demand.isUrgent || isUrgent === true)
     ) && !demand.urgentNotified;
 
     if (shouldNotify) {
@@ -1097,7 +1097,8 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
 
 app.get("/api/logistics/demands", authMiddleware, logisticsMiddleware, async (req, res) => {
   try {
-    const demands = await Demand.find().sort({ submittedAt: -1, createdAt: -1 });
+    // Only show demands approved by admin or in progress (on_the_way)
+    const demands = await Demand.find({ status: { $in: ["approved", "on_the_way"] } }).sort({ submittedAt: -1, createdAt: -1 });
     const sorted = await sortDemandsWithPriority(demands);
     res.json(sorted.map(demandToJson));
   } catch (e) {
@@ -1126,6 +1127,9 @@ app.patch("/api/logistics/demands/:id", authMiddleware, logisticsMiddleware, asy
       return res.status(400).json({ error: "Pickup quantity must be a whole number between 0 and the demanded quantity" });
     }
     demand.products = demand.products.map((item, index) => uniqueIndexes.includes(index) ? { ...item.toObject?.() || item, pickedQuantity: hasPickedQuantity ? normalizedPickedQuantity : Number(item.quantity), status } : item);
+    if (demand.products.every(item => item.status === "on_the_way")) {
+      demand.status = "on_the_way";
+    }
     demand.markModified("products");
     await demand.save();
     res.json(demandToJson(demand));
