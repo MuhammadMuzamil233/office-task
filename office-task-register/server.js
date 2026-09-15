@@ -798,8 +798,7 @@ app.post("/api/demands", authMiddleware, async (req, res) => {
 
     const hasAnyUrgent = mergedItems.some(it => it.isUrgent) || Boolean(isUrgent);
     const isUserAdmin = req.user.role === "admin" || (ADMIN_USERNAME && req.user.username && req.user.username.toLowerCase() === ADMIN_USERNAME);
-    const initialStatus = isUserAdmin ? "approved" : "pending";
-    mergedItems.forEach(item => { item.status = initialStatus; });
+    mergedItems.forEach(item => { item.status = "pending"; });
     const demand = await Demand.create({
       employeeId: req.user.id,
       employeeName: req.user.name,
@@ -807,9 +806,9 @@ app.post("/api/demands", authMiddleware, async (req, res) => {
       creatorRole: isUserAdmin ? "admin" : "user",
       date,
       products: mergedItems,
-      status: initialStatus,
+      status: "pending",
       isUrgent: hasAnyUrgent,
-      urgentNotified: isUserAdmin && hasAnyUrgent
+      urgentNotified: false
     });
     res.json(demandToJson(demand));
   } catch (e) {
