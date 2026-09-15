@@ -584,7 +584,7 @@ function demandToJson(demand) {
           pickedQuantity: Number.isInteger(item.pickedQuantity) ? item.pickedQuantity : null,
           warehouse: item.warehouse || "",
           invoiceNumber: item.invoiceNumber || "",
-          status: item.status ? item.status : (demand.status === "completed" || demand.status === "cancelled" ? demand.status : "pending"),
+          status: item.status ? item.status : (["approved", "completed", "cancelled", "on_the_way"].includes(demand.status) ? demand.status : "pending"),
           fromInventory: Boolean(item.fromInventory),
           inventoryItemId: item.inventoryItemId ? String(item.inventoryItemId) : "",
           inventoryModel: item.inventoryModel ? String(item.inventoryModel) : "",
@@ -798,6 +798,8 @@ app.post("/api/demands", authMiddleware, async (req, res) => {
 
     const hasAnyUrgent = mergedItems.some(it => it.isUrgent) || Boolean(isUrgent);
     const isUserAdmin = req.user.role === "admin" || (ADMIN_USERNAME && req.user.username && req.user.username.toLowerCase() === ADMIN_USERNAME);
+    const initialStatus = isUserAdmin ? "approved" : "pending";
+    mergedItems.forEach(item => { item.status = initialStatus; });
     const demand = await Demand.create({
       employeeId: req.user.id,
       employeeName: req.user.name,
@@ -805,8 +807,9 @@ app.post("/api/demands", authMiddleware, async (req, res) => {
       creatorRole: isUserAdmin ? "admin" : "user",
       date,
       products: mergedItems,
+      status: initialStatus,
       isUrgent: hasAnyUrgent,
-      urgentNotified: false
+      urgentNotified: isUserAdmin && hasAnyUrgent
     });
     res.json(demandToJson(demand));
   } catch (e) {
@@ -1141,10 +1144,12 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
       if (!deletedDemand) return res.status(404).json({ error: "Demand not found" });
       return res.json({ ok: true, deleted: true });
     }
-    const updates = {};
-    if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) updates.date = date;
+    const demand = await Demand.findById(req.params.id);
+    if (!demand) return res.status(404).json({ error: "Demand not found" });
+
+    if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) demand.date = date;
     if (Array.isArray(products) && products.length && products.every(item => item && String(item.name || "").trim() && Number.isInteger(Number(item.quantity)) && Number(item.quantity) >= 1 && demandWarehouses.includes(String(item.warehouse || "")))) {
-      updates.products = products.map(item => ({
+      demand.products = products.map(item => ({
         name: String(item.name).trim().slice(0, 200),
         quantity: Number(item.quantity),
         pickedQuantity: Number.isInteger(Number(item.pickedQuantity)) ? Number(item.pickedQuantity) : null,
@@ -1153,38 +1158,55 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         fromInventory: Boolean(item.fromInventory),
         inventoryItemId: item.inventoryItemId ? String(item.inventoryItemId).trim() : "",
         inventoryModel: item.inventoryModel ? String(item.inventoryModel).trim() : "",
-        isUrgent: Boolean(item.isUrgent)
+        isUrgent: Boolean(item.isUrgent),
+        status: item.status || (status === "approved" ? "approved" : "pending")
       }));
-      updates.quantity = null;
-      if (updates.products.some(p => p.isUrgent)) {
-        updates.isUrgent = true;
+      demand.quantity = null;
+      if (demand.products.some(p => p.isUrgent)) {
+        demand.isUrgent = true;
       }
     } else if (typeof products === "string" && products.trim() && Number.isInteger(Number(quantity)) && Number(quantity) >= 1) {
-      updates.products = [{ name: products.trim().slice(0, 200), quantity: Number(quantity) }];
-      updates.quantity = null;
+      demand.products = [{ name: products.trim().slice(0, 200), quantity: Number(quantity), status: status === "approved" ? "approved" : "pending" }];
+      demand.quantity = null;
     }
-    if (["pending", "approved", "rejected", "completed", "cancelled", "on_the_way"].includes(status)) updates.status = status;
-    if (typeof adminRemarks === "string") updates.adminRemarks = adminRemarks.trim().slice(0, 2000);
+
+    if (["pending", "approved", "rejected", "completed", "cancelled", "on_the_way"].includes(status)) {
+      demand.status = status;
+      if (Array.isArray(demand.products)) {
+        demand.products.forEach(p => {
+          if (status === "approved") {
+            if (!p.status || p.status === "pending") p.status = "approved";
+          } else if (status === "rejected") {
+            p.status = "rejected";
+          } else if (status === "cancelled") {
+            p.status = "cancelled";
+          } else if (status === "pending") {
+            p.status = "pending";
+          }
+        });
+        demand.markModified("products");
+      }
+    }
+
+    if (typeof adminRemarks === "string") demand.adminRemarks = adminRemarks.trim().slice(0, 2000);
     if (typeof isUrgent === "boolean") {
-      updates.isUrgent = isUrgent;
-      if (!isUrgent) updates.urgentNotified = false;
+      demand.isUrgent = isUrgent;
+      if (!isUrgent) demand.urgentNotified = false;
     }
-    if (!Object.keys(updates).length) return res.status(400).json({ error: "A valid demand update is required" });
-    const demand = await Demand.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true });
-    if (!demand) return res.status(404).json({ error: "Demand not found" });
 
     // Logistics notification only after admin approval
     const shouldNotify = (
       (status === "approved" || demand.status === "approved") &&
-      (demand.isUrgent || isUrgent === true)
-    ) && !demand.urgentNotified;
+      Boolean(demand.isUrgent) &&
+      !demand.urgentNotified
+    );
 
     if (shouldNotify) {
       await notifyLogisticsUrgentDemand(demand, req.user.name);
       demand.urgentNotified = true;
-      await demand.save();
     }
 
+    await demand.save();
     res.json(demandToJson(demand));
   } catch (e) {
     console.error(e);
