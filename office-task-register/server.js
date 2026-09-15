@@ -584,7 +584,7 @@ function demandToJson(demand) {
           pickedQuantity: Number.isInteger(item.pickedQuantity) ? item.pickedQuantity : null,
           warehouse: item.warehouse || "",
           invoiceNumber: item.invoiceNumber || "",
-          status: item.status || demand.status,
+          status: item.status ? item.status : (demand.status === "completed" || demand.status === "cancelled" ? demand.status : "pending"),
           fromInventory: Boolean(item.fromInventory),
           inventoryItemId: item.inventoryItemId ? String(item.inventoryItemId) : "",
           inventoryModel: item.inventoryModel ? String(item.inventoryModel) : "",
@@ -1223,7 +1223,21 @@ app.patch("/api/logistics/demands/:id", authMiddleware, logisticsMiddleware, asy
     if (hasPickedQuantity && (!Number.isInteger(normalizedPickedQuantity) || normalizedPickedQuantity < 0 || selectedItems.some(item => normalizedPickedQuantity > Number(item.quantity)))) {
       return res.status(400).json({ error: "Pickup quantity must be a whole number between 0 and the demanded quantity" });
     }
-    demand.products = demand.products.map((item, index) => uniqueIndexes.includes(index) ? { ...item.toObject?.() || item, pickedQuantity: hasPickedQuantity ? normalizedPickedQuantity : Number(item.quantity), status } : item);
+    demand.products = demand.products.map((item, index) => {
+      const obj = item.toObject?.() || item;
+      if (uniqueIndexes.includes(index)) {
+        return {
+          ...obj,
+          pickedQuantity: hasPickedQuantity ? normalizedPickedQuantity : Number(obj.quantity),
+          status: "on_the_way"
+        };
+      } else {
+        return {
+          ...obj,
+          status: obj.status ? obj.status : "pending"
+        };
+      }
+    });
     if (demand.products.some(item => item.status === "on_the_way")) {
       demand.status = "on_the_way";
     }
