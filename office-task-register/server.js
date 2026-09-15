@@ -51,6 +51,9 @@ const taskSchema = new mongoose.Schema({
   completedAt: { type: Date, default: null },
   addedBy: { type: String, default: null },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  assignedToUserId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  assignedToName: { type: String, default: "" },
+  assignedToUsername: { type: String, default: "" },
   comments: [{
     text: { type: String, required: true, trim: true, maxlength: 1000 },
     addedBy: { type: String, required: true },
@@ -178,6 +181,9 @@ function taskToJson(t) {
     completed_at: t.completedAt,
     updated_at: t.updatedAt,
     added_by: t.addedBy,
+    assigned_to_id: t.assignedToUserId ? t.assignedToUserId.toString() : null,
+    assigned_to_name: t.assignedToName || "",
+    assigned_to_username: t.assignedToUsername || "",
     created_at: t.createdAt,
     comments: (t.comments || []).map(comment => ({
       id: comment._id.toString(),
@@ -1431,18 +1437,41 @@ app.delete("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req
   }
 });
 
-// ---------- Task routes ----------
-// Returns all incomplete tasks from before today (overdue reminders)
-// plus incomplete tasks added today, for the whole office.
+// ---------- Task routes (Restricted to Supporting Staff & Admin) ----------
+app.get("/api/admin/supporting-staff-users", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const staff = await User.find({ role: "supporting_staff", isActive: { $ne: false } }).select("username name").sort({ name: 1 });
+    res.json(staff.map(u => ({ id: u._id.toString(), username: u.username, name: u.name })));
+  } catch (e) {
+    res.status(500).json({ error: "Could not load supporting staff users" });
+  }
+});
+
 app.get("/api/tasks", authMiddleware, async (req, res) => {
   try {
+    const role = req.user.role;
+    if (role !== "admin" && role !== "supporting_staff") {
+      return res.json([]);
+    }
     const today = todayStr();
-    const tasks = await Task.find({
+    const query = {
       $or: [
         { dateAdded: today, completed: false },
         { completed: false, dateAdded: { $lt: today } }
       ]
-    }).sort({ dateAdded: 1, createdAt: 1 });
+    };
+    if (role === "supporting_staff") {
+      query.$and = [
+        {
+          $or: [
+            { assignedToUserId: req.user.id },
+            { assignedToUserId: null },
+            { assignedToUserId: { $exists: false } }
+          ]
+        }
+      ];
+    }
+    const tasks = await Task.find(query).sort({ dateAdded: 1, createdAt: 1 });
     res.json(tasks.map(taskToJson));
   } catch (e) {
     console.error(e);
@@ -1452,12 +1481,23 @@ app.get("/api/tasks", authMiddleware, async (req, res) => {
 
 app.get("/api/tasks/history", authMiddleware, async (req, res) => {
   try {
+    const role = req.user.role;
+    if (role !== "admin" && role !== "supporting_staff") {
+      return res.json([]);
+    }
     const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 100) : "";
     const filter = { completed: true };
+    if (role === "supporting_staff") {
+      filter.$or = [
+        { assignedToUserId: req.user.id },
+        { assignedToUserId: null },
+        { assignedToUserId: { $exists: false } }
+      ];
+    }
     if (search) {
       const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const searchPattern = new RegExp(escapedSearch, "i");
-      filter.$or = [{ title: searchPattern }, { addedBy: searchPattern }];
+      filter.title = searchPattern;
     }
     const tasks = await Task.find(filter).sort({ updatedAt: -1, createdAt: -1 });
     res.json(tasks.map(taskToJson));
@@ -1467,18 +1507,35 @@ app.get("/api/tasks/history", authMiddleware, async (req, res) => {
   }
 });
 
-app.post("/api/tasks", authMiddleware, async (req, res) => {
+app.post("/api/tasks", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { title } = req.body;
+    const { title, assignedToUserId } = req.body || {};
     if (!title || !title.trim()) {
       return res.status(400).json({ error: "Task text is required" });
+    }
+    let assignStaff = null;
+    if (assignedToUserId && mongoose.Types.ObjectId.isValid(assignedToUserId)) {
+      assignStaff = await User.findById(assignedToUserId);
     }
     const task = await Task.create({
       title: title.trim().slice(0, 500),
       dateAdded: todayStr(),
       addedBy: req.user.name,
-      userId: req.user.id
+      userId: req.user.id,
+      assignedToUserId: assignStaff ? assignStaff._id : null,
+      assignedToName: assignStaff ? assignStaff.name : "",
+      assignedToUsername: assignStaff ? assignStaff.username : ""
     });
+
+    if (assignStaff) {
+      await Notification.create({
+        recipientId: assignStaff._id,
+        actorName: req.user.name,
+        message: `📋 Task Assigned by Admin: ${task.title.slice(0, 100)}`,
+        taskId: task._id
+      });
+    }
+
     await notifyMentionedUsers(task.title, req.user, task, "a task");
     res.json(taskToJson(task));
   } catch (e) {
@@ -1487,9 +1544,12 @@ app.post("/api/tasks", authMiddleware, async (req, res) => {
   }
 });
 
-app.patch("/api/tasks/:id", authMiddleware, adminMiddleware, async (req, res) => {
+app.patch("/api/tasks/:id", authMiddleware, async (req, res) => {
   try {
-    const { completed, title } = req.body;
+    if (req.user.role !== "admin" && req.user.role !== "supporting_staff") {
+      return res.status(403).json({ error: "Task updates restricted to Supporting Staff and Admin" });
+    }
+    const { completed, title } = req.body || {};
     const updates = {};
     if (typeof completed === "boolean") {
       updates.completed = completed;

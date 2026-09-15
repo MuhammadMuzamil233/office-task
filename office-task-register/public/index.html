@@ -1120,14 +1120,17 @@
         localStorage.removeItem("admin_theme");
         document.body.classList.remove("dark-theme");
       }
+      const canViewTasks = me.role === "admin" || me.role === "supporting_staff";
+      document.getElementById("todaySection").style.display = canViewTasks ? "block" : "none";
+      document.getElementById("reminders").style.display = canViewTasks ? "block" : "none";
       document.getElementById("logisticsBtn").classList.toggle("hidden", !["admin", "logistics"].includes(me.role));
       document.getElementById("supportingStaffBtn").classList.toggle("hidden", !["admin", "supporting_staff"].includes(me.role));
       document.getElementById("demandHistoryBtn").classList.toggle("hidden", !["admin", "logistics", "supporting_staff"].includes(me.role));
       document.getElementById("authScreen").classList.add("hidden");
       document.getElementById("appScreen").classList.remove("hidden");
-      document.getElementById("taskInput").disabled = false;
-      document.querySelector("#addForm button").disabled = false;
-      await Promise.all([loadTasks(), loadUsers(), loadNotifications(), loadDemands()]);
+      document.getElementById("taskInput").disabled = !canViewTasks;
+      document.querySelector("#addForm button").disabled = !canViewTasks;
+      await Promise.all([canViewTasks ? loadTasks() : Promise.resolve(), loadUsers(), loadNotifications(), loadDemands()]);
     }catch(e){
       document.getElementById("appScreen").classList.add("hidden");
       document.getElementById("authScreen").classList.remove("hidden");

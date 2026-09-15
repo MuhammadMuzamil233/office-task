@@ -636,6 +636,14 @@
       </div>
     </header>
 
+    <div class="card" id="staffTasksCard">
+      <div style="padding:14px 20px;background:#f4efe4;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <h3 style="margin:0;font-size:15px;color:var(--teal);display:flex;align-items:center;gap:6px;">📋 Assigned Tasks &amp; Instructions (<span id="staffTaskCount">0</span>)</h3>
+        <small style="color:#64748b;font-weight:600;">Assigned by Admin to Supporting Staff</small>
+      </div>
+      <div id="staffTaskList" style="padding:14px 20px;"><div style="color:#64748b;font-size:13px;">Loading assigned tasks...</div></div>
+    </div>
+
     <div class="card">
       <div class="filters-bar">
         <div class="filter-group">
@@ -758,8 +766,47 @@
         document.getElementById("userName").textContent = currentUser.name;
         document.getElementById("roleBadge").textContent = currentUser.role === "admin" ? "ADMIN" : "SUPPORTING STAFF";
         await loadDemands();
+        await loadStaffTasks();
       } catch (e) {
         window.location.href = "/";
+      }
+    }
+
+    async function loadStaffTasks() {
+      const container = document.getElementById("staffTaskList");
+      try {
+        const tasks = await api("/api/tasks");
+        document.getElementById("staffTaskCount").textContent = tasks.length;
+        if (!tasks.length) {
+          container.innerHTML = '<div style="color:#64748b;font-size:13px;font-style:italic;">No active tasks assigned to supporting staff.</div>';
+          return;
+        }
+        container.innerHTML = "";
+        tasks.forEach(task => {
+          const div = document.createElement("div");
+          div.style.cssText = "padding:12px;margin-bottom:10px;background:#fff;border:1px solid var(--line);border-radius:6px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;";
+          div.innerHTML = `
+            <div style="flex:1;">
+              <div style="font-weight:600;font-size:14px;color:var(--ink);">${esc(task.title)}</div>
+              <div style="font-size:11px;color:#64748b;margin-top:4px;">
+                Assigned by <b>${esc(task.added_by || 'Admin')}</b> ${task.assigned_to_name ? `to <b>${esc(task.assigned_to_name)}</b>` : ''} · ${dateFmt(task.created_at)}
+              </div>
+            </div>
+            <button type="button" class="btn" style="background:var(--green);border-color:var(--green);font-size:12px;padding:6px 12px;" onclick="completeStaffTask('${task.id}')">✅ Complete</button>
+          `;
+          container.appendChild(div);
+        });
+      } catch (err) {
+        container.innerHTML = `<div style="color:var(--red);font-size:13px;">Could not load tasks: ${esc(err.message)}</div>`;
+      }
+    }
+
+    async function completeStaffTask(taskId) {
+      try {
+        await api("/api/tasks/" + taskId, { method: "PATCH", body: JSON.stringify({ completed: true }) });
+        await loadStaffTasks();
+      } catch (err) {
+        alert("❌ " + (err.message || "Failed to complete task"));
       }
     }
 
