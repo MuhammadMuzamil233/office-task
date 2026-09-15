@@ -589,6 +589,8 @@ function demandToJson(demand) {
           inventoryItemId: item.inventoryItemId ? String(item.inventoryItemId) : "",
           inventoryModel: item.inventoryModel ? String(item.inventoryModel) : "",
           isUrgent: itemUrgent,
+          isExtraItem: Boolean(item.isExtraItem),
+          addedByLogistics: item.addedByLogistics || "",
           supportStatus: item.supportStatus || demand.supportStatus || null,
           supportRemarks: item.supportRemarks || (item.supportStatus ? "" : (demand.supportRemarks || "")),
           supportCheckedBy: item.supportCheckedBy || demand.supportCheckedBy || "",
@@ -1268,6 +1270,57 @@ app.patch("/api/logistics/demands/:id", authMiddleware, logisticsMiddleware, asy
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not update logistics status" });
+  }
+});
+
+app.post("/api/logistics/demands/:id/add-item", authMiddleware, logisticsMiddleware, async (req, res) => {
+  try {
+    const { name, quantity, pickedQuantity, warehouse, invoiceNumber } = req.body || {};
+    if (!name || !String(name).trim() || !Number.isInteger(Number(quantity)) || Number(quantity) < 1) {
+      return res.status(400).json({ error: "Item name and a valid quantity (at least 1) are required" });
+    }
+    const demand = await Demand.findById(req.params.id);
+    if (!demand) return res.status(404).json({ error: "Demand not found" });
+
+    if (!Array.isArray(demand.products)) {
+      demand.products = [];
+    }
+
+    const defaultWh = demand.products[0]?.warehouse || "FC Faizabad WH";
+    const targetWh = String(warehouse || defaultWh).trim();
+    const numQty = Number(quantity);
+    const numPicked = (pickedQuantity !== undefined && pickedQuantity !== null && pickedQuantity !== "" && Number.isInteger(Number(pickedQuantity)) && Number(pickedQuantity) >= 0)
+      ? Number(pickedQuantity)
+      : numQty;
+
+    const newItem = {
+      name: String(name).trim().slice(0, 200),
+      quantity: numQty,
+      pickedQuantity: numPicked,
+      warehouse: targetWh,
+      invoiceNumber: String(invoiceNumber || "").trim().slice(0, 100),
+      status: "on_the_way",
+      fromInventory: false,
+      inventoryItemId: "",
+      inventoryModel: "",
+      isUrgent: Boolean(demand.isUrgent),
+      isExtraItem: true,
+      addedByLogistics: req.user.name || "Logistics",
+      supportStatus: null,
+      supportRemarks: "",
+      supportCheckedBy: "",
+      supportCheckedAt: null
+    };
+
+    demand.products.push(newItem);
+    demand.status = "on_the_way";
+    demand.markModified("products");
+    await demand.save();
+
+    res.json(demandToJson(demand));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not add extra item to demand" });
   }
 });
 

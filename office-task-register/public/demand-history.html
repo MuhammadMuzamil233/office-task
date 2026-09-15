@@ -218,7 +218,7 @@ function render() {
       row.innerHTML = `
         <td>${itemIdx === 0 ? `<b>${esc(d.employee_name)}</b>${d.creator_role === 'admin' ? ' <span style="background:#172554;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;">ADMIN</span>' : ''}` : ''}</td>
         <td>${itemIdx === 0 ? esc(d.date) : ''}</td>
-        <td><b>${esc(item.name)}</b>${item.isUrgent ? ' <span style="background:#c0392b;color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;">⚡ URGENT</span>' : ''}</td>
+        <td><b>${esc(item.name)}</b>${item.isUrgent ? ' <span style="background:#c0392b;color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;">⚡ URGENT</span>' : ''}${item.isExtraItem ? ' <span style="background:#0284c7;color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;">➕ Extra Item</span>' : ''}</td>
         <td>${esc(item.warehouse || '-')}</td>
         <td><code>${esc(item.invoiceNumber || '-')}</code></td>
         <td>${item.quantity}</td>

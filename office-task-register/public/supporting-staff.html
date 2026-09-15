@@ -877,7 +877,7 @@
           tr.innerHTML = `
             <td>${index === 0 ? `<b>${esc(demand.employee_name)}</b>${demand.is_urgent ? ' <span class="badge badge-urgent">⚡ URGENT</span>' : ''}` : ''}</td>
             <td>${index === 0 ? esc(demand.date) : ''}</td>
-            <td><b>${esc(item.name)}</b></td>
+            <td><b>${esc(item.name)}</b>${item.isExtraItem ? ' <span class="badge" style="background:#0284c7;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;">➕ Extra Item</span>' : ''}</td>
             <td>${esc(item.warehouse || '-')}</td>
             <td>${item.quantity}</td>
             <td><b>${item.pickedQuantity == null ? '-' : item.pickedQuantity}</b></td>
