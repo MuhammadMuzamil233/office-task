@@ -183,19 +183,8 @@ function copySingleDemand(demandId) {
   const d = all.find(x => x.id === demandId);
   if (!d) return;
   const items = itemsOf(d);
-  let text = `📦 DEMAND DETAILS - ${d.employee_name}\n📅 Date: ${d.date}\n`;
-  if (d.is_urgent) text += `⚡ Priority: URGENT\n`;
-  text += `---------------------------------\n`;
-  items.forEach(it => {
-    text += `• ${it.name} | Demanded: ${it.quantity}`;
-    if (it.pickedQuantity != null) text += ` | Picked: ${it.pickedQuantity}`;
-    if (it.warehouse) text += ` | WH: ${it.warehouse}`;
-    if (it.invoiceNumber) text += ` | Invoice: #${it.invoiceNumber}`;
-    if (it.isUrgent) text += ` [⚡ URGENT]`;
-    text += `\n`;
-  });
-  text += `---------------------------------\nStatus: ${(d.status || '').toUpperCase()}`;
-  copyToClipboard(text, `✓ Copied demand for ${d.employee_name}!`);
+  const text = items.map(it => `${it.name} - ${it.quantity}`).join('\n');
+  copyToClipboard(text, `✓ Copied item & quantity!`);
 }
 
 function copySelectedDemands() {
@@ -205,9 +194,7 @@ function copySelectedDemands() {
     return;
   }
 
-  let text = `📦 SELECTED DEMANDS SHARE\n📅 Date: ${new Date().toLocaleDateString('en-GB')}\n---------------------------------\n`;
-  const selectedMap = new Map();
-
+  const itemsList = [];
   checkedBoxes.forEach(cb => {
     const demandId = cb.dataset.did;
     const itemIndex = parseInt(cb.dataset.index, 10);
@@ -215,57 +202,31 @@ function copySelectedDemands() {
     if (d) {
       const items = itemsOf(d);
       if (items[itemIndex]) {
-        if (!selectedMap.has(d.id)) selectedMap.set(d.id, { demand: d, items: [] });
-        selectedMap.get(d.id).items.push(items[itemIndex]);
+        itemsList.push(items[itemIndex]);
       }
     }
   });
 
-  selectedMap.forEach(({ demand, items }) => {
-    text += `👤 ${demand.employee_name} (${demand.date})${demand.is_urgent ? ' [⚡URGENT]' : ''}:\n`;
-    items.forEach(it => {
-      text += `  • ${it.name} | Qty: ${it.quantity}`;
-      if (it.pickedQuantity != null) text += ` (Picked: ${it.pickedQuantity})`;
-      if (it.warehouse) text += ` | WH: ${it.warehouse}`;
-      if (it.invoiceNumber) text += ` | Invoice: #${it.invoiceNumber}`;
-      if (it.isUrgent) text += ` [⚡URGENT]`;
-      text += `\n`;
-    });
-    text += `\n`;
-  });
-  text += `---------------------------------`;
-
-  copyToClipboard(text, `✓ Copied ${checkedBoxes.length} selected item(s)!`);
+  const text = itemsList.map(it => `${it.name} - ${it.quantity}`).join('\n');
+  copyToClipboard(text, `✓ Copied ${itemsList.length} item(s) & quantity!`);
 }
 
 function copyAllVisibleDemands() {
   const warehouse = document.getElementById('warehouse').value;
-  let count = 0;
-  let text = `📦 ALL DEMANDS OVERVIEW (${warehouse === 'all' ? 'All Warehouses' : warehouse})\n📅 Date: ${new Date().toLocaleDateString('en-GB')}\n---------------------------------\n\n`;
+  const itemsList = [];
 
   all.forEach(d => {
     const items = itemsOf(d).filter(it => it.status !== 'completed' && (warehouse === 'all' || it.warehouse === warehouse));
-    if (!items.length) return;
-    count++;
-    text += `👤 ${d.employee_name} | Date: ${d.date}${d.is_urgent ? ' [⚡ URGENT]' : ''}\n`;
-    items.forEach(it => {
-      text += `  • ${it.name} | Qty: ${it.quantity}`;
-      if (it.pickedQuantity != null) text += ` (Picked: ${it.pickedQuantity})`;
-      if (it.warehouse) text += ` | WH: ${it.warehouse}`;
-      if (it.invoiceNumber) text += ` | Invoice: #${it.invoiceNumber}`;
-      if (it.isUrgent) text += ` [⚡URGENT]`;
-      text += `\n`;
-    });
-    text += `\n`;
+    items.forEach(it => itemsList.push(it));
   });
 
-  if (!count) {
-    alert("Is warehouse ke liye koi demand mojood nahi hai.");
+  if (!itemsList.length) {
+    alert("Is warehouse ke liye koi demand item mojood nahi hai.");
     return;
   }
 
-  text += `---------------------------------`;
-  copyToClipboard(text, `✓ Copied all ${count} visible demand(s)!`);
+  const text = itemsList.map(it => `${it.name} - ${it.quantity}`).join('\n');
+  copyToClipboard(text, `✓ Copied all visible items & quantity!`);
 }
 
 function render() {

@@ -649,21 +649,10 @@
       const d = allDemands.find(x => x.id === demandId);
       if (!d) return;
       const items = itemList(d);
-      let text = `📦 DEMAND DETAILS - ${d.employee_name}\n📅 Date: ${d.date}\n`;
-      if (d.is_urgent) text += `⚡ Priority: URGENT\n`;
-      text += `---------------------------------\n`;
-      items.forEach(it => {
-        text += `• ${it.name} | Qty: ${it.quantity}`;
-        if (it.pickedQuantity != null) text += ` (Picked: ${it.pickedQuantity})`;
-        if (it.warehouse) text += ` | WH: ${it.warehouse}`;
-        if (it.invoiceNumber) text += ` | Invoice: #${it.invoiceNumber}`;
-        if (it.isUrgent) text += ` [⚡ URGENT]`;
-        text += `\n`;
-      });
-      text += `---------------------------------\nStatus: ${(d.status || '').toUpperCase()}`;
+      const text = items.map(it => `${it.name} - ${it.quantity}`).join('\n');
       if (navigator.clipboard) {
         navigator.clipboard.writeText(text).then(() => {
-          alert(`✓ Copied demand for ${d.employee_name}!`);
+          alert(`✓ Copied item & quantity!`);
         }).catch(() => { alert(text); });
       } else {
         alert(text);
