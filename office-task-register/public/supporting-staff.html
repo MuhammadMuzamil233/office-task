@@ -842,35 +842,37 @@
           if (index === 0) tr.classList.add("demand-head");
           if (demand.is_urgent) tr.classList.add("urgent-row");
 
-          // Inspection status html
+          // Item-level inspection status html
+          const itemStatus = item.supportStatus || 'awaiting';
+          const itemRemarks = item.supportRemarks || '';
+          const itemCheckedBy = item.supportCheckedBy || '';
+          const itemCheckedAt = item.supportCheckedAt || null;
+
           let inspectionBadgeHtml = '';
-          if (supportStatus === 'ok') {
+          if (itemStatus === 'ok') {
             inspectionBadgeHtml = `
               <span class="badge-status-ok">🟢 Verified OK</span>
-              <div class="support-meta">Checked by <b>${esc(demand.support_checked_by || 'Staff')}</b><br>${dateFmt(demand.support_checked_at)}</div>
+              <div class="support-meta">Checked by <b>${esc(itemCheckedBy || 'Staff')}</b><br>${dateFmt(itemCheckedAt)}</div>
             `;
-          } else if (supportStatus === 'issue') {
+          } else if (itemStatus === 'issue') {
             inspectionBadgeHtml = `
               <span class="badge-status-issue">🔴 Issue Reported</span>
-              <div class="support-issue-text"><b>Issue:</b> ${esc(demand.support_remarks || 'Unspecified issue')}</div>
-              <div class="support-meta">Reported by <b>${esc(demand.support_checked_by || 'Staff')}</b><br>${dateFmt(demand.support_checked_at)}</div>
+              <div class="support-issue-text"><b>Issue:</b> ${esc(itemRemarks || 'Unspecified issue')}</div>
+              <div class="support-meta">Reported by <b>${esc(itemCheckedBy || 'Staff')}</b><br>${dateFmt(itemCheckedAt)}</div>
             `;
           } else {
             inspectionBadgeHtml = `
-              <span class="badge-status-awaiting">⏳ Awaiting Inspection</span>
+              <span class="badge-status-awaiting">⏳ Awaiting Check</span>
             `;
           }
 
-          // Action buttons
-          let actionHtml = '';
-          if (index === 0) {
-            actionHtml = `
-              <div class="action-group">
-                <button class="act-btn btn-ok" onclick="handleMarkOk('${demand.id}')">✅ OK</button>
-                <button class="act-btn btn-issue" onclick="openIssueModal('${demand.id}')">⚠️ Issue</button>
-              </div>
-            `;
-          }
+          // Per-item Action buttons
+          let actionHtml = `
+            <div class="action-group">
+              <button class="act-btn btn-ok" onclick="handleMarkItemOk('${demand.id}', ${index})">✅ OK</button>
+              <button class="act-btn btn-issue" onclick="openIssueModal('${demand.id}', ${index})">⚠️ Issue</button>
+            </div>
+          `;
 
           tr.innerHTML = `
             <td>${index === 0 ? `<b>${esc(demand.employee_name)}</b>${demand.is_urgent ? ' <span class="badge badge-urgent">⚡ URGENT</span>' : ''}` : ''}</td>
@@ -881,8 +883,8 @@
             <td><b>${item.pickedQuantity == null ? '-' : item.pickedQuantity}</b></td>
             <td><code>${esc(item.invoiceNumber || '-')}</code></td>
             <td><span class="badge badge-on-the-way">${esc(item.status || demand.status)}</span></td>
-            <td>${index === 0 ? inspectionBadgeHtml : ''}</td>
-            <td>${index === 0 ? actionHtml : ''}</td>
+            <td>${inspectionBadgeHtml}</td>
+            <td>${actionHtml}</td>
           `;
 
           body.appendChild(tr);
@@ -890,26 +892,33 @@
       });
     }
 
-    async function handleMarkOk(demandId) {
-      if (!confirm("Are you sure this delivery demand is fully OK and verified?")) return;
+    async function handleMarkItemOk(demandId, itemIndex) {
+      const demand = allDemands.find(d => d.id === demandId);
+      const item = demand && demand.items ? demand.items[itemIndex] : null;
+      const itemName = item ? item.name : "this item";
+      if (!confirm(`Verify "${itemName}" as OK?`)) return;
       try {
         await api(`/api/supporting-staff/demands/${demandId}`, {
           method: "PATCH",
-          body: JSON.stringify({ status: "ok" })
+          body: JSON.stringify({ status: "ok", itemIndex })
         });
         await loadDemands();
       } catch (e) {
-        alert("Failed to mark demand OK: " + e.message);
+        alert("Failed to mark item OK: " + e.message);
       }
     }
 
-    function openIssueModal(demandId) {
+    let activeIssueItemIndex = null;
+
+    function openIssueModal(demandId, itemIndex) {
       activeDemandForIssue = demandId;
+      activeIssueItemIndex = itemIndex;
       const demand = allDemands.find(d => d.id === demandId);
+      const item = demand && demand.items ? demand.items[itemIndex] : null;
       const sub = document.getElementById("issueModalSubtitle");
-      if (demand) {
-        sub.innerHTML = `Reporting issue for <b>${esc(demand.employee_name)}</b> (${demand.items.map(i => esc(i.name)).join(", ")}):`;
-        document.getElementById("issueRemarksInput").value = demand.support_remarks || "";
+      if (demand && item) {
+        sub.innerHTML = `Reporting issue for <b>${esc(demand.employee_name)}</b> on item <b>"${esc(item.name)}"</b> (Demanded Qty: ${item.quantity}, Picked: ${item.pickedQuantity == null ? '-' : item.pickedQuantity}):`;
+        document.getElementById("issueRemarksInput").value = item.supportRemarks || "";
       } else {
         document.getElementById("issueRemarksInput").value = "";
       }
@@ -920,6 +929,7 @@
     function closeIssueModal() {
       document.getElementById("issueModal").style.display = "none";
       activeDemandForIssue = null;
+      activeIssueItemIndex = null;
     }
 
     document.getElementById("btnCancelIssue").onclick = closeIssueModal;
@@ -934,7 +944,7 @@
       try {
         await api(`/api/supporting-staff/demands/${activeDemandForIssue}`, {
           method: "PATCH",
-          body: JSON.stringify({ status: "issue", remarks })
+          body: JSON.stringify({ status: "issue", remarks, itemIndex: activeIssueItemIndex })
         });
         closeIssueModal();
         await loadDemands();

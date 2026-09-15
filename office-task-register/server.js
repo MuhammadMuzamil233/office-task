@@ -588,10 +588,14 @@ function demandToJson(demand) {
           fromInventory: Boolean(item.fromInventory),
           inventoryItemId: item.inventoryItemId ? String(item.inventoryItemId) : "",
           inventoryModel: item.inventoryModel ? String(item.inventoryModel) : "",
-          isUrgent: itemUrgent
+          isUrgent: itemUrgent,
+          supportStatus: item.supportStatus || demand.supportStatus || null,
+          supportRemarks: item.supportRemarks || (item.supportStatus ? "" : (demand.supportRemarks || "")),
+          supportCheckedBy: item.supportCheckedBy || demand.supportCheckedBy || "",
+          supportCheckedAt: item.supportCheckedAt || demand.supportCheckedAt || null
         };
       })
-    : [{ name: demand.products, quantity: demand.quantity || 1, pickedQuantity: null, warehouse: "", invoiceNumber: "", status: demand.status, fromInventory: false, inventoryItemId: "", inventoryModel: "", isUrgent: Boolean(demand.isUrgent) }];
+    : [{ name: demand.products, quantity: demand.quantity || 1, pickedQuantity: null, warehouse: "", invoiceNumber: "", status: demand.status, fromInventory: false, inventoryItemId: "", inventoryModel: "", isUrgent: Boolean(demand.isUrgent), supportStatus: demand.supportStatus || null, supportRemarks: demand.supportRemarks || "", supportCheckedBy: demand.supportCheckedBy || "", supportCheckedAt: demand.supportCheckedAt || null }];
   const hasAnyUrgent = items.some(it => it.isUrgent) || Boolean(demand.isUrgent);
   return {
     id: demand._id.toString(),
@@ -1252,29 +1256,65 @@ app.get("/api/supporting-staff/demands", authMiddleware, supportingStaffMiddlewa
 
 app.patch("/api/supporting-staff/demands/:id", authMiddleware, supportingStaffMiddleware, async (req, res) => {
   try {
-    const { status, remarks } = req.body || {};
+    const { status, remarks, itemIndex } = req.body || {};
     if (!["ok", "issue", "pending"].includes(status)) {
       return res.status(400).json({ error: "Invalid status: must be 'ok', 'issue', or 'pending'" });
     }
     const demand = await Demand.findById(req.params.id);
     if (!demand) return res.status(404).json({ error: "Demand not found" });
 
-    demand.supportStatus = status;
-    demand.supportRemarks = String(remarks || "").trim().slice(0, 2000);
-    demand.supportCheckedBy = req.user.name;
-    demand.supportCheckedAt = new Date();
+    const isItemLevel = Number.isInteger(itemIndex) && Array.isArray(demand.products) && itemIndex >= 0 && itemIndex < demand.products.length;
+
+    if (isItemLevel) {
+      const targetItem = demand.products[itemIndex];
+      targetItem.supportStatus = status;
+      targetItem.supportRemarks = String(remarks || "").trim().slice(0, 2000);
+      targetItem.supportCheckedBy = req.user.name;
+      targetItem.supportCheckedAt = new Date();
+      demand.markModified("products");
+
+      const allOk = demand.products.every(p => p.supportStatus === "ok");
+      const anyIssue = demand.products.some(p => p.supportStatus === "issue");
+      if (anyIssue) {
+        demand.supportStatus = "issue";
+        const issueItem = demand.products.find(p => p.supportStatus === "issue");
+        demand.supportRemarks = issueItem ? `${issueItem.name}: ${issueItem.supportRemarks}` : "Issue reported on item";
+      } else if (allOk) {
+        demand.supportStatus = "ok";
+        demand.supportRemarks = "";
+      } else {
+        demand.supportStatus = "pending";
+      }
+      demand.supportCheckedBy = req.user.name;
+      demand.supportCheckedAt = new Date();
+    } else {
+      demand.supportStatus = status;
+      demand.supportRemarks = String(remarks || "").trim().slice(0, 2000);
+      demand.supportCheckedBy = req.user.name;
+      demand.supportCheckedAt = new Date();
+      if (Array.isArray(demand.products)) {
+        demand.products.forEach(p => {
+          p.supportStatus = status;
+          p.supportRemarks = status === "issue" ? demand.supportRemarks : "";
+          p.supportCheckedBy = req.user.name;
+          p.supportCheckedAt = demand.supportCheckedAt;
+        });
+        demand.markModified("products");
+      }
+    }
 
     demand.markModified("supportStatus");
     demand.markModified("supportRemarks");
     await demand.save();
 
-    // If an issue is reported or verified, notify admins
+    // Notify admins if issue is reported or checked
     try {
       const admins = await User.find({ role: "admin", isActive: { $ne: false } }).select("_id");
       if (admins.length) {
+        const itemInfo = isItemLevel ? ` on item "${demand.products[itemIndex].name}"` : "";
         const notifMsg = status === "issue"
-          ? `⚠️ Supporting Staff ${req.user.name} reported ISSUE on demand for ${demand.employeeName}: ${demand.supportRemarks || "Issue reported"}`
-          : `✅ Supporting Staff ${req.user.name} verified demand for ${demand.employeeName} as OK`;
+          ? `⚠️ Supporting Staff ${req.user.name} reported ISSUE${itemInfo} for ${demand.employeeName}: ${remarks || demand.supportRemarks || "Issue reported"}`
+          : `✅ Supporting Staff ${req.user.name} verified item${itemInfo} for ${demand.employeeName} as OK`;
         await Notification.insertMany(admins.map(a => ({
           recipientId: a._id,
           actorName: req.user.name,

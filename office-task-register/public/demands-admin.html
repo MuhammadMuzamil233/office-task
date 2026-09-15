@@ -645,6 +645,31 @@
       };
     }).filter(item => item.name);
 
+    function copyAdminDemand(demandId) {
+      const d = allDemands.find(x => x.id === demandId);
+      if (!d) return;
+      const items = itemList(d);
+      let text = `📦 DEMAND DETAILS - ${d.employee_name}\n📅 Date: ${d.date}\n`;
+      if (d.is_urgent) text += `⚡ Priority: URGENT\n`;
+      text += `---------------------------------\n`;
+      items.forEach(it => {
+        text += `• ${it.name} | Qty: ${it.quantity}`;
+        if (it.pickedQuantity != null) text += ` (Picked: ${it.pickedQuantity})`;
+        if (it.warehouse) text += ` | WH: ${it.warehouse}`;
+        if (it.invoiceNumber) text += ` | Invoice: #${it.invoiceNumber}`;
+        if (it.isUrgent) text += ` [⚡ URGENT]`;
+        text += `\n`;
+      });
+      text += `---------------------------------\nStatus: ${(d.status || '').toUpperCase()}`;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+          alert(`✓ Copied demand for ${d.employee_name}!`);
+        }).catch(() => { alert(text); });
+      } else {
+        alert(text);
+      }
+    }
+
     let allDemands = [];
 
     async function load() {
@@ -858,6 +883,7 @@
             <td>
               <div class="actions">
                 ${index === 0 ? `
+                  <button class="action copy-btn" style="background:#0284c7;border-color:#0284c7;color:#fff;" onclick="copyAdminDemand('${demand.id}')">📋 Copy</button>
                   <button class="action urgent-btn ${demand.is_urgent ? 'urgent-active' : ''}">${demand.is_urgent ? '⚡ Urgent Demand (ON)' : '⚡ Mark Demand Urgent'}</button>
                   <button class="action approve">Approve</button>
                   <button class="action reject">Reject</button>
