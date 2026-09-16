@@ -225,7 +225,7 @@ function copySingleDemand(demandId) {
   const d = all.find(x => x.id === demandId);
   if (!d) return;
   const items = itemsOf(d);
-  const text = items.map(it => `${it.name} - ${it.quantity}`).join('\n');
+  const text = items.map(it => `${it.name} - ${it.quantity}${it.invoiceNumber ? ` (Inv: ${it.invoiceNumber})` : ''}`).join('\n');
   copyToClipboard(text, `✓ Copied item & quantity!`);
 }
 
@@ -249,7 +249,7 @@ function copySelectedDemands() {
     }
   });
 
-  const text = itemsList.map(it => `${it.name} - ${it.quantity}`).join('\n');
+  const text = itemsList.map(it => `${it.name} - ${it.quantity}${it.invoiceNumber ? ` (Inv: ${it.invoiceNumber})` : ''}`).join('\n');
   copyToClipboard(text, `✓ Copied ${itemsList.length} item(s) & quantity!`);
 }
 
@@ -267,7 +267,7 @@ function copyAllVisibleDemands() {
     return;
   }
 
-  const text = itemsList.map(it => `${it.name} - ${it.quantity}`).join('\n');
+  const text = itemsList.map(it => `${it.name} - ${it.quantity}${it.invoiceNumber ? ` (Inv: ${it.invoiceNumber})` : ''}`).join('\n');
   copyToClipboard(text, `✓ Copied all visible items & quantity!`);
 }
 

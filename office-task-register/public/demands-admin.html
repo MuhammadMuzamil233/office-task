@@ -661,7 +661,7 @@
       const d = allDemands.find(x => x.id === demandId);
       if (!d) return;
       const items = itemList(d);
-      const text = items.map(it => `${it.name} - ${it.quantity}`).join('\n');
+      const text = items.map(it => `${it.name} - ${it.quantity}${it.invoiceNumber ? ` (Inv: ${it.invoiceNumber})` : ''}`).join('\n');
       if (navigator.clipboard) {
         navigator.clipboard.writeText(text).then(() => {
           alert(`✓ Copied item & quantity!`);
