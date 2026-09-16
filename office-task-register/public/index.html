@@ -1078,10 +1078,36 @@
     }
   });
 
+  let availableWarehouses = ["FC Faizabad WH", "FC I10 WH"];
+  function getWarehouseOptionsHtml(selected = "") {
+    let html = '<option value="">Select warehouse</option>';
+    availableWarehouses.forEach(wh => {
+      html += `<option value="${escapeHtml(wh)}"${wh === selected ? ' selected' : ''}>${escapeHtml(wh)}</option>`;
+    });
+    return html;
+  }
+  function updateWarehouseSelects() {
+    document.querySelectorAll(".demand-warehouse").forEach(sel => {
+      const val = sel.value;
+      sel.innerHTML = getWarehouseOptionsHtml(val);
+    });
+  }
+  async function loadWarehouses() {
+    try {
+      const list = await api("/api/warehouses");
+      if (Array.isArray(list) && list.length) {
+        availableWarehouses = list.map(w => w.name);
+        updateWarehouseSelects();
+      }
+    } catch (e) {
+      console.warn("Could not load warehouses", e);
+    }
+  }
+
   document.getElementById("demandDate").value = todayStr();
   document.getElementById("addDemandItem").addEventListener("click", () => {
     const row = document.createElement("div"); row.className = "demand-item";
-    row.innerHTML = '<input class="demand-product" type="text" maxlength="200" placeholder="Product name" required><select class="demand-warehouse" required><option value="">Select warehouse</option><option>FC Faizabad WH</option><option>FC I10 WH</option></select><input class="demand-quantity" type="number" min="1" step="1" placeholder="Quantity" required><input class="demand-invoice" type="text" maxlength="100" placeholder="Invoice number (optional)"><button type="button" class="remove-item">Remove</button>';
+    row.innerHTML = '<input class="demand-product" type="text" maxlength="200" placeholder="Product name" required><select class="demand-warehouse" required>' + getWarehouseOptionsHtml() + '</select><input class="demand-quantity" type="number" min="1" step="1" placeholder="Quantity" required><input class="demand-invoice" type="text" maxlength="100" placeholder="Invoice number (optional)"><button type="button" class="remove-item">Remove</button>';
     row.querySelector(".remove-item").onclick = () => row.remove(); document.getElementById("demandItems").appendChild(row);
   });
   document.getElementById("demandForm").addEventListener("submit", async (e) => {
@@ -1091,6 +1117,7 @@
       const isUrgent = Boolean(document.getElementById("demandUrgent")?.checked);
       const demand = await api("/api/demands", { method:"POST", body: JSON.stringify({ date:document.getElementById("demandDate").value, products, isUrgent }) });
       myDemands.unshift(demand); e.target.reset(); document.getElementById("demandDate").value = todayStr();
+      updateWarehouseSelects();
       if(document.getElementById("demandUrgent")) document.getElementById("demandUrgent").checked = false;
       await loadDemands();
     }catch(e){ showError(e.message); }
@@ -1099,6 +1126,7 @@
   async function boot(){
     try{
       me = await api("/api/me");
+      await loadWarehouses();
       document.getElementById("myName").textContent = me.name;
       document.querySelector(".greet").firstChild.textContent = me.role === "admin" ? "Admin signed in as " : "Signed in as ";
       const restrictedRole = me.role === "logistics" || me.role === "supporting_staff";

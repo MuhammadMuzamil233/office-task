@@ -79,8 +79,6 @@ select{border:1px solid var(--line);background:var(--paper);border-radius:4px;pa
     <label for="warehouse">Warehouse:</label>
     <select id="warehouse">
       <option value="all">All warehouses</option>
-      <option>FC Faizabad WH</option>
-      <option>FC I10 WH</option>
     </select>
   </div>
   <div class="scroll">
@@ -147,10 +145,7 @@ select{border:1px solid var(--line);background:var(--paper);border-radius:4px;pa
       </div>
       <label style="font-size:12px;font-weight:600;color:#334155;">
         Warehouse:
-        <select id="extraItemWarehouse" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;margin-top:4px;box-sizing:border-box;">
-          <option value="FC Faizabad WH">FC Faizabad WH</option>
-          <option value="FC I10 WH">FC I10 WH</option>
-        </select>
+        <select id="extraItemWarehouse" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;margin-top:4px;box-sizing:border-box;"></select>
       </label>
       <label style="font-size:12px;font-weight:600;color:#334155;">
         Invoice Number (Optional):
@@ -352,8 +347,43 @@ function render() {
   if (!summary.size) summaryBody.innerHTML = '<tr><td colspan="3" class="empty">No quantities required.</td></tr>';
 }
 
+async function loadWarehouses() {
+  try {
+    const list = await api('/api/warehouses');
+    if (Array.isArray(list) && list.length) {
+      const whSelect = document.getElementById('warehouse');
+      const extraWhSelect = document.getElementById('extraItemWarehouse');
+      const currentFilter = whSelect ? whSelect.value : 'all';
+      if (whSelect) {
+        whSelect.innerHTML = '<option value="all">All warehouses</option>';
+        list.forEach(w => {
+          const opt = document.createElement('option');
+          opt.value = w.name;
+          opt.textContent = w.name;
+          if (w.name === currentFilter) opt.selected = true;
+          whSelect.appendChild(opt);
+        });
+      }
+      if (extraWhSelect) {
+        const currentExtra = extraWhSelect.value;
+        extraWhSelect.innerHTML = '';
+        list.forEach(w => {
+          const opt = document.createElement('option');
+          opt.value = w.name;
+          opt.textContent = w.name;
+          if (w.name === currentExtra) opt.selected = true;
+          extraWhSelect.appendChild(opt);
+        });
+      }
+    }
+  } catch (e) {
+    console.warn("Could not load warehouses", e);
+  }
+}
+
 async function load() {
   try {
+    await loadWarehouses();
     all = await api('/api/logistics/demands');
     render();
   } catch (e) {

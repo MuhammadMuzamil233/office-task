@@ -77,8 +77,6 @@ body.dark-theme .empty{color:#94a3b8 !important;}
         <label for="warehouseFilter">Warehouse:</label>
         <select id="warehouseFilter">
           <option value="all">All warehouses</option>
-          <option value="FC Faizabad WH">FC Faizabad WH</option>
-          <option value="FC I10 WH">FC I10 WH</option>
         </select>
       </div>
       <div class="filter-item" style="flex:1;min-width:200px;">
@@ -240,6 +238,28 @@ function render() {
   });
 }
 
+async function loadWarehouses() {
+  try {
+    const list = await api('/api/warehouses');
+    if (Array.isArray(list) && list.length) {
+      const sel = document.getElementById('warehouseFilter');
+      if (sel) {
+        const current = sel.value || 'all';
+        sel.innerHTML = '<option value="all">All warehouses</option>';
+        list.forEach(w => {
+          const opt = document.createElement('option');
+          opt.value = w.name;
+          opt.textContent = w.name;
+          if (w.name === current) opt.selected = true;
+          sel.appendChild(opt);
+        });
+      }
+    }
+  } catch (e) {
+    console.warn("Could not load warehouses", e);
+  }
+}
+
 async function load() {
   const list = document.getElementById('list');
   try {
@@ -247,6 +267,7 @@ async function load() {
     if (!['admin', 'logistics', 'supporting_staff'].includes(currentUser.role)) {
       throw Error('Admin, logistics or supporting staff access required');
     }
+    await loadWarehouses();
 
     const isAdmin = currentUser.role === 'admin';
     const clearBtn = document.getElementById('clearAllBtn');

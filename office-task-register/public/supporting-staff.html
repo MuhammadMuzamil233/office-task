@@ -651,8 +651,6 @@
             Warehouse:
             <select id="warehouseFilter">
               <option value="all">All Warehouses</option>
-              <option value="FC Faizabad WH">FC Faizabad WH</option>
-              <option value="FC I10 WH">FC I10 WH</option>
             </select>
           </label>
           <label class="filter-label">
@@ -765,10 +763,33 @@
         }
         document.getElementById("userName").textContent = currentUser.name;
         document.getElementById("roleBadge").textContent = currentUser.role === "admin" ? "ADMIN" : "SUPPORTING STAFF";
+        await loadWarehouses();
         await loadDemands();
         await loadStaffTasks();
       } catch (e) {
         window.location.href = "/";
+      }
+    }
+
+    async function loadWarehouses() {
+      try {
+        const list = await api("/api/warehouses");
+        if (Array.isArray(list) && list.length) {
+          const sel = document.getElementById("warehouseFilter");
+          if (sel) {
+            const current = sel.value || "all";
+            sel.innerHTML = '<option value="all">All Warehouses</option>';
+            list.forEach(w => {
+              const opt = document.createElement("option");
+              opt.value = w.name;
+              opt.textContent = w.name;
+              if (w.name === current) opt.selected = true;
+              sel.appendChild(opt);
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("Could not load warehouses", e);
       }
     }
 

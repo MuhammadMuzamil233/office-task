@@ -167,6 +167,42 @@ const InventoryItem = mongoose.model("InventoryItem", inventoryItemSchema);
 const InventoryConfig = mongoose.model("InventoryConfig", inventoryConfigSchema);
 const StockTransaction = mongoose.model("StockTransaction", stockTransactionSchema);
 
+const warehouseSchema = new mongoose.Schema({
+  name: { type: String, required: true, unique: true, trim: true },
+  isActive: { type: Boolean, default: true },
+  createdBy: { type: String, default: "" }
+}, { timestamps: true });
+
+const Warehouse = mongoose.model("Warehouse", warehouseSchema);
+
+const DEFAULT_WAREHOUSES = ["FC Faizabad WH", "FC I10 WH"];
+
+async function seedDefaultWarehouses() {
+  try {
+    const count = await Warehouse.countDocuments();
+    if (count === 0) {
+      for (const name of DEFAULT_WAREHOUSES) {
+        await Warehouse.create({ name, isActive: true, createdBy: "system" });
+      }
+      console.log("Default warehouses seeded successfully.");
+    }
+  } catch (err) {
+    console.error("Error seeding default warehouses:", err);
+  }
+}
+
+async function getActiveWarehouseNames() {
+  try {
+    const list = await Warehouse.find({ isActive: { $ne: false } }).select("name").lean();
+    if (list && list.length > 0) {
+      return list.map(w => w.name.trim());
+    }
+  } catch (e) {
+    console.error("Error fetching warehouses:", e);
+  }
+  return [...DEFAULT_WAREHOUSES];
+}
+
 function todayStr() {
   const d = new Date();
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
@@ -297,7 +333,10 @@ const COOKIE_OPTS = {
 let databaseConnection;
 function connectDatabase() {
   if (!databaseConnection) {
-    databaseConnection = mongoose.connect(MONGODB_URI);
+    databaseConnection = mongoose.connect(MONGODB_URI).then(async (conn) => {
+      await seedDefaultWarehouses();
+      return conn;
+    });
   }
   return databaseConnection;
 }
@@ -575,6 +614,112 @@ app.patch("/api/admin/users/:id", authMiddleware, adminMiddleware, async (req, r
   }
 });
 
+// ---------- Warehouse routes ----------
+// GET /api/warehouses - list active warehouses for any authenticated user
+app.get("/api/warehouses", authMiddleware, async (req, res) => {
+  try {
+    const warehouses = await Warehouse.find({ isActive: { $ne: false } }).sort({ createdAt: 1 }).lean();
+    const result = warehouses.map(w => ({
+      id: w._id.toString(),
+      name: w.name,
+      isActive: w.isActive !== false,
+      createdAt: w.createdAt
+    }));
+    res.json(result);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not fetch warehouses" });
+  }
+});
+
+// GET /api/admin/warehouses - list all warehouses for admin
+app.get("/api/admin/warehouses", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const warehouses = await Warehouse.find().sort({ createdAt: 1 }).lean();
+    const result = warehouses.map(w => ({
+      id: w._id.toString(),
+      name: w.name,
+      isActive: w.isActive !== false,
+      createdBy: w.createdBy || "",
+      createdAt: w.createdAt
+    }));
+    res.json(result);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not fetch warehouses" });
+  }
+});
+
+// POST /api/admin/warehouses - admin adds new warehouse
+app.post("/api/admin/warehouses", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { name } = req.body || {};
+    const cleanName = String(name || "").trim();
+    if (!cleanName || cleanName.length < 2) {
+      return res.status(400).json({ error: "Warehouse name must be at least 2 characters long" });
+    }
+    if (cleanName.length > 100) {
+      return res.status(400).json({ error: "Warehouse name cannot exceed 100 characters" });
+    }
+
+    // Case-insensitive duplicate check
+    const existing = await Warehouse.findOne({
+      name: { $regex: new RegExp("^" + cleanName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", "i") }
+    });
+    if (existing) {
+      if (existing.isActive === false) {
+        existing.isActive = true;
+        await existing.save();
+        return res.json({
+          ok: true,
+          message: "Warehouse re-activated successfully",
+          warehouse: {
+            id: existing._id.toString(),
+            name: existing.name,
+            isActive: true,
+            createdAt: existing.createdAt
+          }
+        });
+      }
+      return res.status(409).json({ error: "A warehouse with this name already exists" });
+    }
+
+    const newWh = await Warehouse.create({
+      name: cleanName,
+      isActive: true,
+      createdBy: req.user.username || req.user.name || "admin"
+    });
+
+    res.status(201).json({
+      ok: true,
+      warehouse: {
+        id: newWh._id.toString(),
+        name: newWh.name,
+        isActive: true,
+        createdAt: newWh.createdAt
+      }
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not add warehouse" });
+  }
+});
+
+// DELETE /api/admin/warehouses/:id - admin deletes a warehouse
+app.delete("/api/admin/warehouses/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const wh = await Warehouse.findById(req.params.id);
+    if (!wh) {
+      return res.status(404).json({ error: "Warehouse not found" });
+    }
+    await Warehouse.findByIdAndDelete(req.params.id);
+    res.json({ ok: true, message: `Warehouse '${wh.name}' removed successfully` });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not delete warehouse" });
+  }
+});
+
 // ---------- Demand routes ----------
 const demandWarehouses = ["FC Faizabad WH", "FC I10 WH"];
 
@@ -782,7 +927,9 @@ app.post("/api/demands", authMiddleware, async (req, res) => {
       inventoryModel: item.inventoryModel ? String(item.inventoryModel).trim() : "",
       isUrgent: Boolean(item.isUrgent) || Boolean(isUrgent)
     })) : [];
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || !items.length || items.some(item => !item.name || !Number.isInteger(item.quantity) || item.quantity < 1 || !demandWarehouses.includes(item.warehouse))) {
+    const activeWarehouses = await getActiveWarehouseNames();
+    const isWhValid = (wh) => activeWarehouses.some(w => w.toLowerCase() === String(wh || "").trim().toLowerCase());
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || !items.length || items.some(item => !item.name || !Number.isInteger(item.quantity) || item.quantity < 1 || !isWhValid(item.warehouse))) {
       return res.status(400).json({ error: "Date, product, quantity, and a valid warehouse are required" });
     }
     // Merge duplicate models in the same demand
@@ -1154,8 +1301,10 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
     const demand = await Demand.findById(req.params.id);
     if (!demand) return res.status(404).json({ error: "Demand not found" });
 
+    const activeWarehouses = await getActiveWarehouseNames();
+    const isWhValid = (wh) => activeWarehouses.some(w => w.toLowerCase() === String(wh || "").trim().toLowerCase());
     if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) demand.date = date;
-    if (Array.isArray(products) && products.length && products.every(item => item && String(item.name || "").trim() && Number.isInteger(Number(item.quantity)) && Number(item.quantity) >= 1 && demandWarehouses.includes(String(item.warehouse || "")))) {
+    if (Array.isArray(products) && products.length && products.every(item => item && String(item.name || "").trim() && Number.isInteger(Number(item.quantity)) && Number(item.quantity) >= 1 && isWhValid(String(item.warehouse || "")))) {
       demand.products = products.map(item => ({
         name: String(item.name).trim().slice(0, 200),
         quantity: Number(item.quantity),
@@ -1292,7 +1441,8 @@ app.post("/api/logistics/demands/:id/add-item", authMiddleware, logisticsMiddlew
       demand.products = [];
     }
 
-    const defaultWh = demand.products[0]?.warehouse || "FC Faizabad WH";
+    const activeWarehouses = await getActiveWarehouseNames();
+    const defaultWh = demand.products[0]?.warehouse || activeWarehouses[0] || "FC Faizabad WH";
     const targetWh = String(warehouse || defaultWh).trim();
     const numQty = Number(quantity);
     const numPicked = (pickedQuantity !== undefined && pickedQuantity !== null && pickedQuantity !== "" && Number.isInteger(Number(pickedQuantity)) && Number(pickedQuantity) >= 0)

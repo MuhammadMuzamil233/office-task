@@ -493,6 +493,7 @@
         <button class="button" id="themeToggleBtn" type="button" style="border-color:#eab308;color:#fef08a;background:rgba(234,179,8,0.18);font-weight:700;border-radius:18px;">🌙 Dark Mode</button>
         <a href="/inventory.html" target="_blank" class="button" style="text-decoration:none;display:inline-block;color:#fff;background:#b08d3e;border-color:#b08d3e;font-weight:700;">📦 Office Inventory</a>
         <a href="#usersSection" class="button" style="text-decoration:none;display:inline-block;color:#fff;">Active Users</a>
+        <a href="#warehouseSection" class="button" style="text-decoration:none;display:inline-block;color:#fff;">🏢 Warehouses</a>
         <button class="button" id="history">Demand history</button>
         <button class="button" id="back">Back to tasks</button>
       </span>
@@ -506,8 +507,6 @@
           Filter by Warehouse:
           <select id="warehouse-filter">
             <option value="all">All Warehouses</option>
-            <option value="FC Faizabad WH">FC Faizabad WH</option>
-            <option value="FC I10 WH">FC I10 WH</option>
           </select>
         </label>
         <label>
@@ -568,6 +567,31 @@
           <tbody id="user-list">
             <tr>
               <td colspan="7" class="empty">Loading users...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" id="warehouseSection">
+      <h2>🏢 Warehouse Management (<span id="warehouseCount">0</span>)</h2>
+      <div style="padding:16px 20px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;background:rgba(8,13,23,0.4);">
+        <input type="text" id="newWarehouseInput" placeholder="Enter new warehouse name (e.g. FC Rawalpindi WH)..." style="flex:1;min-width:240px;padding:9px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;color:#1c2b27;">
+        <button type="button" class="action" id="btnAddWarehouse" style="background:#10b981;border-color:#10b981;color:#fff;font-weight:700;">➕ Add Warehouse</button>
+      </div>
+      <div class="scroll">
+        <table class="table" id="warehouses-table">
+          <thead>
+            <tr>
+              <th>Warehouse Name</th>
+              <th>Status</th>
+              <th>Created At</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="warehouse-list">
+            <tr>
+              <td colspan="4" class="empty">Loading warehouses...</td>
             </tr>
           </tbody>
         </table>
@@ -679,6 +703,7 @@
         if (me.role !== "admin") throw new Error("Admin access required");
         allDemands = await api("/api/admin/demands");
         render();
+        await loadWarehouses();
         await loadAccessRequests();
         await loadUsers();
         await loadStaffDropdown();
@@ -850,6 +875,65 @@
         });
       } catch (err) {
         list.innerHTML = `<tr><td colspan="7" class="error">${esc(err.message)}</td></tr>`;
+      }
+    }
+
+    async function loadWarehouses() {
+      const list = document.getElementById("warehouse-list");
+      const countSpan = document.getElementById("warehouseCount");
+      const filterSelect = document.getElementById("warehouse-filter");
+      try {
+        const warehouses = await api("/api/admin/warehouses");
+        if (countSpan) countSpan.textContent = warehouses.length;
+
+        // Update warehouse filter dropdown, preserving currently selected value if any
+        if (filterSelect) {
+          const currentVal = filterSelect.value || "all";
+          filterSelect.innerHTML = '<option value="all">All Warehouses</option>';
+          warehouses.filter(w => w.isActive).forEach(w => {
+            const opt = document.createElement("option");
+            opt.value = w.name;
+            opt.textContent = w.name;
+            if (w.name === currentVal) opt.selected = true;
+            filterSelect.appendChild(opt);
+          });
+        }
+
+        if (!list) return;
+        if (!warehouses.length) {
+          list.innerHTML = '<tr><td colspan="4" class="empty">No warehouses configured yet.</td></tr>';
+          return;
+        }
+
+        list.innerHTML = "";
+        warehouses.forEach(w => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td><b>${esc(w.name)}</b></td>
+            <td><span style="color:${w.isActive ? '#10b981' : '#f43f5e'};font-weight:600;">${w.isActive ? '🟢 Active' : '🔴 Inactive'}</span></td>
+            <td>${date(w.createdAt)}</td>
+            <td>
+              <div class="actions">
+                <button type="button" class="action cancel delete-wh-btn" style="border-color:#f43f5e;color:#f43f5e;background:transparent;">Delete</button>
+              </div>
+            </td>
+          `;
+
+          row.querySelector(".delete-wh-btn").onclick = async () => {
+            if (!confirm(`Are you sure you want to remove warehouse "${w.name}"?`)) return;
+            try {
+              await api("/api/admin/warehouses/" + w.id, { method: "DELETE" });
+              await loadWarehouses();
+              render();
+            } catch (err) {
+              alert("❌ " + (err.message || "Could not delete warehouse"));
+            }
+          };
+
+          list.appendChild(row);
+        });
+      } catch (err) {
+        if (list) list.innerHTML = `<tr><td colspan="4" class="error">${esc(err.message)}</td></tr>`;
       }
     }
 
@@ -1111,6 +1195,33 @@
       updateThemeBtn();
     };
     updateThemeBtn();
+
+    document.getElementById("btnAddWarehouse").onclick = async () => {
+      const input = document.getElementById("newWarehouseInput");
+      const name = input ? input.value.trim() : "";
+      if (!name) {
+        alert("Please enter a warehouse name.");
+        return;
+      }
+      try {
+        await api("/api/admin/warehouses", {
+          method: "POST",
+          body: JSON.stringify({ name })
+        });
+        input.value = "";
+        await loadWarehouses();
+        alert(`Warehouse "${name}" added successfully!`);
+      } catch (err) {
+        alert("❌ " + (err.message || "Failed to add warehouse"));
+      }
+    };
+
+    document.getElementById("newWarehouseInput").onkeydown = (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        document.getElementById("btnAddWarehouse").click();
+      }
+    };
 
     document.getElementById("back").onclick = () => location.href = "/";
     document.getElementById("history").onclick = () => location.href = "/demand-history.html";

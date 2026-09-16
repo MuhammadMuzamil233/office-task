@@ -373,6 +373,36 @@
 
     document.getElementById("date").value = new Date().toISOString().slice(0, 10);
     document.getElementById("back").onclick = () => location.href = "/";
+
+    let availableWarehouses = ["FC Faizabad WH", "FC I10 WH"];
+
+    function getWarehouseOptionsHtml(selected = "") {
+      let html = '<option value="">Select warehouse</option>';
+      availableWarehouses.forEach(wh => {
+        html += `<option value="${esc(wh)}"${wh === selected ? ' selected' : ''}>${esc(wh)}</option>`;
+      });
+      return html;
+    }
+
+    function updateWarehouseSelects() {
+      document.querySelectorAll("select.warehouse").forEach(sel => {
+        const val = sel.value;
+        sel.innerHTML = getWarehouseOptionsHtml(val);
+      });
+    }
+
+    async function loadWarehouses() {
+      try {
+        const list = await api("/api/warehouses");
+        if (Array.isArray(list) && list.length) {
+          availableWarehouses = list.map(w => w.name);
+          updateWarehouseSelects();
+        }
+      } catch (e) {
+        console.warn("Could not load warehouses", e);
+      }
+    }
+
     function wireUrgentToggle(row) {
       const chk = row.querySelector(".item-urgent");
       const lbl = row.querySelector(".item-urgent-label");
@@ -393,9 +423,7 @@
       row.innerHTML = `
         <input class="product" list="inventoryModelsList" maxlength="200" placeholder="Product name / model" required>
         <select class="warehouse" required>
-          <option value="">Select warehouse</option>
-          <option>FC Faizabad WH</option>
-          <option>FC I10 WH</option>
+          ${getWarehouseOptionsHtml()}
         </select>
         <input class="quantity" type="number" min="1" step="1" placeholder="Quantity" required>
         <input class="invoice" maxlength="100" placeholder="Invoice number (optional)">
@@ -469,9 +497,7 @@
           <div class="item">
             <input class="product" list="inventoryModelsList" maxlength="200" placeholder="Product name / model" required>
             <select class="warehouse" required>
-              <option value="">Select warehouse</option>
-              <option>FC Faizabad WH</option>
-              <option>FC I10 WH</option>
+              ${getWarehouseOptionsHtml()}
             </select>
             <input class="quantity" type="number" min="1" step="1" placeholder="Quantity" required>
             <input class="invoice" maxlength="100" placeholder="Invoice number (optional)">
@@ -529,6 +555,7 @@
       }
     }).catch(() => {});
 
+    loadWarehouses();
     load();
   </script>
 </body>
