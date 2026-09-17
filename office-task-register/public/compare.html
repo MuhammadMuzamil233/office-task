@@ -41,6 +41,7 @@ button.primary-ocr:hover{background:#0369a1}
 <script src="/inventory-api.js"></script>
 </head>
 <body>
+<script>if(localStorage.getItem('user_role')==='admin'||localStorage.getItem('admin_theme')==='dark'){document.body.classList.add('dark-theme');}else{document.body.classList.remove('dark-theme');}</script>
 <header><h1>Physical Stock Comparison</h1><button class="secondary" onclick="location.href='index.html'">Back to Actual Stock</button></header>
 <div class="wrap">
 <div class="cards">

@@ -39,6 +39,7 @@ tr.highlight{background:#f0f9ff}.actions button{padding:6px 9px;font-size:12px}
 <script src="/inventory-api.js"></script>
 </head>
 <body>
+<script>if(localStorage.getItem('user_role')==='admin'||localStorage.getItem('admin_theme')==='dark'){document.body.classList.add('dark-theme');}else{document.body.classList.remove('dark-theme');}</script>
 <header>
   <h1>📥 Stock IN (Receiving)</h1>
   <div>

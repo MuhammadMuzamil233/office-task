@@ -485,7 +485,7 @@
   </style>
 </head>
 <body>
-  <script>if(localStorage.getItem('admin_theme')!=='light'){document.body.classList.add('dark-theme');localStorage.setItem('admin_theme','dark');}</script>
+  <script>if(localStorage.getItem('user_role')==='admin'||localStorage.getItem('admin_theme')!=='light'){document.body.classList.add('dark-theme');localStorage.setItem('admin_theme','dark');localStorage.setItem('user_role','admin');}</script>
   <main>
     <header class="book">
       <h1>Demand & User Management</h1>
@@ -701,6 +701,10 @@
       try {
         const me = await api("/api/me");
         if (me.role !== "admin") throw new Error("Admin access required");
+        localStorage.setItem("user_role", "admin");
+        localStorage.setItem("admin_theme", "dark");
+        document.body.classList.add("dark-theme");
+        updateThemeBtn();
         allDemands = await api("/api/admin/demands");
         render();
         await loadWarehouses();

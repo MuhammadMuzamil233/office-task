@@ -64,6 +64,7 @@ tr.lowrow{background:#fffaf0}tr.outrow{background:#fff5f5}.actions button{paddin
 <script src="/inventory-api.js"></script>
 </head>
 <body>
+<script>if(localStorage.getItem('user_role')==='admin'||localStorage.getItem('admin_theme')==='dark'){document.body.classList.add('dark-theme');}else{document.body.classList.remove('dark-theme');}</script>
 <header><h1>📦 Office Stock Inventory</h1><div>Excel-style Inventory &amp; OCR Scanner</div></header>
 <div class="wrap">
 <div class="cards">
