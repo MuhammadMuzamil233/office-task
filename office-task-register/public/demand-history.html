@@ -65,6 +65,7 @@ body.dark-theme .empty{color:#94a3b8 !important;}
 <main>
   <header class="book">
     <div class="header-actions">
+      <button type="button" class="button danger" id="deleteMonthBtn" onclick="deleteMonthlyHistory()" style="display:none;background:#b45309;border-color:#b45309;">📅 Delete Monthly Records</button>
       <button type="button" class="button danger" id="clearAllBtn" onclick="clearAllHistory()">🗑️ Clear All History</button>
       <button type="button" class="button" id="back">← Back</button>
     </div>
@@ -78,6 +79,10 @@ body.dark-theme .empty{color:#94a3b8 !important;}
         <select id="warehouseFilter">
           <option value="all">All warehouses</option>
         </select>
+      </div>
+      <div class="filter-item">
+        <label for="monthFilter">Month:</label>
+        <input type="month" id="monthFilter" title="Filter history by month">
       </div>
       <div class="filter-item" style="flex:1;min-width:200px;">
         <input type="search" id="searchInput" placeholder="Search by employee, product, invoice..." style="width:100%;">
@@ -139,11 +144,27 @@ function render() {
   const colSpan = isAdmin ? 11 : 10;
 
   const warehouse = document.getElementById('warehouseFilter').value;
+  const monthFilter = (document.getElementById('monthFilter')?.value || '').trim();
   const query = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+
+  const deleteMonthBtn = document.getElementById('deleteMonthBtn');
+  if (deleteMonthBtn && isAdmin) {
+    if (monthFilter) {
+      const matchingCount = allRows.filter(d => d.date && d.date.startsWith(monthFilter)).length;
+      deleteMonthBtn.textContent = `📅 Delete ${formatMonthName(monthFilter)} (${matchingCount})`;
+      deleteMonthBtn.title = `Delete all ${matchingCount} records for ${formatMonthName(monthFilter)}`;
+    } else {
+      deleteMonthBtn.textContent = '📅 Delete Monthly Records';
+      deleteMonthBtn.title = 'Select or enter a month to delete records';
+    }
+  }
 
   const filtered = allRows.filter(d => {
     const demandItems = items(d);
     if (warehouse !== 'all' && !demandItems.some(i => (i.warehouse || '') === warehouse)) {
+      return false;
+    }
+    if (monthFilter && (!d.date || !d.date.startsWith(monthFilter))) {
       return false;
     }
     if (query) {
@@ -273,6 +294,9 @@ async function load() {
     const clearBtn = document.getElementById('clearAllBtn');
     if (clearBtn) clearBtn.style.display = isAdmin ? 'inline-flex' : 'none';
 
+    const deleteMonthBtn = document.getElementById('deleteMonthBtn');
+    if (deleteMonthBtn) deleteMonthBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+
     const actionHeader = document.getElementById('actionHeader');
     if (actionHeader) actionHeader.style.display = isAdmin ? '' : 'none';
 
@@ -293,6 +317,49 @@ async function load() {
   } catch (e) {
     const colSpan = (currentUser && currentUser.role === 'admin') ? 10 : 9;
     list.innerHTML = `<tr><td colspan="${colSpan}" class="error">${esc(e.message)}</td></tr>`;
+  }
+}
+
+function formatMonthName(yyyyMm) {
+  if (!yyyyMm || !/^\d{4}-\d{2}$/.test(yyyyMm)) return yyyyMm;
+  const [year, month] = yyyyMm.split('-');
+  const d = new Date(Number(year), Number(month) - 1, 1);
+  return d.toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+}
+
+async function deleteMonthlyHistory() {
+  let month = (document.getElementById('monthFilter').value || '').trim();
+  if (!month) {
+    month = prompt('Enter month to delete in YYYY-MM format (e.g. ' + new Date().toISOString().slice(0, 7) + '):');
+    if (!month) return;
+    month = month.trim();
+  }
+
+  if (!/^\d{4}-\d{2}$/.test(month)) {
+    alert('❌ Invalid month format. Please enter YYYY-MM (e.g. 2026-09).');
+    return;
+  }
+
+  const matchingCount = allRows.filter(d => d.date && d.date.startsWith(month)).length;
+  const monthName = formatMonthName(month);
+
+  if (matchingCount === 0) {
+    alert(`No demand history records found for ${monthName} (${month}).`);
+    return;
+  }
+
+  const confirmed = confirm(`Are you sure you want to permanently delete all demand history records for ${monthName} (${month})?\n\nThis will delete ${matchingCount} demand record(s). This action cannot be undone!`);
+  if (!confirmed) return;
+
+  try {
+    const res = await api('/api/admin/demands/history?month=' + encodeURIComponent(month), { method: 'DELETE' });
+    alert(`✓ Successfully deleted ${res.deletedCount !== undefined ? res.deletedCount : matchingCount} records for ${monthName}.`);
+    if (document.getElementById('monthFilter').value === month) {
+      document.getElementById('monthFilter').value = '';
+    }
+    load();
+  } catch (err) {
+    alert('❌ ' + err.message);
   }
 }
 
@@ -327,6 +394,7 @@ async function clearAllHistory() {
 }
 
 document.getElementById('warehouseFilter').onchange = render;
+document.getElementById('monthFilter').onchange = render;
 document.getElementById('searchInput').oninput = render;
 load();
 </script>

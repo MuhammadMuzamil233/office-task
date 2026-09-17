@@ -903,11 +903,24 @@ app.delete("/api/admin/demands/history/:id/item/:itemIndex", authMiddleware, adm
   }
 });
 
-// DELETE /api/admin/demands/history - Clear all demand history
-app.delete("/api/admin/demands/history", authMiddleware, adminMiddleware, async (req, res) => {
+// DELETE /api/admin/demands/history - Clear all demand history OR delete by month (?month=YYYY-MM)
+app.delete(["/api/admin/demands/history", "/api/admin/demands/history/month/:month"], authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    await DemandHistory.deleteMany({});
-    res.json({ ok: true });
+    const month = req.query.month || req.params.month;
+    if (month) {
+      const cleanMonth = String(month).trim();
+      if (!/^\d{4}-\d{2}$/.test(cleanMonth)) {
+        return res.status(400).json({ error: "Invalid month format. Expected YYYY-MM (e.g. 2026-09)" });
+      }
+      const filter = {
+        date: { $regex: new RegExp("^" + cleanMonth) }
+      };
+      const result = await DemandHistory.deleteMany(filter);
+      return res.json({ ok: true, deletedCount: result.deletedCount, month: cleanMonth });
+    }
+
+    const result = await DemandHistory.deleteMany({});
+    res.json({ ok: true, deletedCount: result.deletedCount });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not clear demand history" });
