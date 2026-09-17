@@ -84,6 +84,7 @@ tr.lowrow{background:#fffaf0}tr.outrow{background:#fff5f5}.actions button{paddin
 <option value="all">All Stock</option><option value="ok">In Stock</option>
 <option value="low">Low Stock (&le; 1)</option><option value="out">Out of Stock</option>
 </select>
+<button id="btnBulkDemand" style="background:#0f3d3e;border-color:#0f3d3e;color:#fff;display:none;font-weight:700;" onclick="openBulkDemandModal()">⚡ Demand Selected (<span id="selectedDemandCount">0</span>)</button>
 <button onclick="addRow()">+ Add Row</button>
 <button onclick="addCustomColumn()">+ Add Column</button>
 <button onclick="openManageColumnsModal()">⚙️ Manage / Remove Columns</button>
@@ -258,6 +259,71 @@ Printer&#9;HP&#9;LaserJet&#9;1&#9;2026-08-29 11:00"></textarea>
 </div>
 </div>
 
+<!-- Multi-Item Demand Modal (Submit multiple inventory items together) -->
+<div class="modal" id="bulkDemandModal">
+<div class="dialog" style="max-width:850px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;border-bottom:1px solid #eaecf0;padding-bottom:12px">
+    <h2 style="margin:0;font-size:19px;color:#0f3d3e;display:flex;align-items:center;gap:8px">
+      <span>⚡</span> Submit Demand from Inventory
+    </h2>
+    <button type="button" class="secondary" onclick="closeBulkDemandModal()" style="padding:4px 8px;font-size:16px;border:none">✕</button>
+  </div>
+
+  <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#166534;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div>
+      <b>✓ All selected items will be submitted together in ONE demand!</b>
+    </div>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:700;color:#b42318">
+      <input type="checkbox" id="bulkDemandOverallUrgent" onchange="onOverallUrgentToggle(this.checked)">
+      ⚡ Mark Entire Demand as URGENT
+    </label>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:12px;margin-bottom:16px;background:#f8fafc;padding:12px;border-radius:8px;border:1px solid #e2e8f0;">
+    <div>
+      <label style="font-size:12px;font-weight:600;color:#475467;display:block;margin-bottom:4px">Demand Date</label>
+      <input type="date" id="bulkDemandDate" style="width:100%">
+    </div>
+    <div>
+      <label style="font-size:12px;font-weight:600;color:#475467;display:block;margin-bottom:4px">Batch Set Warehouse (All Items)</label>
+      <div style="display:flex;gap:6px">
+        <select id="bulkDemandGlobalWarehouse" style="flex:1"></select>
+        <button type="button" class="secondary" onclick="applyWarehouseToAllDemandItems()" style="padding:6px 10px;font-size:12px;white-space:nowrap">Apply to All</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="border:1px solid #eaecf0;border-radius:8px;overflow-x:auto;max-height:360px;overflow-y:auto;margin-bottom:16px">
+    <table style="min-width:700px;font-size:13px;">
+      <thead>
+        <tr style="background:#f1f5f9">
+          <th style="width:32%">Product / Model</th>
+          <th style="width:12%">Stock Qty</th>
+          <th style="width:15%">Demand Qty</th>
+          <th style="width:23%">Warehouse</th>
+          <th style="width:10%;text-align:center">⚡ Urgent</th>
+          <th style="width:8%;text-align:center">Remove</th>
+        </tr>
+      </thead>
+      <tbody id="bulkDemandTableBody">
+        <!-- populated dynamically -->
+      </tbody>
+    </table>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-top:1px solid #eaecf0;padding-top:14px">
+    <div style="font-size:14px;color:#334155;font-weight:600">
+      Selected: <span id="modalTotalItemsCount" style="color:#0f3d3e;font-weight:700">0</span> items | Total Qty: <span id="modalTotalQtyCount" style="color:#0f3d3e;font-weight:700">0</span>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="secondary" onclick="closeBulkDemandModal()">Cancel</button>
+      <button type="button" class="secondary" onclick="openSelectedInDemandsPage()" title="Open full Demands page with all these items preloaded" style="color:#0284c7;border-color:#bae6fd">📋 Open in Demands Page</button>
+      <button type="button" id="btnSubmitBulkDemand" onclick="submitBulkDemandFromModal()" style="background:#0f3d3e;border-color:#0f3d3e;color:#fff;font-weight:700;padding:9px 18px">🚀 Submit Demand Now</button>
+    </div>
+  </div>
+</div>
+</div>
+
 
 <div class="toast" id="toast"></div>
 
@@ -366,7 +432,11 @@ function renderTableHeader(){
     {label:'Model', width:'18%'}
   ];
   
-  let headersHtml = baseHeaders.map(h => `<th style="width:${h.width}">${h.label}</th>`).join('');
+  let headersHtml = `
+    <th style="width:38px;text-align:center;">
+      <input type="checkbox" id="selectAllDemand" title="Select / Deselect all visible items for Demand" onchange="toggleSelectAllDemand(this.checked)" style="width:16px;height:16px;cursor:pointer;">
+    </th>
+  ` + baseHeaders.map(h => `<th style="width:${h.width}">${h.label}</th>`).join('');
   
   customFields.forEach(field => {
     headersHtml += `
@@ -560,17 +630,334 @@ async function save(){
   }
 }
 
+// --- MULTI-ITEM DEMAND SYSTEM FROM INVENTORY ---
+const selectedDemandIndices = new Set();
+let availableWarehouses = ["FC Faizabad WH", "FC I10 WH"];
+
+async function loadWarehousesForDemand() {
+  try {
+    const list = await InventoryAPI.request("/api/warehouses");
+    if (Array.isArray(list) && list.length) {
+      availableWarehouses = list.map(w => w.name);
+    }
+  } catch (e) {
+    console.warn("Could not load warehouses for demand:", e);
+  }
+}
+
+function updateDemandSelectionUI() {
+  const count = selectedDemandIndices.size;
+  const btn = document.getElementById("btnBulkDemand");
+  const countSpan = document.getElementById("selectedDemandCount");
+  const floatBar = document.getElementById("floatingDemandBar");
+  const floatCount = document.getElementById("floatingDemandCount");
+
+  if (btn && countSpan) {
+    countSpan.textContent = count;
+    btn.style.display = count > 0 ? "inline-flex" : "none";
+  }
+  if (floatBar && floatCount) {
+    floatCount.textContent = count;
+    floatBar.style.display = count > 0 ? "flex" : "none";
+  }
+}
+
+function onDemandCheckboxChange(i, checked) {
+  if (checked) {
+    selectedDemandIndices.add(i);
+  } else {
+    selectedDemandIndices.delete(i);
+  }
+  updateDemandSelectionUI();
+
+  const visible = filteredRows();
+  const selectAllCb = document.getElementById("selectAllDemand");
+  if (selectAllCb) {
+    selectAllCb.checked = visible.length > 0 && visible.every(r => selectedDemandIndices.has(rows.indexOf(r)));
+  }
+}
+
+function toggleSelectAllDemand(checked) {
+  const visible = filteredRows();
+  visible.forEach(r => {
+    const i = rows.indexOf(r);
+    if (i !== -1) {
+      if (checked) selectedDemandIndices.add(i);
+      else selectedDemandIndices.delete(i);
+    }
+  });
+  updateDemandSelectionUI();
+  document.querySelectorAll(".demand-row-check").forEach(cb => {
+    const idx = Number(cb.dataset.index);
+    cb.checked = selectedDemandIndices.has(idx);
+  });
+}
+
+function clearDemandSelection() {
+  selectedDemandIndices.clear();
+  updateDemandSelectionUI();
+  const selectAllCb = document.getElementById("selectAllDemand");
+  if (selectAllCb) selectAllCb.checked = false;
+  document.querySelectorAll(".demand-row-check").forEach(cb => {
+    cb.checked = false;
+  });
+}
+
 function demandRowFromInventory(i) {
   const r = rows[i];
   if (!r) return;
-  const model = r.model || "";
-  const id = r.id || r._id || "";
-  const params = new URLSearchParams({
-    fromInventory: "1",
-    model: model,
-    inventoryId: id
+  selectedDemandIndices.add(i);
+  updateDemandSelectionUI();
+  const cb = document.querySelector(`.demand-row-check[data-index="${i}"]`);
+  if (cb) cb.checked = true;
+  openBulkDemandModal();
+}
+
+function openBulkDemandModal() {
+  if (selectedDemandIndices.size === 0) {
+    alert("Please select at least one item using the checkboxes to create a demand.");
+    return;
+  }
+  const modal = document.getElementById("bulkDemandModal");
+  if (!modal) return;
+
+  const dateInput = document.getElementById("bulkDemandDate");
+  if (dateInput && !dateInput.value) {
+    dateInput.value = new Date().toISOString().slice(0, 10);
+  }
+
+  const gwSelect = document.getElementById("bulkDemandGlobalWarehouse");
+  if (gwSelect) {
+    gwSelect.innerHTML = availableWarehouses.map(w => `<option value="${esc(w)}">${esc(w)}</option>`).join("");
+  }
+
+  renderBulkDemandModalTable();
+  modal.classList.add("show");
+}
+
+function closeBulkDemandModal() {
+  const modal = document.getElementById("bulkDemandModal");
+  if (modal) modal.classList.remove("show");
+}
+
+function renderBulkDemandModalTable() {
+  const tbody = document.getElementById("bulkDemandTableBody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  const indices = Array.from(selectedDemandIndices);
+  if (!indices.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:#64748b;">No items selected.</td></tr>`;
+    updateModalTotals();
+    return;
+  }
+
+  const defaultWh = availableWarehouses[0] || "";
+
+  indices.forEach(idx => {
+    const r = rows[idx];
+    if (!r) return;
+
+    const itemWh = (r.warehouseName && availableWarehouses.includes(r.warehouseName)) ? r.warehouseName : defaultWh;
+
+    const tr = document.createElement("tr");
+    tr.dataset.rowIndex = idx;
+
+    let whOptions = availableWarehouses.map(w =>
+      `<option value="${esc(w)}"${w === itemWh ? ' selected' : ''}>${esc(w)}</option>`
+    ).join("");
+
+    tr.innerHTML = `
+      <td>
+        <div style="font-weight:700;color:#0f172a;font-size:13px">${esc(r.model || r.product || 'Unnamed')}</div>
+        <div style="font-size:11px;color:#64748b">${esc(r.brand || '')}${r.brand && r.product ? ' • ' : ''}${esc(r.product || '')}</div>
+      </td>
+      <td style="color:#475467;font-weight:600;">${Number(r.qty) || 0}</td>
+      <td>
+        <input type="number" min="1" step="1" value="1" class="demand-item-qty" oninput="updateModalTotals()" style="width:75px;padding:5px 8px;font-weight:600;text-align:center;">
+      </td>
+      <td>
+        <select class="demand-item-wh" style="width:100%;padding:5px 8px;font-size:12px;">
+          ${whOptions}
+        </select>
+      </td>
+      <td style="text-align:center;">
+        <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-weight:600;color:#b42318;font-size:12px;">
+          <input type="checkbox" class="demand-item-urgent"> ⚡
+        </label>
+      </td>
+      <td style="text-align:center;">
+        <button type="button" class="danger" onclick="removeDemandModalItem(${idx})" style="padding:3px 7px;font-size:11px;border-radius:4px" title="Remove from this demand">✕</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
   });
-  window.open('/demands.html?' + params.toString(), '_blank');
+
+  updateModalTotals();
+}
+
+function applyWarehouseToAllDemandItems() {
+  const gwSelect = document.getElementById("bulkDemandGlobalWarehouse");
+  if (!gwSelect) return;
+  const chosenWh = gwSelect.value;
+  if (!chosenWh) return;
+  document.querySelectorAll("#bulkDemandTableBody .demand-item-wh").forEach(sel => {
+    sel.value = chosenWh;
+  });
+  toast(`✓ Applied "${chosenWh}" to all items`);
+}
+
+function onOverallUrgentToggle(checked) {
+  document.querySelectorAll("#bulkDemandTableBody .demand-item-urgent").forEach(cb => {
+    cb.checked = checked;
+  });
+}
+
+function removeDemandModalItem(idx) {
+  selectedDemandIndices.delete(idx);
+  updateDemandSelectionUI();
+  const cb = document.querySelector(`.demand-row-check[data-index="${idx}"]`);
+  if (cb) cb.checked = false;
+
+  const tr = document.querySelector(`#bulkDemandTableBody tr[data-row-index="${idx}"]`);
+  if (tr) tr.remove();
+
+  updateModalTotals();
+  if (selectedDemandIndices.size === 0) {
+    closeBulkDemandModal();
+  }
+}
+
+function updateModalTotals() {
+  const rowsInModal = document.querySelectorAll("#bulkDemandTableBody tr[data-row-index]");
+  const count = rowsInModal.length;
+  let totalQty = 0;
+  rowsInModal.forEach(tr => {
+    const q = parseInt(tr.querySelector(".demand-item-qty")?.value || "0", 10);
+    totalQty += isNaN(q) ? 0 : q;
+  });
+
+  const spanCount = document.getElementById("modalTotalItemsCount");
+  const spanQty = document.getElementById("modalTotalQtyCount");
+  if (spanCount) spanCount.textContent = count;
+  if (spanQty) spanQty.textContent = totalQty;
+}
+
+async function submitBulkDemandFromModal() {
+  const dateInput = document.getElementById("bulkDemandDate");
+  const dateVal = dateInput ? dateInput.value.trim() : "";
+  if (!dateVal || !/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
+    alert("Please select a valid date (YYYY-MM-DD) for the demand.");
+    if (dateInput) dateInput.focus();
+    return;
+  }
+
+  const modalRows = document.querySelectorAll("#bulkDemandTableBody tr[data-row-index]");
+  if (!modalRows.length) {
+    alert("No items to demand.");
+    return;
+  }
+
+  const products = [];
+  for (const tr of modalRows) {
+    const idx = Number(tr.dataset.rowIndex);
+    const r = rows[idx];
+    const qtyInput = tr.querySelector(".demand-item-qty");
+    const whSelect = tr.querySelector(".demand-item-wh");
+    const urgentCheck = tr.querySelector(".demand-item-urgent");
+
+    const qty = parseInt(qtyInput ? qtyInput.value : "1", 10);
+    const wh = whSelect ? whSelect.value.trim() : "";
+    const isItemUrgent = urgentCheck ? urgentCheck.checked : false;
+
+    if (!qty || qty < 1) {
+      alert(`Invalid quantity for ${r?.model || r?.product || 'item'}. Minimum quantity is 1.`);
+      if (qtyInput) qtyInput.focus();
+      return;
+    }
+    if (!wh) {
+      alert(`Please select a warehouse for ${r?.model || r?.product || 'item'}.`);
+      if (whSelect) whSelect.focus();
+      return;
+    }
+
+    products.push({
+      name: r?.model || r?.product || "Unknown item",
+      warehouse: wh,
+      quantity: qty,
+      invoiceNumber: r?.invoiceNumber || "",
+      fromInventory: true,
+      inventoryItemId: r?.id || r?._id || "",
+      inventoryModel: r?.model || "",
+      isUrgent: isItemUrgent
+    });
+  }
+
+  const isOverallUrgent = Boolean(document.getElementById("bulkDemandOverallUrgent")?.checked);
+  if (isOverallUrgent) {
+    products.forEach(p => p.isUrgent = true);
+  }
+
+  const submitBtn = document.getElementById("btnSubmitBulkDemand");
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Submitting...";
+  }
+
+  try {
+    await InventoryAPI.createDemandFromInventory({
+      date: dateVal,
+      products: products,
+      isUrgent: isOverallUrgent || products.some(p => p.isUrgent)
+    });
+
+    toast(`✓ Successfully submitted demand for ${products.length} item(s) together!`);
+    closeBulkDemandModal();
+    clearDemandSelection();
+  } catch (err) {
+    console.error("Demand submission error:", err);
+    alert("Demand submission failed: " + (err.message || err));
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "🚀 Submit Demand Now";
+    }
+  }
+}
+
+function openSelectedInDemandsPage() {
+  const modalRows = document.querySelectorAll("#bulkDemandTableBody tr[data-row-index]");
+  if (!modalRows.length) {
+    alert("No items selected.");
+    return;
+  }
+
+  const items = [];
+  modalRows.forEach(tr => {
+    const idx = Number(tr.dataset.rowIndex);
+    const r = rows[idx];
+    const qty = parseInt(tr.querySelector(".demand-item-qty")?.value || "1", 10) || 1;
+    const wh = tr.querySelector(".demand-item-wh")?.value || "";
+    const isUrgent = Boolean(tr.querySelector(".demand-item-urgent")?.checked);
+    items.push({
+      name: r?.model || r?.product || "",
+      warehouse: wh,
+      quantity: qty,
+      invoiceNumber: r?.invoiceNumber || "",
+      fromInventory: true,
+      inventoryItemId: r?.id || r?._id || "",
+      inventoryModel: r?.model || "",
+      isUrgent: isUrgent
+    });
+  });
+
+  sessionStorage.setItem("inventory_bulk_demands", JSON.stringify({
+    date: document.getElementById("bulkDemandDate")?.value || new Date().toISOString().slice(0, 10),
+    isUrgent: Boolean(document.getElementById("bulkDemandOverallUrgent")?.checked),
+    items: items
+  }));
+
+  window.open("/demands.html?fromInventoryBulk=1", "_blank");
 }
 
 async function syncInventoryFromServer(){
@@ -617,6 +1004,7 @@ async function syncInventoryFromServer(){
 async function initInventory(){
   InventoryAPI.injectNavbar('inventory');
   await InventoryAPI.checkAdmin();
+  await loadWarehousesForDemand();
   await syncInventoryFromServer();
 }
 
@@ -663,8 +1051,12 @@ function render(){
    if(!visibleRows.includes(r))return;
    visible++;
    const tr=document.createElement('tr'); tr.className=s==='out'?'outrow':s==='low'?'lowrow':'';
+   const isChecked = selectedDemandIndices.has(i);
    const customCells=extraFields.map(field=>`<td><input value="${esc(r[field.key]??'')}" onchange="update(${i},'${field.key}',this.value)"></td>`).join('');
    tr.innerHTML=`
+   <td style="text-align:center;">
+     <input type="checkbox" class="demand-row-check" data-index="${i}" ${isChecked ? 'checked' : ''} onchange="onDemandCheckboxChange(${i}, this.checked)" style="width:16px;height:16px;cursor:pointer;" title="Select for Demand">
+   </td>
    <td><input value="${esc(r.product)}" onchange="update(${i},'product',this.value)"></td>
    <td><input value="${esc(r.brand)}" onchange="update(${i},'brand',this.value)"></td>
    <td><input value="${esc(r.model)}" onchange="update(${i},'model',this.value)"></td>
@@ -678,7 +1070,13 @@ function render(){
  document.getElementById('totalQty').textContent=rows.reduce((a,r)=>a+(Number(r.qty)||0),0);
  document.getElementById('lowQty').textContent=rows.filter(r=>Number(r.qty)>0&&Number(r.qty)<=1).length;
  document.getElementById('outQty').textContent=rows.filter(r=>Number(r.qty)<=0).length;
- if(visible===0){const colspan=6+extraFields.length; body.innerHTML=`<tr><td colspan="${colspan}" style="text-align:center;padding:35px;color:#667085">No matching inventory items.</td></tr>`;}
+ if(visible===0){const colspan=7+extraFields.length; body.innerHTML=`<tr><td colspan="${colspan}" style="text-align:center;padding:35px;color:#667085">No matching inventory items.</td></tr>`;}
+
+ const selectAllCb = document.getElementById('selectAllDemand');
+ if (selectAllCb) {
+   selectAllCb.checked = visibleRows.length > 0 && visibleRows.every(r => selectedDemandIndices.has(rows.indexOf(r)));
+ }
+ updateDemandSelectionUI();
  updateSuggestions();
 }
 
@@ -2369,5 +2767,11 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 render();
 </script>
+<!-- Floating Action Bar for Demand Selection -->
+<div id="floatingDemandBar" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0f3d3e;color:#fff;padding:10px 22px;border-radius:50px;box-shadow:0 10px 25px rgba(0,0,0,0.35);z-index:9000;align-items:center;gap:14px;border:1px solid #14b8a6;">
+  <span style="font-weight:700;font-size:14px;letter-spacing:0.3px;">⚡ <span id="floatingDemandCount">0</span> item(s) selected</span>
+  <button type="button" onclick="openBulkDemandModal()" style="background:#fff;color:#0f3d3e;font-weight:700;padding:6px 16px;border-radius:30px;border:none;cursor:pointer;font-size:13px;box-shadow:0 2px 6px rgba(0,0,0,0.2);">Review &amp; Submit Demand</button>
+  <button type="button" onclick="clearDemandSelection()" style="background:transparent;color:#99f6e4;border:none;cursor:pointer;text-decoration:underline;font-size:13px;padding:0;">Clear</button>
+</div>
 </body>
 </html>

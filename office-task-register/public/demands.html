@@ -505,23 +505,49 @@
     // Wire up first item
     document.querySelectorAll(".item").forEach(wireUrgentToggle);
 
-    document.getElementById("add").onclick = () => {
+    function createItemRow(initial = {}) {
       const row = document.createElement("div");
       row.className = "item";
       row.innerHTML = `
         <input class="product" list="inventoryModelsList" maxlength="200" placeholder="Product name / model" required>
         <select class="warehouse" required>
-          ${getWarehouseOptionsHtml()}
+          ${getWarehouseOptionsHtml(initial.warehouse || "")}
         </select>
-        <input class="quantity" type="number" min="1" step="1" placeholder="Quantity" required>
-        <input class="invoice" maxlength="100" placeholder="Invoice number (optional)">
-        <label class="item-urgent-label" title="Mark this item as urgent">
-          <input type="checkbox" class="item-urgent"> ⚡ Urgent
+        <input class="quantity" type="number" min="1" step="1" placeholder="Quantity" value="${initial.quantity || ''}" required>
+        <input class="invoice" maxlength="100" placeholder="Invoice number (optional)" value="${initial.invoiceNumber || ''}">
+        <label class="item-urgent-label ${initial.isUrgent ? 'urgent-active' : ''}" title="Mark this item as urgent">
+          <input type="checkbox" class="item-urgent" ${initial.isUrgent ? 'checked' : ''}> ⚡ Urgent
         </label>
         <button type="button" class="remove">Remove</button>
       `;
-      row.querySelector(".remove").onclick = () => row.remove();
+      const prodInput = row.querySelector(".product");
+      if (initial.name) {
+        prodInput.value = initial.name;
+        if (initial.fromInventory) {
+          prodInput.setAttribute("data-from-inventory", "1");
+          prodInput.setAttribute("data-inventory-id", initial.inventoryItemId || "");
+          prodInput.setAttribute("data-inventory-model", initial.inventoryModel || initial.name);
+          prodInput.style.borderColor = "#0284c7";
+          prodInput.style.background = "#f0f9ff";
+        }
+      }
+      row.querySelector(".remove").onclick = () => {
+        if (document.querySelectorAll(".item").length > 1) {
+          row.remove();
+        } else {
+          prodInput.value = "";
+          const qInput = row.querySelector(".quantity");
+          if (qInput) qInput.value = "";
+          const invInput = row.querySelector(".invoice");
+          if (invInput) invInput.value = "";
+        }
+      };
       wireUrgentToggle(row);
+      return row;
+    }
+
+    document.getElementById("add").onclick = () => {
+      const row = createItemRow();
       document.getElementById("items").appendChild(row);
     };
 
@@ -614,8 +640,42 @@
       if (me.role === "logistics") location.href = "/logistics.html";
     }).catch(() => location.href = "/");
 
-    // Pre-fill model if navigated from inventory
-    (function checkInventoryParams() {
+    // Pre-fill model(s) if navigated from inventory
+    function checkInventoryParams() {
+      // 1. Check multi-item bulk demand from inventory
+      const bulkDataRaw = sessionStorage.getItem("inventory_bulk_demands");
+      if (bulkDataRaw) {
+        try {
+          const bulkData = JSON.parse(bulkDataRaw);
+          sessionStorage.removeItem("inventory_bulk_demands");
+          if (bulkData && Array.isArray(bulkData.items) && bulkData.items.length) {
+            if (bulkData.date) document.getElementById("date").value = bulkData.date;
+            if (bulkData.isUrgent && document.getElementById("urgentDemand")) {
+              document.getElementById("urgentDemand").checked = true;
+            }
+            const itemsContainer = document.getElementById("items");
+            itemsContainer.innerHTML = "";
+            bulkData.items.forEach(item => {
+              const row = createItemRow(item);
+              itemsContainer.appendChild(row);
+            });
+
+            // Add banner
+            const existingBanner = document.getElementById("inventoryBulkBanner");
+            if (existingBanner) existingBanner.remove();
+            const banner = document.createElement("div");
+            banner.id = "inventoryBulkBanner";
+            banner.style.cssText = "background:#dcfce7;border:1px solid #86efac;color:#15803d;padding:10px 14px;border-radius:8px;font-weight:600;font-size:13px;margin-bottom:14px;display:flex;align-items:center;gap:8px;";
+            banner.innerHTML = `<span>📦</span> Loaded <b>${bulkData.items.length} item(s)</b> from Office Inventory. All items will be submitted together in one demand!`;
+            itemsContainer.parentNode.insertBefore(banner, itemsContainer);
+            return;
+          }
+        } catch (e) {
+          console.warn("Failed to parse bulk inventory demand:", e);
+        }
+      }
+
+      // 2. Single item parameter fallback
       const params = new URLSearchParams(window.location.search);
       if (params.get("fromInventory") === "1") {
         const model = params.get("model") || "";
@@ -636,7 +696,7 @@
           firstProd.parentNode.insertBefore(hint, firstProd.nextSibling);
         }
       }
-    })();
+    }
 
     // Populate inventory models datalist
     api("/api/inventory").then(data => {
@@ -652,7 +712,11 @@
       }
     }).catch(() => {});
 
-    loadWarehouses();
+    loadWarehouses().then(() => {
+      checkInventoryParams();
+    }).catch(() => {
+      checkInventoryParams();
+    });
     load();
   </script>
 </body>
