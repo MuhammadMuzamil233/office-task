@@ -725,17 +725,19 @@ const demandWarehouses = ["FC Faizabad WH", "FC I10 WH"];
 
 function demandToJson(demand) {
   const items = Array.isArray(demand.products)
-    ? demand.products.map(item => {
+    ? demand.products.map((item, index) => {
         const itemUrgent = typeof item.isUrgent === "boolean"
           ? item.isUrgent
           : Boolean(demand.isUrgent);
+        const resolvedStatus = item.status ? item.status : (["approved", "completed", "cancelled", "on_the_way"].includes(demand.status) ? demand.status : "pending");
         return {
+          index: index,
           name: item.name,
           quantity: item.quantity,
           pickedQuantity: Number.isInteger(item.pickedQuantity) ? item.pickedQuantity : null,
           warehouse: item.warehouse || "",
           invoiceNumber: item.invoiceNumber || "",
-          status: item.status ? item.status : (["approved", "completed", "cancelled", "on_the_way"].includes(demand.status) ? demand.status : "pending"),
+          status: resolvedStatus,
           fromInventory: Boolean(item.fromInventory),
           inventoryItemId: item.inventoryItemId ? String(item.inventoryItemId) : "",
           inventoryModel: item.inventoryModel ? String(item.inventoryModel) : "",
@@ -748,7 +750,7 @@ function demandToJson(demand) {
           supportCheckedAt: item.supportCheckedAt || demand.supportCheckedAt || null
         };
       })
-    : [{ name: demand.products, quantity: demand.quantity || 1, pickedQuantity: null, warehouse: "", invoiceNumber: "", status: demand.status, fromInventory: false, inventoryItemId: "", inventoryModel: "", isUrgent: Boolean(demand.isUrgent), supportStatus: demand.supportStatus || null, supportRemarks: demand.supportRemarks || "", supportCheckedBy: demand.supportCheckedBy || "", supportCheckedAt: demand.supportCheckedAt || null }];
+    : [{ index: 0, name: demand.products, quantity: demand.quantity || 1, pickedQuantity: null, warehouse: "", invoiceNumber: "", status: demand.status, fromInventory: false, inventoryItemId: "", inventoryModel: "", isUrgent: Boolean(demand.isUrgent), supportStatus: demand.supportStatus || null, supportRemarks: demand.supportRemarks || "", supportCheckedBy: demand.supportCheckedBy || "", supportCheckedAt: demand.supportCheckedAt || null }];
   const hasAnyUrgent = items.some(it => it.isUrgent) || Boolean(demand.isUrgent);
   return {
     id: demand._id.toString(),
@@ -1345,6 +1347,8 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         demand.products.forEach(p => {
           if (status === "approved") {
             if (!p.status || p.status === "pending") p.status = "approved";
+          } else if (status === "on_the_way") {
+            if (!p.status || p.status === "pending" || p.status === "approved") p.status = "on_the_way";
           } else if (status === "rejected") {
             p.status = "rejected";
           } else if (status === "cancelled") {
@@ -1500,11 +1504,30 @@ app.get("/api/supporting-staff/demands", authMiddleware, supportingStaffMiddlewa
       $or: [
         { status: "on_the_way" },
         { "products.status": "on_the_way" },
-        { supportStatus: { $in: ["ok", "issue"] } }
+        { supportStatus: { $in: ["ok", "issue"] } },
+        { "products.supportStatus": { $in: ["ok", "issue"] } }
       ]
     }).sort({ updatedAt: -1, submittedAt: -1 });
     const sorted = await sortDemandsWithPriority(demands);
-    res.json(sorted.map(demandToJson));
+
+    const result = [];
+    sorted.forEach(d => {
+      const json = demandToJson(d);
+      // Strictly only include items that have been dispatched (on_the_way) or already checked by support
+      // Do NOT include items whose logistics status is still "approved" or "pending"
+      const eligibleItems = (json.items || []).filter(it => {
+        const itemStatus = String(it.status || "").toLowerCase().trim();
+        const hasSupport = it.supportStatus === "ok" || it.supportStatus === "issue";
+        return itemStatus === "on_the_way" || hasSupport;
+      });
+
+      if (eligibleItems.length > 0) {
+        json.items = eligibleItems;
+        result.push(json);
+      }
+    });
+
+    res.json(result);
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not load supporting staff demands" });

@@ -948,12 +948,16 @@
       let countOk = 0;
       let countIssue = 0;
 
-      // Calculate stats on allDemands
+      // Calculate stats on all eligible dispatched items
       allDemands.forEach(d => {
-        const s = d.support_status;
-        if (s === "ok") countOk++;
-        else if (s === "issue") countIssue++;
-        else countAwaiting++;
+        (d.items || []).forEach(it => {
+          const itemStatus = String(it.status || d.status || "").toLowerCase().trim();
+          const hasSupport = it.supportStatus === "ok" || it.supportStatus === "issue";
+          if (itemStatus !== "on_the_way" && !hasSupport) return;
+          if (it.supportStatus === "ok") countOk++;
+          else if (it.supportStatus === "issue") countIssue++;
+          else countAwaiting++;
+        });
       });
 
       document.getElementById("statAwaiting").innerHTML = `⏳ <b>${countAwaiting}</b> <span>Awaiting Check</span>`;
@@ -961,26 +965,30 @@
       document.getElementById("statIssue").innerHTML = `🔴 <b>${countIssue}</b> <span>Issue Reported</span>`;
 
       const filtered = allDemands.filter(demand => {
+        const eligibleItems = (demand.items || []).filter(item => {
+          const itemStatus = String(item.status || demand.status || "").toLowerCase().trim();
+          const hasSupport = item.supportStatus === "ok" || item.supportStatus === "issue";
+          if (itemStatus !== "on_the_way" && !hasSupport) return false;
+          if (warehouseFilter !== "all" && item.warehouse !== warehouseFilter) return false;
+          if (query) {
+            const empMatch = (demand.employee_name || "").toLowerCase().includes(query);
+            const itemMatch = (item.name || "").toLowerCase().includes(query) || (item.invoiceNumber || "").toLowerCase().includes(query);
+            if (!empMatch && !itemMatch) return false;
+          }
+          return true;
+        });
+
+        if (!eligibleItems.length) return false;
+
         // Inspection filter
-        const s = demand.support_status || "awaiting";
-        if (inspectionFilter === "awaiting" && s !== "awaiting" && s !== "pending") return false;
-        if (inspectionFilter === "ok" && s !== "ok") return false;
-        if (inspectionFilter === "issue" && s !== "issue") return false;
-
-        // Warehouse filter
-        if (warehouseFilter !== "all") {
-          const matchWh = demand.items.some(it => it.warehouse === warehouseFilter);
-          if (!matchWh) return false;
+        if (inspectionFilter === "awaiting") {
+          return eligibleItems.some(it => !it.supportStatus || it.supportStatus === "awaiting" || it.supportStatus === "pending");
         }
-
-        // Search filter
-        if (query) {
-          const empMatch = (demand.employee_name || "").toLowerCase().includes(query);
-          const itemMatch = demand.items.some(it => 
-            (it.name || "").toLowerCase().includes(query) ||
-            (it.invoiceNumber || "").toLowerCase().includes(query)
-          );
-          if (!empMatch && !itemMatch) return false;
+        if (inspectionFilter === "ok") {
+          return eligibleItems.some(it => it.supportStatus === "ok");
+        }
+        if (inspectionFilter === "issue") {
+          return eligibleItems.some(it => it.supportStatus === "issue");
         }
 
         return true;
@@ -994,31 +1002,50 @@
       body.innerHTML = "";
 
       filtered.forEach(demand => {
-        const supportStatus = demand.support_status;
+        let visibleCountForDemand = 0;
 
-        demand.items.forEach((item, index) => {
+        demand.items.forEach((item, loopIndex) => {
+          // Strictly only show items that are on_the_way or already inspected
+          const itemStatus = String(item.status || demand.status || "").toLowerCase().trim();
+          const hasSupport = item.supportStatus === "ok" || item.supportStatus === "issue";
+          if (itemStatus !== "on_the_way" && !hasSupport) {
+            return; // Skip approved/pending items!
+          }
+
           // If warehouse filter is active, skip items that don't match warehouse
           if (warehouseFilter !== "all" && item.warehouse !== warehouseFilter) {
             return;
           }
 
+          // Search filter matching
+          if (query) {
+            const empMatch = (demand.employee_name || "").toLowerCase().includes(query);
+            const itemMatch = (item.name || "").toLowerCase().includes(query) || (item.invoiceNumber || "").toLowerCase().includes(query);
+            if (!empMatch && !itemMatch) return;
+          }
+
+          // Inspection status filter matching
+          const s = item.supportStatus || "awaiting";
+          if (inspectionFilter === "awaiting" && s !== "awaiting" && s !== "pending") return;
+          if (inspectionFilter === "ok" && s !== "ok") return;
+          if (inspectionFilter === "issue" && s !== "issue") return;
+
           const tr = document.createElement("tr");
-          if (index === 0) tr.classList.add("demand-head");
+          if (visibleCountForDemand === 0) tr.classList.add("demand-head");
           if (demand.is_urgent) tr.classList.add("urgent-row");
 
           // Item-level inspection status html
-          const itemStatus = item.supportStatus || 'awaiting';
           const itemRemarks = item.supportRemarks || '';
           const itemCheckedBy = item.supportCheckedBy || '';
           const itemCheckedAt = item.supportCheckedAt || null;
 
           let inspectionBadgeHtml = '';
-          if (itemStatus === 'ok') {
+          if (s === 'ok') {
             inspectionBadgeHtml = `
               <span class="badge-status-ok">🟢 Verified OK</span>
               <div class="support-meta">Checked by <b>${esc(itemCheckedBy || 'Staff')}</b><br>${dateFmt(itemCheckedAt)}</div>
             `;
-          } else if (itemStatus === 'issue') {
+          } else if (s === 'issue') {
             inspectionBadgeHtml = `
               <span class="badge-status-issue">🔴 Issue Reported</span>
               <div class="support-issue-text"><b>Issue:</b> ${esc(itemRemarks || 'Unspecified issue')}</div>
@@ -1030,17 +1057,19 @@
             `;
           }
 
+          const originalItemIndex = item.index !== undefined ? item.index : loopIndex;
+
           // Per-item Action buttons
           let actionHtml = `
             <div class="action-group">
-              <button class="act-btn btn-ok" onclick="handleMarkItemOk('${demand.id}', ${index})">✅ OK</button>
-              <button class="act-btn btn-issue" onclick="openIssueModal('${demand.id}', ${index})">⚠️ Issue</button>
+              <button class="act-btn btn-ok" onclick="handleMarkItemOk('${demand.id}', ${originalItemIndex})">✅ OK</button>
+              <button class="act-btn btn-issue" onclick="openIssueModal('${demand.id}', ${originalItemIndex})">⚠️ Issue</button>
             </div>
           `;
 
           tr.innerHTML = `
-            <td>${index === 0 ? `<b>${esc(demand.employee_name)}</b>${demand.is_urgent ? ' <span class="badge badge-urgent">⚡ URGENT</span>' : ''}` : ''}</td>
-            <td>${index === 0 ? esc(demand.date) : ''}</td>
+            <td>${visibleCountForDemand === 0 ? `<b>${esc(demand.employee_name)}</b>${demand.is_urgent ? ' <span class="badge badge-urgent">⚡ URGENT</span>' : ''}` : ''}</td>
+            <td>${visibleCountForDemand === 0 ? esc(demand.date) : ''}</td>
             <td><b>${esc(item.name)}</b>${item.isExtraItem ? ' <span class="badge" style="background:#0284c7;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;">➕ Extra Item</span>' : ''}</td>
             <td>${esc(item.warehouse || '-')}</td>
             <td>${item.quantity}</td>
@@ -1052,13 +1081,14 @@
           `;
 
           body.appendChild(tr);
+          visibleCountForDemand++;
         });
       });
     }
 
     async function handleMarkItemOk(demandId, itemIndex) {
       const demand = allDemands.find(d => d.id === demandId);
-      const item = demand && demand.items ? demand.items[itemIndex] : null;
+      const item = demand && demand.items ? (demand.items.find(it => it.index === itemIndex) || demand.items[itemIndex]) : null;
       const itemName = item ? item.name : "this item";
       if (!confirm(`Verify "${itemName}" as OK?`)) return;
       try {
@@ -1078,7 +1108,7 @@
       activeDemandForIssue = demandId;
       activeIssueItemIndex = itemIndex;
       const demand = allDemands.find(d => d.id === demandId);
-      const item = demand && demand.items ? demand.items[itemIndex] : null;
+      const item = demand && demand.items ? (demand.items.find(it => it.index === itemIndex) || demand.items[itemIndex]) : null;
       const sub = document.getElementById("issueModalSubtitle");
       if (demand && item) {
         sub.innerHTML = `Reporting issue for <b>${esc(demand.employee_name)}</b> on item <b>"${esc(item.name)}"</b> (Demanded Qty: ${item.quantity}, Picked: ${item.pickedQuantity == null ? '-' : item.pickedQuantity}):`;
