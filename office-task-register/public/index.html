@@ -555,8 +555,8 @@
           <button id="demandHistoryBtn" type="button" class="hidden">Demand History</button>
           <button id="inventoryBtn" type="button" class="hidden" style="background:#b08d3e;border-color:#b08d3e;font-weight:700;">Inventory</button>
           <button id="adminBtn" type="button" class="hidden">Admin Panel</button>
-          <button id="adminThemeBtn" type="button" class="hidden" style="border-color:#eab308;color:#fef08a;background:rgba(234,179,8,0.18);font-weight:700;border-radius:18px;">🌙 Dark Mode</button>
-        <button id="logoutBtn" type="button">Log out</button>
+          <span id="adminThemeContainer" class="hidden" style="display:inline-flex;align-items:center;vertical-align:middle;"></span>
+          <button id="logoutBtn" type="button">Log out</button>
       </span>
     </div>
   </header>
@@ -702,13 +702,16 @@
     const btn = loginForm.querySelector("button");
     btn.disabled = true;
     try{
-      await api("/api/login", {
+      const authRes = await api("/api/login", {
         method:"POST",
         body: JSON.stringify({
           username: document.getElementById("loginUsername").value,
           password: document.getElementById("loginPassword").value
         })
       });
+      if (authRes && authRes.role) {
+        localStorage.setItem("user_role", authRes.role);
+      }
       await boot();
     }catch(err){
       showAuthError(err.message);
@@ -734,6 +737,9 @@
           requestSupportingStaff: requestedRole === "supporting_staff"
         })
       });
+      if (account && account.role) {
+        localStorage.setItem("user_role", account.role);
+      }
       await boot();
       if(account.approvalRequestPending) showError(`${account.requestedRole === "logistics" ? "Logistics" : account.requestedRole === "supporting_staff" ? "Supporting Staff" : "Admin"} access request sent. An existing admin must approve it first.`);
     }catch(err){
@@ -1129,69 +1135,81 @@
   async function boot(){
     try{
       me = await api("/api/me");
+      if (me && me.role) localStorage.setItem("user_role", me.role);
       await loadWarehouses();
-      document.getElementById("myName").textContent = me.name;
-      document.querySelector(".greet").firstChild.textContent = me.role === "admin" ? "Admin signed in as " : "Signed in as ";
+      const myName = document.getElementById("myName");
+      if (myName) myName.textContent = me.name;
+      const greet = document.querySelector(".greet");
+      if (greet && greet.firstChild) {
+        greet.firstChild.textContent = me.role === "admin" ? "Admin signed in as " : "Signed in as ";
+      }
       const restrictedRole = me.role === "logistics" || me.role === "supporting_staff";
-      document.getElementById("historyBtn").classList.toggle("hidden", restrictedRole);
-      document.getElementById("demandBtn").classList.toggle("hidden", restrictedRole);
-      document.getElementById("demandSection").classList.toggle("hidden", restrictedRole);
+      document.getElementById("historyBtn")?.classList.toggle("hidden", restrictedRole);
+      document.getElementById("demandBtn")?.classList.toggle("hidden", restrictedRole);
+      document.getElementById("demandSection")?.classList.toggle("hidden", restrictedRole);
       const isAdmin = me.role === "admin";
-      document.getElementById("adminBtn").classList.toggle("hidden", !isAdmin);
-      document.getElementById("inventoryBtn").classList.toggle("hidden", !isAdmin);
-      document.getElementById("adminThemeBtn").classList.toggle("hidden", !isAdmin);
+      document.getElementById("adminBtn")?.classList.toggle("hidden", !isAdmin);
+      document.getElementById("inventoryBtn")?.classList.toggle("hidden", !isAdmin);
+      
+      const themeSlot = document.getElementById("adminThemeContainer") || document.getElementById("adminThemeBtn");
+      if (themeSlot) {
+        themeSlot.classList.toggle("hidden", !isAdmin);
+      }
+
       if (isAdmin) {
-        document.getElementById("appScreen").classList.add("admin-wide");
-        localStorage.setItem("user_role", "admin");
+        document.getElementById("appScreen")?.classList.add("admin-wide");
         if (!localStorage.getItem("admin_theme")) localStorage.setItem("admin_theme", "cyber");
         if (window.AdminTheme) {
           AdminTheme.apply();
-          AdminTheme.mountSwitcher('#adminThemeBtn');
+          if (themeSlot) AdminTheme.mountSwitcher(themeSlot);
         } else {
           const isDark = localStorage.getItem("admin_theme") !== "light";
           document.body.classList.toggle("dark-theme", isDark);
           updateAdminThemeBtn(isDark);
         }
       } else {
-        document.getElementById("appScreen").classList.remove("admin-wide");
+        document.getElementById("appScreen")?.classList.remove("admin-wide");
         localStorage.removeItem("admin_theme");
-        localStorage.setItem("user_role", me.role);
         if (window.AdminTheme) AdminTheme.apply();
         else document.body.classList.remove("dark-theme");
       }
       const canViewTasks = me.role === "admin" || me.role === "supporting_staff";
-      document.getElementById("todaySection").style.display = canViewTasks ? "block" : "none";
-      document.getElementById("reminders").style.display = canViewTasks ? "block" : "none";
-      document.getElementById("logisticsBtn").classList.toggle("hidden", !["admin", "logistics"].includes(me.role));
-      document.getElementById("supportingStaffBtn").classList.toggle("hidden", !["admin", "supporting_staff"].includes(me.role));
-      document.getElementById("demandHistoryBtn").classList.toggle("hidden", !["admin", "logistics", "supporting_staff"].includes(me.role));
-      document.getElementById("authScreen").classList.add("hidden");
-      document.getElementById("appScreen").classList.remove("hidden");
-      document.getElementById("taskInput").disabled = !canViewTasks;
-      document.querySelector("#addForm button").disabled = !canViewTasks;
+      const todaySec = document.getElementById("todaySection");
+      if (todaySec) todaySec.style.display = canViewTasks ? "block" : "none";
+      const remSec = document.getElementById("reminders");
+      if (remSec) remSec.style.display = canViewTasks ? "block" : "none";
+      document.getElementById("logisticsBtn")?.classList.toggle("hidden", !["admin", "logistics"].includes(me.role));
+      document.getElementById("supportingStaffBtn")?.classList.toggle("hidden", !["admin", "supporting_staff"].includes(me.role));
+      document.getElementById("demandHistoryBtn")?.classList.toggle("hidden", !["admin", "logistics", "supporting_staff"].includes(me.role));
+      document.getElementById("authScreen")?.classList.add("hidden");
+      document.getElementById("appScreen")?.classList.remove("hidden");
+      const taskIn = document.getElementById("taskInput");
+      if (taskIn) taskIn.disabled = !canViewTasks;
+      const addBtn = document.querySelector("#addForm button");
+      if (addBtn) addBtn.disabled = !canViewTasks;
       await Promise.all([canViewTasks ? loadTasks() : Promise.resolve(), loadUsers(), loadNotifications(), loadDemands()]);
     }catch(e){
-      document.getElementById("appScreen").classList.add("hidden");
-      document.getElementById("authScreen").classList.remove("hidden");
+      console.error("Boot error:", e);
+      document.getElementById("appScreen")?.classList.add("hidden");
+      document.getElementById("authScreen")?.classList.remove("hidden");
     }
   }
 
   function updateAdminThemeBtn(isDark) {
+    const slot = document.getElementById("adminThemeContainer") || document.getElementById("adminThemeBtn");
+    if (!slot) return;
     if (window.AdminTheme && window.AdminTheme.isAdmin()) {
-      window.AdminTheme.mountSwitcher('#adminThemeBtn');
+      window.AdminTheme.mountSwitcher(slot);
       return;
     }
-    const btn = document.getElementById("adminThemeBtn");
-    if (btn) {
-      btn.innerHTML = isDark ? "☀️ Light Mode" : "🌙 Dark Mode";
-      btn.style.borderColor = isDark ? "#38bdf8" : "#eab308";
-      btn.style.color = isDark ? "#bae6fd" : "#fef08a";
-      btn.style.background = isDark ? "rgba(56, 189, 248, 0.2)" : "rgba(234, 179, 8, 0.18)";
-    }
+    slot.innerHTML = isDark ? "☀️ Light Mode" : "🌙 Dark Mode";
+    slot.style.borderColor = isDark ? "#38bdf8" : "#eab308";
+    slot.style.color = isDark ? "#bae6fd" : "#fef08a";
+    slot.style.background = isDark ? "rgba(56, 189, 248, 0.2)" : "rgba(234, 179, 8, 0.18)";
   }
 
   const admBtn = document.getElementById("adminThemeBtn");
-  if (admBtn) {
+  if (admBtn && admBtn.tagName === 'BUTTON') {
     admBtn.addEventListener("click", () => {
       if (window.AdminTheme) {
         const cur = window.AdminTheme.getTheme();

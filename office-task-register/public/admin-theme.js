@@ -128,7 +128,9 @@
       if (!switcher) return;
 
       if (el.tagName === 'BUTTON' || el.classList.contains('button')) {
-        el.parentNode.replaceChild(switcher, el);
+        if (el.id) switcher.id = el.id;
+        if (el.className) switcher.className = el.className + ' admin-theme-select-wrap';
+        if (el.parentNode) el.parentNode.replaceChild(switcher, el);
       } else {
         el.innerHTML = '';
         el.appendChild(switcher);
@@ -456,7 +458,7 @@
       const mountExistingButtons = () => {
         if (!this.isAdmin()) return;
         
-        const targetIds = ['adminThemeBtn', 'themeToggleBtn'];
+        const targetIds = ['adminThemeBtn', 'themeToggleBtn', 'adminThemeContainer', 'navAdminThemeSlot'];
         targetIds.forEach(id => {
           const btn = document.getElementById(id);
           if (btn && !btn.dataset.themeReplaced) {
