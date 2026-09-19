@@ -38,10 +38,11 @@ button.primary-ocr:hover{background:#0369a1}
 .ocr-options{display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:13px;color:#475467;margin-bottom:12px;padding:8px 12px;background:#f8fafc;border-radius:8px}
 @media(max-width:900px){.cards{grid-template-columns:repeat(3,1fr)}}@media(max-width:600px){.cards{grid-template-columns:repeat(2,1fr)}.hint{width:100%;margin-left:0}}
 </style>
+<script src="/admin-theme.js"></script>
 <script src="/inventory-api.js"></script>
 </head>
 <body>
-<script>if(localStorage.getItem('user_role')==='admin'||localStorage.getItem('admin_theme')==='dark'){document.body.classList.add('dark-theme');}else{document.body.classList.remove('dark-theme');}</script>
+<script>if(window.AdminTheme){AdminTheme.apply();}else if(localStorage.getItem('user_role')==='admin'||(localStorage.getItem('admin_theme')&&localStorage.getItem('admin_theme')!=='light')){document.body.classList.add('dark-theme');}else{document.body.classList.remove('dark-theme');}</script>
 <header><h1>Physical Stock Comparison</h1><button class="secondary" onclick="location.href='index.html'">Back to Actual Stock</button></header>
 <div class="wrap">
 <div class="cards">

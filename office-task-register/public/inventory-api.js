@@ -1,146 +1,24 @@
 // Shared Inventory API client & Navigation for Office Task Inventory
 (function initInventoryDarkTheme() {
-  if (localStorage.getItem('user_role') === 'admin' || localStorage.getItem('admin_theme') === 'dark') {
-    if (document.body) document.body.classList.add('dark-theme');
-    else if (document.documentElement) document.documentElement.classList.add('dark-theme');
+  if (typeof window !== 'undefined' && !window.AdminTheme) {
+    const themeScript = document.createElement('script');
+    themeScript.src = '/admin-theme.js';
+    if (document.head) document.head.appendChild(themeScript);
+    else window.addEventListener('DOMContentLoaded', () => document.head.appendChild(themeScript));
+  }
+  if (localStorage.getItem('user_role') === 'admin' || (localStorage.getItem('admin_theme') && localStorage.getItem('admin_theme') !== 'light')) {
+    const t = localStorage.getItem('admin_theme') || 'cyber';
+    const themeClass = t === 'dark' ? 'theme-cyber' : 'theme-' + t;
+    if (document.body) {
+      document.body.classList.add('dark-theme', themeClass);
+    } else if (document.documentElement) {
+      document.documentElement.classList.add('dark-theme', themeClass);
+    }
     window.addEventListener('DOMContentLoaded', () => {
-      if (document.body) document.body.classList.add('dark-theme');
+      if (document.body) document.body.classList.add('dark-theme', themeClass);
+      if (window.AdminTheme) window.AdminTheme.apply();
     });
   }
-  const darkStyle = document.createElement('style');
-  darkStyle.id = 'inventory-shared-dark-theme';
-  darkStyle.textContent = `
-    body.dark-theme {
-      background: radial-gradient(ellipse 80% 50% at 20% -10%, rgba(99, 102, 241, 0.15), transparent),
-                  radial-gradient(ellipse 60% 40% at 85% 15%, rgba(6, 182, 212, 0.12), transparent),
-                  #060911 !important;
-      color: #f1f5f9 !important;
-    }
-    body.dark-theme header {
-      background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(17, 28, 48, 0.9) 100%) !important;
-      border-bottom: 2px solid transparent !important;
-      border-image: linear-gradient(90deg, #f59e0b 0%, #ec4899 40%, #06b6d4 75%, #10b981 100%) 1 !important;
-    }
-    body.dark-theme header h1 {
-      color: #f8fafc !important;
-    }
-    body.dark-theme .card,
-    body.dark-theme .toolbar,
-    body.dark-theme .tablebox,
-    body.dark-theme .dialog,
-    body.dark-theme .ocr-preview-wrap,
-    body.dark-theme .ocr-progress-box,
-    body.dark-theme .ocr-options,
-    body.dark-theme .item-card {
-      background: rgba(14, 22, 38, 0.88) !important;
-      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-      color: #f1f5f9 !important;
-      box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.55) !important;
-    }
-    body.dark-theme input,
-    body.dark-theme select,
-    body.dark-theme textarea,
-    body.dark-theme .paste {
-      background: rgba(6, 10, 18, 0.9) !important;
-      color: #f8fafc !important;
-      border: 1px solid rgba(255, 255, 255, 0.14) !important;
-    }
-    body.dark-theme input:focus,
-    body.dark-theme select:focus,
-    body.dark-theme textarea:focus {
-      border-color: #06b6d4 !important;
-      outline: none !important;
-    }
-    body.dark-theme table th {
-      background: rgba(10, 16, 28, 0.98) !important;
-      color: #94a3b8 !important;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
-    }
-    body.dark-theme table td {
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
-      color: #f1f5f9 !important;
-    }
-    body.dark-theme table tr:hover td {
-      background: rgba(255, 255, 255, 0.035) !important;
-    }
-    body.dark-theme td input {
-      color: #f8fafc !important;
-    }
-    body.dark-theme td input:focus {
-      background: rgba(6, 10, 18, 0.95) !important;
-      border-color: #06b6d4 !important;
-    }
-    body.dark-theme tr.lowrow {
-      background: rgba(245, 158, 11, 0.08) !important;
-    }
-    body.dark-theme tr.outrow,
-    body.dark-theme tr.shortrow {
-      background: rgba(244, 63, 94, 0.1) !important;
-    }
-    body.dark-theme tr.extrarow {
-      background: rgba(245, 158, 11, 0.12) !important;
-    }
-    body.dark-theme .label,
-    body.dark-theme .hint,
-    body.dark-theme .section-title span {
-      color: #94a3b8 !important;
-    }
-    body.dark-theme .num,
-    body.dark-theme .section-title h2 {
-      color: #f8fafc !important;
-    }
-    body.dark-theme button.secondary {
-      background: rgba(255, 255, 255, 0.06) !important;
-      color: #f1f5f9 !important;
-      border-color: rgba(255, 255, 255, 0.18) !important;
-    }
-    body.dark-theme button.secondary:hover {
-      background: rgba(255, 255, 255, 0.14) !important;
-    }
-    body.dark-theme .ocr-dropzone {
-      background: rgba(2, 132, 199, 0.08) !important;
-      border-color: rgba(2, 132, 199, 0.4) !important;
-      color: #e0f2fe !important;
-    }
-    body.dark-theme .ocr-dropzone.dragover {
-      background: rgba(2, 132, 199, 0.18) !important;
-    }
-    body.dark-theme .ocr-dropzone .sub {
-      color: #94a3b8 !important;
-    }
-    body.dark-theme .preview-table-container {
-      border-color: rgba(255, 255, 255, 0.1) !important;
-    }
-    body.dark-theme .preview-table-container th {
-      background: rgba(15, 23, 42, 0.9) !important;
-      color: #94a3b8 !important;
-    }
-    body.dark-theme .tab-header {
-      border-bottom-color: rgba(255, 255, 255, 0.1) !important;
-    }
-    body.dark-theme .tab-btn {
-      color: #94a3b8 !important;
-    }
-    body.dark-theme .tab-btn.active {
-      color: #38bdf8 !important;
-      border-bottom-color: #38bdf8 !important;
-    }
-    body.dark-theme .formgrid label {
-      color: #cbd5e1 !important;
-    }
-    body.dark-theme .legend {
-      color: #cbd5e1 !important;
-    }
-    body.dark-theme .warehouse-badge {
-      background: rgba(255, 255, 255, 0.08) !important;
-      color: #e2e8f0 !important;
-    }
-    body.dark-theme ::-webkit-scrollbar { width: 8px; height: 8px; }
-    body.dark-theme ::-webkit-scrollbar-track { background: rgba(6, 10, 18, 0.8); }
-    body.dark-theme ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
-    body.dark-theme ::-webkit-scrollbar-thumb:hover { background: #334155; }
-  `;
-  document.head ? document.head.appendChild(darkStyle) : window.addEventListener('DOMContentLoaded', () => document.head.appendChild(darkStyle));
 })();
 
 const InventoryAPI = {
@@ -177,8 +55,9 @@ const InventoryAPI = {
         return null;
       }
       localStorage.setItem("user_role", "admin");
-      localStorage.setItem("admin_theme", "dark");
-      document.body.classList.add("dark-theme");
+      if (!localStorage.getItem("admin_theme")) localStorage.setItem("admin_theme", "cyber");
+      if (window.AdminTheme) window.AdminTheme.apply();
+      else document.body.classList.add("dark-theme");
       return me;
     } catch (e) {
       alert("Please log in with admin account.");
@@ -356,6 +235,7 @@ const InventoryAPI = {
           <a href="/transactions.html" class="nav-item \${activeTab === 'transactions' ? 'active' : ''}">📊 Log</a>
           <a href="/virtual.html" class="nav-item \${activeTab === 'virtual' ? 'active' : ''}">Virtual WH</a>
           <a href="/compare.html" class="nav-item \${activeTab === 'compare' ? 'active' : ''}">Compare</a>
+          <span id="navAdminThemeSlot" style="margin-left:6px;display:inline-flex;align-items:center;"></span>
         </div>
       </div>
     `;
@@ -420,5 +300,12 @@ const InventoryAPI = {
     `;
     document.head.appendChild(style);
     document.body.insertBefore(nav, document.body.firstChild);
+    if (window.AdminTheme) {
+      window.AdminTheme.mountSwitcher('#navAdminThemeSlot');
+    } else {
+      window.addEventListener('load', () => {
+        if (window.AdminTheme) window.AdminTheme.mountSwitcher('#navAdminThemeSlot');
+      });
+    }
   }
 };

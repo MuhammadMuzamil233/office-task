@@ -24,10 +24,11 @@ table{width:100%;border-collapse:collapse;min-width:760px}th,td{border-bottom:1p
 .model-badge{background:#e0f2fe;color:#0369a1;padding:3px 8px;border-radius:6px;font-weight:700;display:inline-block;font-size:13px}
 @media(max-width:800px){.cards{grid-template-columns:1fr}}
 </style>
+<script src="/admin-theme.js"></script>
 <script src="/inventory-api.js"></script>
 </head>
 <body>
-<script>if(localStorage.getItem('user_role')==='admin'||localStorage.getItem('admin_theme')==='dark'){document.body.classList.add('dark-theme');}else{document.body.classList.remove('dark-theme');}</script>
+<script>if(window.AdminTheme){AdminTheme.apply();}else if(localStorage.getItem('user_role')==='admin'||(localStorage.getItem('admin_theme')&&localStorage.getItem('admin_theme')!=='light')){document.body.classList.add('dark-theme');}else{document.body.classList.remove('dark-theme');}</script>
 <header>
   <h1>📊 Transaction History</h1>
   <button class="secondary" style="color:#172554" onclick="location.href='index.html'">← Back to Inventory</button>

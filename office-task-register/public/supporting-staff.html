@@ -702,9 +702,10 @@
     body.dark-theme ::-webkit-scrollbar-track { background: rgba(6, 10, 18, 0.8); }
     body.dark-theme ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
   </style>
+  <script src="/admin-theme.js"></script>
 </head>
 <body>
-  <script>if(localStorage.getItem('user_role')==='admin'||localStorage.getItem('admin_theme')==='dark'){document.body.classList.add('dark-theme');}else{document.body.classList.remove('dark-theme');}</script>
+  <script>if(window.AdminTheme){AdminTheme.apply();}else if(localStorage.getItem('user_role')==='admin'||(localStorage.getItem('admin_theme')&&localStorage.getItem('admin_theme')!=='light')){document.body.classList.add('dark-theme');}else{document.body.classList.remove('dark-theme');}</script>
   <div class="wrap">
     <header class="header-box">
       <div class="header-title-wrap">
@@ -844,13 +845,15 @@
       try {
         currentUser = await api("/api/me");
         if (currentUser.role === 'admin') {
-          document.body.classList.add('dark-theme');
           localStorage.setItem('user_role', 'admin');
-          localStorage.setItem('admin_theme', 'dark');
+          if (!localStorage.getItem('admin_theme')) localStorage.setItem('admin_theme', 'cyber');
+          if (window.AdminTheme) window.AdminTheme.apply();
+          else document.body.classList.add('dark-theme');
         } else {
-          document.body.classList.remove('dark-theme');
           localStorage.removeItem('admin_theme');
           localStorage.setItem('user_role', currentUser.role || '');
+          if (window.AdminTheme) window.AdminTheme.apply();
+          else document.body.classList.remove('dark-theme');
         }
         if (!["admin", "supporting_staff"].includes(currentUser.role)) {
           alert("Supporting staff or admin access required.");

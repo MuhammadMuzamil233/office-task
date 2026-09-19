@@ -59,9 +59,10 @@ body.dark-theme .table tr:hover td{background:rgba(255, 255, 255, 0.035) !import
 body.dark-theme .status{background:rgba(16, 185, 129, 0.15) !important;color:#34d399 !important;border:1px solid rgba(16, 185, 129, 0.3) !important;}
 body.dark-theme .empty{color:#94a3b8 !important;}
 </style>
+<script src="/admin-theme.js"></script>
 </head>
 <body>
-<script>if(localStorage.getItem('user_role')==='admin'||localStorage.getItem('admin_theme')==='dark'){document.body.classList.add('dark-theme');}else{document.body.classList.remove('dark-theme');}</script>
+<script>if(window.AdminTheme){AdminTheme.apply();}else if(localStorage.getItem('user_role')==='admin'||(localStorage.getItem('admin_theme')&&localStorage.getItem('admin_theme')!=='light')){document.body.classList.add('dark-theme');}else{document.body.classList.remove('dark-theme');}</script>
 <main>
   <header class="book">
     <div class="header-actions">
@@ -286,13 +287,15 @@ async function load() {
   try {
     currentUser = await api('/api/me');
     if (currentUser.role === 'admin') {
-      document.body.classList.add('dark-theme');
       localStorage.setItem('user_role', 'admin');
-      localStorage.setItem('admin_theme', 'dark');
+      if (!localStorage.getItem('admin_theme')) localStorage.setItem('admin_theme', 'cyber');
+      if (window.AdminTheme) window.AdminTheme.apply();
+      else document.body.classList.add('dark-theme');
     } else {
-      document.body.classList.remove('dark-theme');
       localStorage.removeItem('admin_theme');
       localStorage.setItem('user_role', currentUser.role);
+      if (window.AdminTheme) window.AdminTheme.apply();
+      else document.body.classList.remove('dark-theme');
     }
     if (!['admin', 'logistics', 'supporting_staff'].includes(currentUser.role)) {
       throw Error('Admin, logistics or supporting staff access required');

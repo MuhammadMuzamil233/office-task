@@ -36,10 +36,11 @@ tr.highlight{background:#f0f9ff}.actions button{padding:6px 9px;font-size:12px}
 .item-card-grid{display:grid;grid-template-columns:2fr 1.2fr 100px 36px;gap:10px;align-items:start}
 @media(max-width:700px){.item-card-grid{grid-template-columns:1fr;gap:8px}}
 </style>
+<script src="/admin-theme.js"></script>
 <script src="/inventory-api.js"></script>
 </head>
 <body>
-<script>if(localStorage.getItem('user_role')==='admin'||localStorage.getItem('admin_theme')==='dark'){document.body.classList.add('dark-theme');}else{document.body.classList.remove('dark-theme');}</script>
+<script>if(window.AdminTheme){AdminTheme.apply();}else if(localStorage.getItem('user_role')==='admin'||(localStorage.getItem('admin_theme')&&localStorage.getItem('admin_theme')!=='light')){document.body.classList.add('dark-theme');}else{document.body.classList.remove('dark-theme');}</script>
 <header>
   <h1>📥 Stock IN (Receiving)</h1>
   <div>

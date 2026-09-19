@@ -483,9 +483,10 @@
     body.dark-theme ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
     body.dark-theme ::-webkit-scrollbar-thumb:hover { background: #334155; }
   </style>
+  <script src="/admin-theme.js"></script>
 </head>
 <body>
-  <script>if(localStorage.getItem('user_role')==='admin'||localStorage.getItem('admin_theme')!=='light'){document.body.classList.add('dark-theme');localStorage.setItem('admin_theme','dark');localStorage.setItem('user_role','admin');}</script>
+  <script>if(window.AdminTheme){AdminTheme.apply();}else if(localStorage.getItem('user_role')==='admin'||localStorage.getItem('admin_theme')!=='light'){document.body.classList.add('dark-theme');}</script>
   <main>
     <header class="book">
       <h1>Demand & User Management</h1>
@@ -702,9 +703,14 @@
         const me = await api("/api/me");
         if (me.role !== "admin") throw new Error("Admin access required");
         localStorage.setItem("user_role", "admin");
-        localStorage.setItem("admin_theme", "dark");
-        document.body.classList.add("dark-theme");
-        updateThemeBtn();
+        if (!localStorage.getItem("admin_theme")) localStorage.setItem("admin_theme", "cyber");
+        if (window.AdminTheme) {
+          AdminTheme.apply();
+          AdminTheme.mountSwitcher('#themeToggleBtn');
+        } else {
+          document.body.classList.add("dark-theme");
+          updateThemeBtn();
+        }
         allDemands = await api("/api/admin/demands");
         render();
         await loadWarehouses();
@@ -1183,6 +1189,10 @@
     document.getElementById("status-filter").onchange = render;
 
     function updateThemeBtn() {
+      if (window.AdminTheme && window.AdminTheme.isAdmin()) {
+        window.AdminTheme.mountSwitcher('#themeToggleBtn');
+        return;
+      }
       const isDark = document.body.classList.contains("dark-theme");
       const btn = document.getElementById("themeToggleBtn");
       if (btn) {
@@ -1193,11 +1203,19 @@
       }
     }
 
-    document.getElementById("themeToggleBtn").onclick = () => {
-      const isDark = document.body.classList.toggle("dark-theme");
-      localStorage.setItem("admin_theme", isDark ? "dark" : "light");
-      updateThemeBtn();
-    };
+    const themeToggleBtn = document.getElementById("themeToggleBtn");
+    if (themeToggleBtn) {
+      themeToggleBtn.onclick = () => {
+        if (window.AdminTheme) {
+          const cur = window.AdminTheme.getTheme();
+          window.AdminTheme.setTheme(cur === 'light' ? 'cyber' : 'light');
+        } else {
+          const isDark = document.body.classList.toggle("dark-theme");
+          localStorage.setItem("admin_theme", isDark ? "cyber" : "light");
+          updateThemeBtn();
+        }
+      };
+    }
     updateThemeBtn();
 
     document.getElementById("btnAddWarehouse").onclick = async () => {

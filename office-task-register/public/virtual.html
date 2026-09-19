@@ -13,10 +13,11 @@ input,select,button{font:inherit;border:1px solid #d0d5dd;border-radius:8px;padd
 table{width:100%;border-collapse:collapse;min-width:650px}th,td{border-bottom:1px solid #eaecf0;padding:10px;text-align:left}th{background:#f8fafc;font-size:13px}.hint{font-size:13px;color:#667085;margin:0 0 14px}.toast{position:fixed;right:20px;bottom:20px;background:#172554;color:#fff;padding:12px 16px;border-radius:9px;display:none}.toast.show{display:block}
 @media(max-width:700px){.formgrid{grid-template-columns:1fr}.toolbar button{width:100%}}
 </style>
+<script src="/admin-theme.js"></script>
 <script src="/inventory-api.js"></script>
 </head>
 <body>
-<script>if(localStorage.getItem('user_role')==='admin'||localStorage.getItem('admin_theme')==='dark'){document.body.classList.add('dark-theme');}else{document.body.classList.remove('dark-theme');}</script>
+<script>if(window.AdminTheme){AdminTheme.apply();}else if(localStorage.getItem('user_role')==='admin'||(localStorage.getItem('admin_theme')&&localStorage.getItem('admin_theme')!=='light')){document.body.classList.add('dark-theme');}else{document.body.classList.remove('dark-theme');}</script>
 <header><h1>Temporary Virtual Warehouse</h1><button class="secondary" onclick="location.href='index.html'">Back to Actual Stock</button></header>
 <div class="wrap">
 <p class="hint">Move stock here temporarily when an item is given to a person or department. Moved quantity is deducted from actual stock.</p>
