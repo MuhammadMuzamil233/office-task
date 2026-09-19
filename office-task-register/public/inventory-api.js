@@ -303,6 +303,34 @@ const InventoryAPI = {
     });
   },
 
+  exportToCSV(filename, rows) {
+    if (!Array.isArray(rows) || !rows.length) {
+      alert("No data to export.");
+      return;
+    }
+    // UTF-8 BOM for Microsoft Excel compatibility
+    const BOM = "\uFEFF";
+    const csvContent = rows.map(row => 
+      row.map(val => {
+        const str = val === null || val === undefined ? '' : String(val);
+        return `"${str.replace(/"/g, '""')}"`;
+      }).join(',')
+    ).join('\r\n');
+
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.setAttribute('download', filename.toLowerCase().endsWith('.csv') ? filename : filename + '.csv');
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 300);
+  },
+
   injectNavbar(activeTab) {
     const existing = document.querySelectorAll(".office-global-nav");
     if (existing.length > 0) {

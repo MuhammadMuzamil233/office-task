@@ -1132,9 +1132,40 @@ function importPaste(){
 function clearPhysical(){if(confirm('Clear the pasted physical stock count?')){physicalRows=[];savePhysical();toast('Physical stock cleared')}}
 
 function exportCSV(){
-  const csv=[['Product','Brand','Model','Actual Quantity','Physical Quantity','Difference','Status'],...comparison().map(row=>[row.product,row.brand,row.model,row.actual,row.physical,row.difference,statusText(row.status)])].map(row=>row.map(value=>`"${String(value).replace(/"/g,'""')}"`).join(',')).join('\n');
-  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),link=document.createElement('a');
-  link.href=URL.createObjectURL(blob);link.download='physical-stock-comparison.csv';link.click();URL.revokeObjectURL(link.href);
+  const list = comparison();
+  if (!list.length) {
+    toast('No comparison records to export');
+    return;
+  }
+  const headers = ['Product', 'Brand', 'Model', 'Actual Quantity', 'Physical Quantity', 'Difference', 'Status'];
+  const data = [
+    headers,
+    ...list.map(row => [
+      row.product ?? '',
+      row.brand ?? '',
+      row.model ?? '',
+      Number(row.actual) || 0,
+      Number(row.physical) || 0,
+      Number(row.difference) || 0,
+      statusText(row.status)
+    ])
+  ];
+  const filename = 'physical-stock-comparison.csv';
+  if (window.InventoryAPI && typeof InventoryAPI.exportToCSV === 'function') {
+    InventoryAPI.exportToCSV(filename, data);
+  } else {
+    const BOM = "\uFEFF";
+    const csv = data.map(row => row.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.style.display = 'none';
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => { document.body.removeChild(link); URL.revokeObjectURL(link.href); }, 300);
+  }
+  toast(`✓ Exported ${list.length} comparison record(s) to Excel CSV`);
 }
 
 document.addEventListener('paste',event=>{

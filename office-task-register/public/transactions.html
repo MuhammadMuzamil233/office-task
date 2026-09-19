@@ -199,27 +199,39 @@ function render() {
 
 function exportTransactionCSV() {
   const transactions = getAllTransactions();
+  if (!transactions.length) {
+    toast('No transaction history to export');
+    return;
+  }
   const headers = ['Date', 'Type', 'Product', 'Brand', 'Model', 'Quantity', 'Reference'];
-  const csv = [
+  const data = [
     headers,
     ...transactions.map(t => [
-      t.date,
-      t.type.toUpperCase(),
-      t.product,
-      t.brand || '',
-      t.model,
-      t.qty,
-      t.reference
+      t.date ?? '',
+      String(t.type || '').toUpperCase(),
+      t.product ?? '',
+      t.brand ?? '',
+      t.model ?? '',
+      Number(t.qty) || 0,
+      t.reference ?? ''
     ])
-  ].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'transaction-history.csv';
-  a.click();
-  URL.revokeObjectURL(a.href);
-  toast('✓ History exported to CSV');
+  ];
+  const filename = 'transaction-history.csv';
+  if (window.InventoryAPI && typeof InventoryAPI.exportToCSV === 'function') {
+    InventoryAPI.exportToCSV(filename, data);
+  } else {
+    const BOM = "\uFEFF";
+    const csv = data.map(row => row.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 300);
+  }
+  toast(`✓ Exported ${transactions.length} transaction record(s) to Excel CSV`);
 }
 
 async function clearHistory() {

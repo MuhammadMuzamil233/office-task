@@ -647,17 +647,38 @@ async function deleteStockOut(id) {
 }
 
 function exportStockOutCSV() {
+  if (!stockOutList.length) {
+    toast('No Stock OUT records to export');
+    return;
+  }
   const headers = ['Date', 'Invoice #', 'Product', 'Brand', 'Model', 'Quantity'];
-  const csv = [headers, ...stockOutList.map(i => [
-    i.date, i.invoice, i.product, i.brand || '', i.model, i.qty
-  ])].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'stock-out.csv';
-  a.click();
-  URL.revokeObjectURL(a.href);
+  const data = [
+    headers,
+    ...stockOutList.map(i => [
+      i.date ?? '',
+      i.invoice ?? '',
+      i.product ?? '',
+      i.brand ?? '',
+      i.model ?? '',
+      Number(i.qty) || 0
+    ])
+  ];
+  const filename = 'stock-out.csv';
+  if (window.InventoryAPI && typeof InventoryAPI.exportToCSV === 'function') {
+    InventoryAPI.exportToCSV(filename, data);
+  } else {
+    const BOM = "\uFEFF";
+    const csv = data.map(row => row.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 300);
+  }
+  toast(`✓ Exported ${stockOutList.length} Stock OUT record(s) to Excel CSV`);
 }
 
 async function clearAllStockOut() {
