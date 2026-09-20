@@ -1407,7 +1407,14 @@ app.patch("/api/logistics/demands/:id", authMiddleware, logisticsMiddleware, asy
     }
     const demand = await Demand.findById(req.params.id);
     if (!demand) return res.status(404).json({ error: "Demand not found" });
-    if (!Array.isArray(demand.products)) return res.status(400).json({ error: "This demand has no selectable items" });
+    if (!Array.isArray(demand.products)) {
+      demand.products = [{
+        name: String(demand.products || "Item").trim(),
+        quantity: Number(demand.quantity) || 1,
+        warehouse: "FC Faizabad WH",
+        status: demand.status || "pending"
+      }];
+    }
     const uniqueIndexes = [...new Set(itemIndexes)];
     if (uniqueIndexes.some(index => index >= demand.products.length)) {
       return res.status(400).json({ error: "Invalid demand item" });
@@ -1543,7 +1550,16 @@ app.patch("/api/supporting-staff/demands/:id", authMiddleware, supportingStaffMi
     const demand = await Demand.findById(req.params.id);
     if (!demand) return res.status(404).json({ error: "Demand not found" });
 
-    const isItemLevel = Number.isInteger(itemIndex) && Array.isArray(demand.products) && itemIndex >= 0 && itemIndex < demand.products.length;
+    if (!Array.isArray(demand.products)) {
+      demand.products = [{
+        name: String(demand.products || "Item").trim(),
+        quantity: Number(demand.quantity) || 1,
+        warehouse: "FC Faizabad WH",
+        status: demand.status || "pending"
+      }];
+    }
+
+    const isItemLevel = Number.isInteger(itemIndex) && itemIndex >= 0 && itemIndex < demand.products.length;
 
     if (isItemLevel) {
       const targetItem = demand.products[itemIndex];
@@ -1572,15 +1588,13 @@ app.patch("/api/supporting-staff/demands/:id", authMiddleware, supportingStaffMi
       demand.supportRemarks = String(remarks || "").trim().slice(0, 2000);
       demand.supportCheckedBy = req.user.name;
       demand.supportCheckedAt = new Date();
-      if (Array.isArray(demand.products)) {
-        demand.products.forEach(p => {
-          p.supportStatus = status;
-          p.supportRemarks = status === "issue" ? demand.supportRemarks : "";
-          p.supportCheckedBy = req.user.name;
-          p.supportCheckedAt = demand.supportCheckedAt;
-        });
-        demand.markModified("products");
-      }
+      demand.products.forEach(p => {
+        p.supportStatus = status;
+        p.supportRemarks = status === "issue" ? demand.supportRemarks : "";
+        p.supportCheckedBy = req.user.name;
+        p.supportCheckedAt = demand.supportCheckedAt;
+      });
+      demand.markModified("products");
     }
 
     demand.markModified("supportStatus");

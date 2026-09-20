@@ -393,21 +393,47 @@ function render() {
         <td><input class="pickup" type="number" min="0" max="${item.quantity}" step="1" value="${savedPickup}" placeholder="${item.quantity}" ${item.status === 'on_the_way' ? 'disabled' : ''}></td>
         <td>${esc(item.invoiceNumber || '-')}</td>
         <td>${esc(item.warehouse || '-')}</td>
-        <td class="status"><span class="${item.status === 'on_the_way' ? '' : 'pending'}">${esc(item.status || d.status)}</span></td>
-        <td><button class="action" ${item.status === 'on_the_way' ? 'disabled' : ''}>OK</button></td>
+        <td class="status">
+          ${item.status === 'on_the_way'
+            ? `<span style="background:#dcfce7;color:#15803d;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;">On the way</span>`
+            : item.status === 'approved'
+            ? `<span style="background:#e0f2fe;color:#0369a1;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;">Approved</span>`
+            : `<span class="pending">${esc(item.status || d.status || 'Pending')}</span>`}
+        </td>
+        <td>
+          <button class="action" ${item.status === 'on_the_way' ? 'disabled style="opacity:0.65;cursor:default;background:#15803d;color:#fff;border-color:#15803d;"' : ''}>
+            ${item.status === 'on_the_way' ? '✓ Dispatched' : 'Dispatch (OK)'}
+          </button>
+        </td>
       `;
 
       const action = row.querySelector('.action');
       action.onclick = async () => {
         try {
-          const value = row.querySelector('.pickup').value;
+          const pickupInput = row.querySelector('.pickup');
+          const value = pickupInput ? pickupInput.value.trim() : '';
+          if (value !== '') {
+            const numVal = Number(value);
+            if (isNaN(numVal) || numVal < 0 || !Number.isInteger(numVal)) {
+              alert("Pickup quantity must be a whole positive number (0 ya zyada).");
+              return;
+            }
+            if (numVal > item.quantity) {
+              alert(`Pickup quantity (${numVal}) demanded quantity (${item.quantity}) se zyada nahi ho sakti.`);
+              return;
+            }
+          }
+          action.disabled = true;
+          action.textContent = "Dispatching...";
           await api('/api/logistics/demands/' + d.id, {
             method: 'PATCH',
             body: JSON.stringify({ itemIndexes: [item.index], status: 'on_the_way', pickedQuantity: value === '' ? null : Number(value) })
           });
           await load();
         } catch (e) {
-          alert(e.message);
+          action.disabled = false;
+          action.textContent = "Dispatch (OK)";
+          alert("Error: " + e.message);
         }
       };
 

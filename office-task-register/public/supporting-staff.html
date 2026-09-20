@@ -1063,12 +1063,29 @@
           const originalItemIndex = item.index !== undefined ? item.index : loopIndex;
 
           // Per-item Action buttons
-          let actionHtml = `
-            <div class="action-group">
-              <button class="act-btn btn-ok" onclick="handleMarkItemOk('${demand.id}', ${originalItemIndex})">✅ OK</button>
-              <button class="act-btn btn-issue" onclick="openIssueModal('${demand.id}', ${originalItemIndex})">⚠️ Issue</button>
-            </div>
-          `;
+          let actionHtml = '';
+          if (s === 'ok') {
+            actionHtml = `
+              <div class="action-group">
+                <button class="act-btn btn-ok" disabled style="opacity:0.65;cursor:default;background:var(--green);color:#fff;border-color:var(--green);">✓ Verified OK</button>
+                <button class="act-btn btn-issue" onclick="openIssueModal('${demand.id}', ${originalItemIndex})" title="Report issue if previously marked OK by mistake" style="font-size:11px;padding:4px 6px;">⚠️ Change</button>
+              </div>
+            `;
+          } else if (s === 'issue') {
+            actionHtml = `
+              <div class="action-group">
+                <button class="act-btn btn-ok" onclick="handleMarkItemOk('${demand.id}', ${originalItemIndex}, this)">✅ Mark OK</button>
+                <button class="act-btn btn-issue" disabled style="opacity:0.65;cursor:default;background:var(--red);color:#fff;border-color:var(--red);">🔴 Issue Set</button>
+              </div>
+            `;
+          } else {
+            actionHtml = `
+              <div class="action-group">
+                <button class="act-btn btn-ok" onclick="handleMarkItemOk('${demand.id}', ${originalItemIndex}, this)">✅ OK</button>
+                <button class="act-btn btn-issue" onclick="openIssueModal('${demand.id}', ${originalItemIndex})">⚠️ Issue</button>
+              </div>
+            `;
+          }
 
           tr.innerHTML = `
             <td>${visibleCountForDemand === 0 ? `<b>${esc(demand.employee_name)}</b>${demand.is_urgent ? ' <span class="badge badge-urgent">⚡ URGENT</span>' : ''}` : ''}</td>
@@ -1089,11 +1106,15 @@
       });
     }
 
-    async function handleMarkItemOk(demandId, itemIndex) {
+    async function handleMarkItemOk(demandId, itemIndex, btn) {
       const demand = allDemands.find(d => d.id === demandId);
       const item = demand && demand.items ? (demand.items.find(it => it.index === itemIndex) || demand.items[itemIndex]) : null;
       const itemName = item ? item.name : "this item";
       if (!confirm(`Verify "${itemName}" as OK?`)) return;
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Verifying...";
+      }
       try {
         await api(`/api/supporting-staff/demands/${demandId}`, {
           method: "PATCH",
@@ -1101,6 +1122,10 @@
         });
         await loadDemands();
       } catch (e) {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = "✅ OK";
+        }
         alert("Failed to mark item OK: " + e.message);
       }
     }
