@@ -1387,6 +1387,35 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
   }
 });
 
+// Admin: update pickup quantity for a specific item (without changing status)
+app.patch("/api/admin/demands/:id/pickup-qty", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { itemIndex, pickedQuantity } = req.body || {};
+    if (!Number.isInteger(itemIndex) || itemIndex < 0) {
+      return res.status(400).json({ error: "Valid itemIndex required" });
+    }
+    const demand = await Demand.findById(req.params.id);
+    if (!demand) return res.status(404).json({ error: "Demand not found" });
+    if (!Array.isArray(demand.products) || itemIndex >= demand.products.length) {
+      return res.status(400).json({ error: "Invalid item index" });
+    }
+    const item = demand.products[itemIndex];
+    const hasVal = pickedQuantity !== undefined && pickedQuantity !== null && pickedQuantity !== "";
+    const numVal = hasVal ? Number(pickedQuantity) : null;
+    if (hasVal && (!Number.isInteger(numVal) || numVal < 0 || numVal > Number(item.quantity))) {
+      return res.status(400).json({ error: "Pickup quantity must be a whole number between 0 and the demanded quantity (" + item.quantity + ")" });
+    }
+    const obj = item.toObject?.() || { ...item };
+    demand.products[itemIndex] = { ...obj, pickedQuantity: hasVal ? numVal : null };
+    demand.markModified("products");
+    await demand.save();
+    res.json(demandToJson(demand));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not update pickup quantity" });
+  }
+});
+
 app.get("/api/logistics/demands", authMiddleware, logisticsMiddleware, async (req, res) => {
   try {
     // Only show demands approved by admin or in progress (on_the_way)

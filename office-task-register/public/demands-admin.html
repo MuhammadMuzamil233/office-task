@@ -1032,7 +1032,26 @@
             <td>${esc(item.name)}${isItemUrgent ? ' <span class="badge-urgent">⚡ URGENT</span>' : ''}</td>
             <td>${esc(item.warehouse || "-")}</td>
             <td>${item.quantity}</td>
-            <td>${item.pickedQuantity == null ? "-" : item.pickedQuantity}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:4px;">
+                <input
+                  class="admin-pickup-input"
+                  type="number"
+                  min="0"
+                  max="${item.quantity}"
+                  step="1"
+                  value="${item.pickedQuantity == null ? '' : item.pickedQuantity}"
+                  placeholder="${item.quantity}"
+                  style="width:62px;padding:4px 6px;border:1px solid #d9cfb8;border-radius:4px;font-size:13px;"
+                  title="Pickup Quantity (max: ${item.quantity})"
+                >
+                <button
+                  class="admin-pickup-save"
+                  style="background:#0f3d3e;color:#fff;border:none;border-radius:4px;padding:4px 7px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;"
+                  title="Save pickup quantity"
+                >💾 Save</button>
+              </div>
+            </td>
             <td>${esc(item.invoiceNumber || "-")}</td>
             <td>${index === 0 ? total : ""}</td>
             <td>
@@ -1102,6 +1121,35 @@
           }
 
           const itemActionsDiv = row.querySelector("td:last-child .actions");
+
+          // Admin pickup quantity save handler
+          const pickupSaveBtn = row.querySelector(".admin-pickup-save");
+          const pickupInput = row.querySelector(".admin-pickup-input");
+          if (pickupSaveBtn && pickupInput) {
+            pickupSaveBtn.onclick = async () => {
+              const val = pickupInput.value.trim();
+              const numVal = val === "" ? null : Number(val);
+              if (val !== "" && (!Number.isInteger(numVal) || numVal < 0 || numVal > item.quantity)) {
+                alert(`Pickup quantity 0 aur ${item.quantity} ke درمیان ek poora adad hona chahiye.`);
+                return;
+              }
+              try {
+                pickupSaveBtn.disabled = true;
+                pickupSaveBtn.textContent = "⏳";
+                await api("/api/admin/demands/" + demand.id + "/pickup-qty", {
+                  method: "PATCH",
+                  body: JSON.stringify({ itemIndex: item.index, pickedQuantity: numVal })
+                });
+                pickupSaveBtn.textContent = "✅";
+                setTimeout(() => { pickupSaveBtn.textContent = "💾 Save"; pickupSaveBtn.disabled = false; }, 1200);
+              } catch (err) {
+                alert("❌ " + (err.message || "Pickup quantity save karne mein nakami"));
+                pickupSaveBtn.textContent = "💾 Save";
+                pickupSaveBtn.disabled = false;
+              }
+            };
+          }
+
           if (itemActionsDiv) {
             // Per-item Urgent toggle button
             const itemUrgentBtn = document.createElement("button");

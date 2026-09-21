@@ -256,6 +256,7 @@ const esc = v => {
 };
 
 let all = [];
+let isAdmin = false;
 
 function itemsOf(d) {
   return Array.isArray(d.items) ? d.items : [];
@@ -390,7 +391,7 @@ function render() {
           </label>
         </td>
         <td>${item.quantity}</td>
-        <td><input class="pickup" type="number" min="0" max="${item.quantity}" step="1" value="${savedPickup}" placeholder="${item.quantity}" ${item.status === 'on_the_way' ? 'disabled' : ''}></td>
+        <td><input class="pickup" type="number" min="0" max="${item.quantity}" step="1" value="${savedPickup}" placeholder="${item.quantity}" ${item.status === 'on_the_way' && !isAdmin ? 'disabled' : ''}></td>
         <td>${esc(item.invoiceNumber || '-')}</td>
         <td>${esc(item.warehouse || '-')}</td>
         <td class="status">
@@ -401,41 +402,78 @@ function render() {
             : `<span class="pending">${esc(item.status || d.status || 'Pending')}</span>`}
         </td>
         <td>
-          <button class="action" ${item.status === 'on_the_way' ? 'disabled style="opacity:0.65;cursor:default;background:#15803d;color:#fff;border-color:#15803d;"' : ''}>
-            ${item.status === 'on_the_way' ? '✓ Dispatched' : 'Dispatch (OK)'}
-          </button>
+          ${item.status === 'on_the_way' && isAdmin ? `
+            <button class="action admin-save-pickup" style="background:#0f3d3e;border-color:#0f3d3e;color:#fff;font-size:11px;padding:5px 9px;">
+              💾 Save Qty
+            </button>
+          ` : `
+            <button class="action" ${item.status === 'on_the_way' ? 'disabled style="opacity:0.65;cursor:default;background:#15803d;color:#fff;border-color:#15803d;"' : ''}>
+              ${item.status === 'on_the_way' ? '✓ Dispatched' : 'Dispatch (OK)'}
+            </button>
+          `}
         </td>
       `;
 
-      const action = row.querySelector('.action');
-      action.onclick = async () => {
-        try {
+      // Admin: "Save Qty" button for on_the_way items
+      const adminSaveBtn = row.querySelector('.admin-save-pickup');
+      if (adminSaveBtn) {
+        adminSaveBtn.onclick = async () => {
           const pickupInput = row.querySelector('.pickup');
           const value = pickupInput ? pickupInput.value.trim() : '';
-          if (value !== '') {
-            const numVal = Number(value);
-            if (isNaN(numVal) || numVal < 0 || !Number.isInteger(numVal)) {
-              alert("Pickup quantity must be a whole positive number (0 ya zyada).");
-              return;
-            }
-            if (numVal > item.quantity) {
-              alert(`Pickup quantity (${numVal}) demanded quantity (${item.quantity}) se zyada nahi ho sakti.`);
-              return;
-            }
+          const numVal = value === '' ? null : Number(value);
+          if (value !== '' && (!Number.isInteger(numVal) || numVal < 0 || numVal > item.quantity)) {
+            alert(`Pickup quantity 0 aur ${item.quantity} ke درمیان ek poora adad hona chahiye.`);
+            return;
           }
-          action.disabled = true;
-          action.textContent = "Dispatching...";
-          await api('/api/logistics/demands/' + d.id, {
-            method: 'PATCH',
-            body: JSON.stringify({ itemIndexes: [item.index], status: 'on_the_way', pickedQuantity: value === '' ? null : Number(value) })
-          });
-          await load();
-        } catch (e) {
-          action.disabled = false;
-          action.textContent = "Dispatch (OK)";
-          alert("Error: " + e.message);
-        }
-      };
+          try {
+            adminSaveBtn.disabled = true;
+            adminSaveBtn.textContent = '⏳';
+            await api('/api/admin/demands/' + d.id + '/pickup-qty', {
+              method: 'PATCH',
+              body: JSON.stringify({ itemIndex: item.index, pickedQuantity: numVal })
+            });
+            adminSaveBtn.textContent = '✅ Saved';
+            setTimeout(() => { adminSaveBtn.textContent = '💾 Save Qty'; adminSaveBtn.disabled = false; }, 1500);
+          } catch (e) {
+            adminSaveBtn.disabled = false;
+            adminSaveBtn.textContent = '💾 Save Qty';
+            alert('Error: ' + e.message);
+          }
+        };
+      }
+
+      // Normal dispatch action for logistics / not-yet-dispatched items
+      const action = row.querySelector('.action:not(.admin-save-pickup)');
+      if (action) {
+        action.onclick = async () => {
+          try {
+            const pickupInput = row.querySelector('.pickup');
+            const value = pickupInput ? pickupInput.value.trim() : '';
+            if (value !== '') {
+              const numVal = Number(value);
+              if (isNaN(numVal) || numVal < 0 || !Number.isInteger(numVal)) {
+                alert("Pickup quantity must be a whole positive number (0 ya zyada).");
+                return;
+              }
+              if (numVal > item.quantity) {
+                alert(`Pickup quantity (${numVal}) demanded quantity (${item.quantity}) se zyada nahi ho sakti.`);
+                return;
+              }
+            }
+            action.disabled = true;
+            action.textContent = "Dispatching...";
+            await api('/api/logistics/demands/' + d.id, {
+              method: 'PATCH',
+              body: JSON.stringify({ itemIndexes: [item.index], status: 'on_the_way', pickedQuantity: value === '' ? null : Number(value) })
+            });
+            await load();
+          } catch (e) {
+            action.disabled = false;
+            action.textContent = "Dispatch (OK)";
+            alert("Error: " + e.message);
+          }
+        };
+      }
 
       body.appendChild(row);
     });
@@ -502,6 +540,7 @@ document.getElementById('copySelectedBtn').onclick = copySelectedDemands;
 document.getElementById('copyAllVisibleBtn').onclick = copyAllVisibleDemands;
 
 api('/api/me').then(me => {
+  isAdmin = me.role === 'admin';
   if (me.role === 'admin') {
     localStorage.setItem('user_role', 'admin');
     if (!localStorage.getItem('admin_theme')) localStorage.setItem('admin_theme', 'cyber');
@@ -514,6 +553,8 @@ api('/api/me').then(me => {
     else document.body.classList.remove('dark-theme');
   }
   if (!['admin', 'logistics'].includes(me.role)) location.href = '/';
+  // Re-render after role is known so admin-specific UI elements appear
+  render();
 }).catch(() => location.href = '/');
 
 load();
