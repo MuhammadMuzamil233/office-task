@@ -275,8 +275,9 @@ async function notifyMentionedUsers(text, actor, task, messageType) {
 // ---------- Auth helpers & Multi-Branch Resolution ----------
 function isSuperAdminUser(user) {
   if (!user) return false;
-  if (user.isSuperAdmin) return true;
-  if (ADMIN_USERNAME && user.username && user.username.toLowerCase().trim() === ADMIN_USERNAME) return true;
+  if (user.isSuperAdmin === true) return true;
+  if (ADMIN_USERNAME && user.username && user.username.toLowerCase().trim() === ADMIN_USERNAME.toLowerCase().trim()) return true;
+  if (user.role === "admin" && (!user.branch || user.branch === "akbarelectronics")) return true;
   return false;
 }
 
@@ -404,12 +405,16 @@ async function seedDefaultBranchesAndMigrate() {
       console.log("Default branch 'Akbar Electronics' created.");
     }
 
-    // 2. Ensure Super Admin is set for ADMIN_USERNAME
+    // 2. Ensure Super Admin is set for ADMIN_USERNAME or existing admins
     if (ADMIN_USERNAME) {
-      await User.updateOne(
-        { username: ADMIN_USERNAME },
+      await User.updateMany(
+        { username: new RegExp("^" + escapeRegex(ADMIN_USERNAME.trim()) + "$", "i") },
         { $set: { role: "admin", isSuperAdmin: true, branch: "akbarelectronics" } }
       );
+    }
+    const superCount = await User.countDocuments({ isSuperAdmin: true });
+    if (superCount === 0) {
+      await User.updateMany({ role: "admin" }, { $set: { isSuperAdmin: true, branch: "akbarelectronics" } });
     }
 
     // 3. Migrate existing records to "akbarelectronics"
@@ -490,11 +495,9 @@ app.get("/api/admin/branches", authMiddleware, adminMiddleware, async (req, res)
   }
 });
 
+// POST /api/admin/branches - Create new branch
 app.post("/api/admin/branches", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    if (!req.user.isSuperAdmin) {
-      return res.status(403).json({ error: "Only Super Admin can create new branches" });
-    }
     const { name, code, description } = req.body || {};
     if (!name || !String(name).trim()) {
       return res.status(400).json({ error: "Branch name is required" });
@@ -515,10 +518,65 @@ app.post("/api/admin/branches", authMiddleware, adminMiddleware, async (req, res
       isActive: true,
       createdBy: req.user.username
     });
-    res.json({ id: branch._id.toString(), name: branch.name, code: branch.code });
+    res.json({ id: branch._id.toString(), name: branch.name, code: branch.code, description: branch.description, isActive: branch.isActive, createdAt: branch.createdAt });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not create branch" });
+  }
+});
+
+// PATCH /api/admin/branches/:id - Update branch details & active state
+app.patch("/api/admin/branches/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { name, description, isActive } = req.body || {};
+    const branch = await Branch.findById(req.params.id);
+    if (!branch) return res.status(404).json({ error: "Branch not found" });
+
+    if (name !== undefined && String(name).trim()) {
+      branch.name = String(name).trim();
+    }
+    if (description !== undefined) {
+      branch.description = String(description).trim();
+    }
+    if (typeof isActive === "boolean") {
+      if (branch.code === "akbarelectronics" && !isActive) {
+        return res.status(400).json({ error: "Default Akbar Electronics branch cannot be deactivated" });
+      }
+      branch.isActive = isActive;
+    }
+    await branch.save();
+    res.json({ id: branch._id.toString(), name: branch.name, code: branch.code, description: branch.description, isActive: branch.isActive });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not update branch" });
+  }
+});
+
+// DELETE /api/admin/branches/:id - Delete branch and safely reassign data
+app.delete("/api/admin/branches/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const branch = await Branch.findById(req.params.id);
+    if (!branch) return res.status(404).json({ error: "Branch not found" });
+
+    if (branch.code === "akbarelectronics") {
+      return res.status(400).json({ error: "Default Akbar Electronics main branch cannot be deleted" });
+    }
+
+    const oldCode = branch.code;
+    // Reassign all associated data safely to "akbarelectronics"
+    await User.updateMany({ branch: oldCode }, { $set: { branch: "akbarelectronics" } });
+    await Task.updateMany({ branch: oldCode }, { $set: { branch: "akbarelectronics" } });
+    await Demand.updateMany({ branch: oldCode }, { $set: { branch: "akbarelectronics" } });
+    await DemandHistory.updateMany({ branch: oldCode }, { $set: { branch: "akbarelectronics" } });
+    await InventoryItem.updateMany({ branch: oldCode }, { $set: { branch: "akbarelectronics" } });
+    await StockTransaction.updateMany({ branch: oldCode }, { $set: { branch: "akbarelectronics" } });
+    await AdminRequest.updateMany({ branch: oldCode }, { $set: { branch: "akbarelectronics" } });
+
+    await Branch.findByIdAndDelete(req.params.id);
+    res.json({ ok: true, message: `Branch '${branch.name}' deleted and its data reassigned to Akbar Electronics.` });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not delete branch" });
   }
 });
 
@@ -837,8 +895,8 @@ app.patch("/api/admin/users/:id", authMiddleware, adminMiddleware, async (req, r
       targetUser.isActive = isActive;
     }
 
-    // Super Admin can change user's branch
-    if (req.user.isSuperAdmin && branch && String(branch).trim()) {
+    // Admin can manually assign/change user's branch
+    if (branch && String(branch).trim()) {
       const bDoc = await Branch.findOne({ code: String(branch).toLowerCase().trim() });
       if (bDoc) {
         targetUser.branch = bDoc.code;
@@ -1233,12 +1291,19 @@ app.post("/api/demands", authMiddleware, async (req, res) => {
     const hasAnyUrgent = mergedItems.some(it => it.isUrgent) || Boolean(isUrgent);
     const isUserAdmin = req.user.role === "admin" || (ADMIN_USERNAME && req.user.username && req.user.username.toLowerCase() === ADMIN_USERNAME);
     mergedItems.forEach(item => { item.status = "pending"; });
+    let targetBranch = req.user.branch || "akbarelectronics";
+    if (isUserAdmin || req.user.isSuperAdmin) {
+      const explicitBranch = req.body?.branch || req.headers?.["x-branch"] || req.query?.branch;
+      if (explicitBranch && typeof explicitBranch === "string" && explicitBranch.trim() && explicitBranch.trim().toLowerCase() !== "all") {
+        targetBranch = explicitBranch.trim().toLowerCase();
+      }
+    }
     const demand = await Demand.create({
       employeeId: req.user.id,
       employeeName: req.user.name,
       employeeUsername: req.user.username || "",
       creatorRole: isUserAdmin ? "admin" : "user",
-      branch: req.user.branch || "akbarelectronics",
+      branch: targetBranch,
       date,
       products: mergedItems,
       status: "pending",

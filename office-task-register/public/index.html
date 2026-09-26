@@ -639,9 +639,12 @@
     parent.appendChild(comments);
   }
   async function api(path, opts={}){
+    const activeBranch = localStorage.getItem("admin_selected_branch") || "";
+    const hdrs = { "Content-Type": "application/json", ...(opts.headers||{}) };
+    if (activeBranch && !hdrs["x-branch"]) hdrs["x-branch"] = activeBranch;
     const res = await fetch(path, {
       ...opts,
-      headers: { "Content-Type": "application/json", ...(opts.headers||{}) },
+      headers: hdrs,
       credentials: "include"
     });
     let data = null;
@@ -1144,7 +1147,8 @@
     try{
       const products = [...document.querySelectorAll("#demandItems .demand-item")].map(row => ({ name:row.querySelector(".demand-product").value, warehouse:row.querySelector(".demand-warehouse").value, quantity:Number(row.querySelector(".demand-quantity").value), invoiceNumber:row.querySelector(".demand-invoice").value }));
       const isUrgent = Boolean(document.getElementById("demandUrgent")?.checked);
-      const demand = await api("/api/demands", { method:"POST", body: JSON.stringify({ date:document.getElementById("demandDate").value, products, isUrgent }) });
+      const adminBranch = (me && me.role === "admin") ? (localStorage.getItem("admin_selected_branch") || undefined) : undefined;
+      const demand = await api("/api/demands", { method:"POST", body: JSON.stringify({ date:document.getElementById("demandDate").value, products, isUrgent, branch: adminBranch }) });
       myDemands.unshift(demand); e.target.reset(); document.getElementById("demandDate").value = todayStr();
       updateWarehouseSelects();
       if(document.getElementById("demandUrgent")) document.getElementById("demandUrgent").checked = false;

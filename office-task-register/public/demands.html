@@ -353,11 +353,21 @@
   <main>
     <header class="book">
       <h1>Employee Demands</h1>
-      <button class="button" id="back">Back to tasks</button>
+      <span style="display:flex;align-items:center;gap:8px;">
+        <span id="demandBranchIndicator"></span>
+        <button class="button" id="back">Back to tasks</button>
+      </span>
     </header>
     <section class="card">
       <h2>Submit Demand</h2>
       <form class="form" id="form">
+        <div id="demandBranchPickerRow" style="margin-bottom:14px;padding:8px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:6px;display:none;align-items:center;gap:8px;">
+          <label style="font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:6px;">
+            🏢 Demand for Branch:
+            <select id="demandBranchSelect" style="padding:5px 10px;border-radius:4px;border:1px solid var(--line);font-weight:600;background:var(--paper);color:inherit;">
+            </select>
+          </label>
+        </div>
         <datalist id="inventoryModelsList"></datalist>
         <div id="items">
           <div class="item">
@@ -394,12 +404,17 @@
 
   <script>
     const api = async (path, opts = {}) => {
+      const activeBranch = localStorage.getItem("admin_selected_branch") || "";
+      const customHeaders = {
+        "Content-Type": "application/json",
+        ...(opts.headers || {})
+      };
+      if (activeBranch && !customHeaders["x-branch"]) {
+        customHeaders["x-branch"] = activeBranch;
+      }
       const response = await fetch(path, {
         ...opts,
-        headers: {
-          "Content-Type": "application/json",
-          ...(opts.headers || {})
-        },
+        headers: customHeaders,
         credentials: "include"
       });
       const data = await response.json();
@@ -597,12 +612,15 @@
           products.forEach(p => p.isUrgent = true);
         }
         const hasAnyUrgent = products.some(p => p.isUrgent) || isOverallUrgent;
+        const branchSelectEl = document.getElementById("demandBranchSelect");
+        const selectedDemandBranch = (branchSelectEl && branchSelectEl.value) || localStorage.getItem("admin_selected_branch") || undefined;
         await api("/api/demands", {
           method: "POST",
           body: JSON.stringify({
             date: document.getElementById("date").value,
             products,
-            isUrgent: hasAnyUrgent
+            isUrgent: hasAnyUrgent,
+            branch: selectedDemandBranch
           })
         });
         event.target.reset();
@@ -628,12 +646,42 @@
       }
     };
 
-    api("/api/me").then(me => {
+    api("/api/me").then(async me => {
       if (me.role === 'admin') {
         localStorage.setItem('user_role', 'admin');
         if (!localStorage.getItem('admin_theme')) localStorage.setItem('admin_theme', 'cyber');
         if (window.AdminTheme) window.AdminTheme.apply();
         else document.body.classList.add('dark-theme');
+
+        // Setup branch selector for admin/super-admin
+        try {
+          const branches = await api("/api/branches");
+          const pickerRow = document.getElementById("demandBranchPickerRow");
+          const branchSel = document.getElementById("demandBranchSelect");
+          const branchInd = document.getElementById("demandBranchIndicator");
+          if (pickerRow && branchSel && Array.isArray(branches) && branches.length) {
+            pickerRow.style.display = "flex";
+            const currentSelected = localStorage.getItem("admin_selected_branch") || me.branch || "akbarelectronics";
+            branchSel.innerHTML = branches.map(b => `<option value="${esc(b.code)}"${b.code === currentSelected ? ' selected' : ''}>🏢 ${esc(b.name)} (${esc(b.code)})</option>`).join("");
+            
+            const updateIndicator = (code) => {
+              const bObj = branches.find(b => b.code === code);
+              if (branchInd) {
+                branchInd.innerHTML = `<span style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;background:#06b6d4;color:#000;">🏢 ${esc(bObj ? bObj.name : code)}</span>`;
+              }
+            };
+            updateIndicator(branchSel.value);
+
+            branchSel.onchange = () => {
+              const newBranch = branchSel.value;
+              localStorage.setItem("admin_selected_branch", newBranch);
+              updateIndicator(newBranch);
+              load();
+            };
+          }
+        } catch (be) {
+          console.warn("Could not load branches for demands page:", be);
+        }
       } else {
         localStorage.removeItem('admin_theme');
         localStorage.setItem('user_role', me.role || '');

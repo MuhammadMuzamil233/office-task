@@ -620,11 +620,12 @@
               <th>Stock Items</th>
               <th>Status</th>
               <th>Created At</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody id="branch-list">
             <tr>
-              <td colspan="7" class="empty">Loading branches...</td>
+              <td colspan="8" class="empty">Loading branches...</td>
             </tr>
           </tbody>
         </table>
@@ -717,27 +718,22 @@
     function renderBranchHeader(me) {
       const container = document.getElementById("adminBranchBadgeContainer");
       if (!container) return;
-      if (me.isSuperAdmin) {
-        const currentSelected = localStorage.getItem("admin_selected_branch") || "all";
-        container.innerHTML = `
-          <label style="font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:4px;color:#f1ece0;margin-right:6px;">
-            🏢 Branch:
-            <select id="superAdminBranchSelect" style="padding:4px 8px;border-radius:6px;background:rgba(8,13,23,0.85);color:#fff;border:1px solid #b08d3e;font-size:12px;font-weight:600;">
-              <option value="all" ${currentSelected === 'all' ? 'selected' : ''}>🌐 All Branches</option>
-              ${allBranches.map(b => `<option value="${b.code}" ${currentSelected === b.code ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}
-            </select>
-          </label>
-        `;
-        const sel = container.querySelector("#superAdminBranchSelect");
-        if (sel) {
-          sel.onchange = () => {
-            localStorage.setItem("admin_selected_branch", sel.value);
-            load();
-          };
-        }
-      } else {
-        const bName = me.branchName || me.branch || "Akbar Electronics";
-        container.innerHTML = `<span style="background:rgba(255,255,255,0.15);padding:4px 9px;border-radius:6px;font-size:12px;font-weight:600;color:#f1ece0;margin-right:6px;">🏢 ${esc(bName)}</span>`;
+      const currentSelected = localStorage.getItem("admin_selected_branch") || "all";
+      container.innerHTML = `
+        <label style="font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:4px;color:#f1ece0;margin-right:6px;">
+          🏢 Branch:
+          <select id="superAdminBranchSelect" style="padding:4px 8px;border-radius:6px;background:rgba(8,13,23,0.85);color:#fff;border:1px solid #b08d3e;font-size:12px;font-weight:600;">
+            <option value="all" ${currentSelected === 'all' ? 'selected' : ''}>🌐 All Branches</option>
+            ${allBranches.map(b => `<option value="${b.code}" ${currentSelected === b.code ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}
+          </select>
+        </label>
+      `;
+      const sel = container.querySelector("#superAdminBranchSelect");
+      if (sel) {
+        sel.onchange = () => {
+          localStorage.setItem("admin_selected_branch", sel.value);
+          load();
+        };
       }
     }
 
@@ -748,29 +744,98 @@
         document.getElementById("branchCount").textContent = allBranches.length;
         const createCard = document.getElementById("branchCreateContainer");
         if (createCard) {
-          createCard.style.display = (currentAdmin && currentAdmin.isSuperAdmin) ? "flex" : "none";
+          createCard.style.display = "flex";
         }
         if (!allBranches.length) {
-          list.innerHTML = '<tr><td colspan="7" class="empty">No branches found.</td></tr>';
+          list.innerHTML = '<tr><td colspan="8" class="empty">No branches found.</td></tr>';
           return;
         }
         list.innerHTML = "";
         allBranches.forEach(b => {
           const tr = document.createElement("tr");
+          const isDefault = b.code === "akbarelectronics";
           tr.innerHTML = `
-            <td><b>${esc(b.name)}</b></td>
+            <td><b>${esc(b.name)}</b>${isDefault ? ' <span style="background:#b08d3e;color:#fff;padding:2px 5px;border-radius:3px;font-size:10px;font-weight:700;">DEFAULT</span>' : ''}</td>
             <td><code>${esc(b.code)}</code></td>
             <td>${b.userCount || 0}</td>
             <td>${b.demandCount || 0}</td>
             <td>${b.itemCount || 0}</td>
             <td><span style="color:${b.isActive ? '#10b981' : '#f43f5e'};font-weight:600;">${b.isActive ? '🟢 Active' : '🔴 Inactive'}</span></td>
             <td>${date(b.createdAt)}</td>
+            <td>
+              <div class="actions" style="display:flex;gap:4px;flex-wrap:wrap;min-width:170px;">
+                <button type="button" class="action edit-branch-btn" style="background:#0284c7;border-color:#0284c7;">✏️ Edit</button>
+                ${!isDefault ? `<button type="button" class="action toggle-branch-btn" style="background:#f59e0b;border-color:#f59e0b;">${b.isActive ? 'Deactivate' : 'Activate'}</button>` : ''}
+                ${!isDefault ? `<button type="button" class="action cancel delete-branch-btn" style="border-color:#f43f5e;color:#f43f5e;background:transparent;">Delete</button>` : ''}
+              </div>
+            </td>
           `;
+
+          const editBtn = tr.querySelector(".edit-branch-btn");
+          if (editBtn) {
+            editBtn.onclick = async () => {
+              const newName = prompt(`Enter new name for branch "${b.name}":`, b.name);
+              if (newName === null) return;
+              const cleanName = newName.trim();
+              if (!cleanName) {
+                alert("Branch name cannot be empty.");
+                return;
+              }
+              const newDesc = prompt(`Enter description for branch "${cleanName}" (optional):`, b.description || "");
+              try {
+                await api("/api/admin/branches/" + b.id, {
+                  method: "PATCH",
+                  body: JSON.stringify({ name: cleanName, description: newDesc || "" })
+                });
+                alert("✓ Branch updated successfully!");
+                await loadBranches();
+                renderBranchHeader(currentAdmin);
+                await loadUsers();
+              } catch (e) {
+                alert("❌ " + (e.message || "Failed to update branch"));
+              }
+            };
+          }
+
+          const toggleBtn = tr.querySelector(".toggle-branch-btn");
+          if (toggleBtn) {
+            toggleBtn.onclick = async () => {
+              try {
+                await api("/api/admin/branches/" + b.id, {
+                  method: "PATCH",
+                  body: JSON.stringify({ isActive: !b.isActive })
+                });
+                await loadBranches();
+                renderBranchHeader(currentAdmin);
+              } catch (e) {
+                alert("❌ " + (e.message || "Failed to toggle status"));
+              }
+            };
+          }
+
+          const deleteBtn = tr.querySelector(".delete-branch-btn");
+          if (deleteBtn) {
+            deleteBtn.onclick = async () => {
+              if (!confirm(`Are you sure you want to delete branch "${b.name}"?\nAll users, demands, tasks, and stock will be moved to Akbar Electronics.`)) return;
+              try {
+                await api("/api/admin/branches/" + b.id, {
+                  method: "DELETE"
+                });
+                alert(`✓ Branch "${b.name}" deleted and data moved to Akbar Electronics.`);
+                await loadBranches();
+                renderBranchHeader(currentAdmin);
+                await loadUsers();
+              } catch (e) {
+                alert("❌ " + (e.message || "Failed to delete branch"));
+              }
+            };
+          }
+
           list.appendChild(tr);
         });
       } catch (err) {
         console.error("Could not load branches", err);
-        list.innerHTML = `<tr><td colspan="7" class="error">${esc(err.message)}</td></tr>`;
+        list.innerHTML = `<tr><td colspan="8" class="error">${esc(err.message)}</td></tr>`;
       }
     }
 
@@ -908,15 +973,12 @@
           list.innerHTML = '<tr><td colspan="7" class="empty">No users found.</td></tr>';
           return;
         }
-        const isSuperAdmin = Boolean(currentAdmin && currentAdmin.isSuperAdmin);
         users.forEach(u => {
           const row = document.createElement("tr");
           const isPrimary = Boolean(u.isPrimaryAdmin);
-          const branchCellHtml = isSuperAdmin
-            ? `<select class="user-branch-select" ${isPrimary ? 'disabled title="Primary admin branch cannot be changed"' : ''}>
-                ${allBranches.map(b => `<option value="${b.code}" ${(u.branch || 'akbarelectronics') === b.code ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}
-               </select>`
-            : `<span>${esc(u.branchName || u.branch || "Akbar Electronics")}</span>`;
+          const branchCellHtml = `<select class="user-branch-select" ${isPrimary ? 'disabled title="Primary admin branch cannot be changed"' : ''}>
+            ${allBranches.map(b => `<option value="${b.code}" ${(u.branch || 'akbarelectronics') === b.code ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}
+          </select>`;
 
           row.innerHTML = `
             <td><b>${esc(u.name)}</b>${isPrimary ? ' <span class="primary-badge">PRIMARY ADMIN</span>' : ''}</td>
