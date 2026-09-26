@@ -976,12 +976,15 @@
         users.forEach(u => {
           const row = document.createElement("tr");
           const isPrimary = Boolean(u.isPrimaryAdmin);
+          const isUserSuperAdmin = Boolean(u.isSuperAdmin);
+          const amISuperAdmin = Boolean(currentAdmin && currentAdmin.isSuperAdmin);
+
           const branchCellHtml = `<select class="user-branch-select" ${isPrimary ? 'disabled title="Primary admin branch cannot be changed"' : ''}>
             ${allBranches.map(b => `<option value="${b.code}" ${(u.branch || 'akbarelectronics') === b.code ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}
           </select>`;
 
           row.innerHTML = `
-            <td><b>${esc(u.name)}</b>${isPrimary ? ' <span class="primary-badge">PRIMARY ADMIN</span>' : ''}</td>
+            <td><b>${esc(u.name)}</b>${isPrimary ? ' <span class="primary-badge">PRIMARY ADMIN</span>' : ''}${isUserSuperAdmin ? ' <span style="background:#7c3aed;color:#fff;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:700;margin-left:4px;">SUPER ADMIN</span>' : ''}</td>
             <td>@${esc(u.username)}</td>
             <td>${branchCellHtml}</td>
             <td>
@@ -1003,6 +1006,7 @@
             <td>
               <div class="actions">
                 <button class="action save-access-btn" ${isPrimary ? 'disabled' : ''}>Save Access</button>
+                ${amISuperAdmin && !isPrimary ? `<button class="action super-toggle-btn" style="background:${isUserSuperAdmin ? '#9333ea' : '#6d28d9'};border-color:${isUserSuperAdmin ? '#9333ea' : '#6d28d9'};">${isUserSuperAdmin ? '👑 Remove Super' : '👑 Make Super Admin'}</button>` : ''}
                 <button class="action reset-pwd-btn" style="background:#4a69bd;border-color:#4a69bd;">Reset Password</button>
               </div>
             </td>
@@ -1013,6 +1017,7 @@
           const branchSelect = row.querySelector(".user-branch-select");
           const saveBtn = row.querySelector(".save-access-btn");
           const resetBtn = row.querySelector(".reset-pwd-btn");
+          const superToggleBtn = row.querySelector(".super-toggle-btn");
 
           if (!isPrimary) {
             saveBtn.onclick = async () => {
@@ -1038,6 +1043,28 @@
             };
           }
 
+          if (superToggleBtn) {
+            superToggleBtn.onclick = async () => {
+              const makingSuper = !isUserSuperAdmin;
+              const confirmMsg = makingSuper
+                ? `Are you sure you want to make @${u.username} a Super Admin?\nThey will have access to ALL branches and all data.`
+                : `Are you sure you want to remove Super Admin rights from @${u.username}?`;
+              if (!confirm(confirmMsg)) return;
+              try {
+                superToggleBtn.disabled = true;
+                await api("/api/admin/users/" + u.id, {
+                  method: "PATCH",
+                  body: JSON.stringify({ isSuperAdmin: makingSuper, role: "admin" })
+                });
+                alert(makingSuper ? `✓ @${u.username} is now a Super Admin!` : `✓ Super Admin rights removed from @${u.username}`);
+                loadUsers();
+              } catch (err) {
+                alert("❌ " + err.message);
+                superToggleBtn.disabled = false;
+              }
+            };
+          }
+
           resetBtn.onclick = async () => {
             const newPwd = prompt(`Enter new password for @${u.username} (minimum 4 characters):`);
             if (!newPwd) return;
@@ -1058,6 +1085,7 @@
 
           list.appendChild(row);
         });
+
       } catch (err) {
         list.innerHTML = `<tr><td colspan="8" class="error">${esc(err.message)}</td></tr>`;
       }

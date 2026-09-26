@@ -277,7 +277,6 @@ function isSuperAdminUser(user) {
   if (!user) return false;
   if (user.isSuperAdmin === true) return true;
   if (ADMIN_USERNAME && user.username && user.username.toLowerCase().trim() === ADMIN_USERNAME.toLowerCase().trim()) return true;
-  if (user.role === "admin" && (!user.branch || user.branch === "akbarelectronics")) return true;
   return false;
 }
 
@@ -833,7 +832,11 @@ app.patch("/api/admin-requests/:id", authMiddleware, adminMiddleware, async (req
 // ---------- Admin User Management routes ----------
 app.get("/api/admin/users", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const query = branchQuery(req);
+    // Super admin sees ALL users; branch admin sees ONLY their own branch
+    let query = {};
+    if (!req.user.isSuperAdmin) {
+      query.branch = req.user.branch || "akbarelectronics";
+    }
     const users = await User.find(query).sort({ createdAt: -1 });
     const allBranches = await Branch.find().lean();
     const branchMap = new Map(allBranches.map(b => [b.code, b.name]));
@@ -858,7 +861,7 @@ app.get("/api/admin/users", authMiddleware, adminMiddleware, async (req, res) =>
 
 app.patch("/api/admin/users/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { role, isActive, branch } = req.body;
+    const { role, isActive, branch, isSuperAdmin } = req.body;
     const targetUser = await User.findById(req.params.id);
     if (!targetUser) return res.status(404).json({ error: "User not found" });
 
@@ -895,6 +898,15 @@ app.patch("/api/admin/users/:id", authMiddleware, adminMiddleware, async (req, r
       targetUser.isActive = isActive;
     }
 
+    // Only super admin can promote/demote super admin
+    if (typeof isSuperAdmin === "boolean" && req.user.isSuperAdmin) {
+      if (!isPrimaryAdmin || isSuperAdmin === true) { // Can't demote primary admin
+        targetUser.isSuperAdmin = isSuperAdmin;
+        // Super admins must be admin role
+        if (isSuperAdmin) targetUser.role = "admin";
+      }
+    }
+
     // Admin can manually assign/change user's branch
     if (branch && String(branch).trim()) {
       const bDoc = await Branch.findOne({ code: String(branch).toLowerCase().trim() });
@@ -912,6 +924,7 @@ app.patch("/api/admin/users/:id", authMiddleware, adminMiddleware, async (req, r
       role: targetUser.role,
       branch: targetUser.branch,
       branchName: bInfo ? bInfo.name : targetUser.branch,
+      isSuperAdmin: Boolean(targetUser.isSuperAdmin),
       isActive: targetUser.isActive !== false,
       lastActive: targetUser.lastActive || targetUser.updatedAt || targetUser.createdAt,
       createdAt: targetUser.createdAt,
