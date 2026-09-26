@@ -718,6 +718,15 @@
     function renderBranchHeader(me) {
       const container = document.getElementById("adminBranchBadgeContainer");
       if (!container) return;
+
+      // Regular admin: just show their branch as a static badge — no switcher
+      if (!me || !me.isSuperAdmin) {
+        const branchName = (allBranches.find(b => b.code === (me && me.branch)) || {}).name || (me && me.branch) || "My Branch";
+        container.innerHTML = `<span style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;background:#b08d3e;color:#fff;">🏢 ${esc(branchName)}</span>`;
+        return;
+      }
+
+      // Super admin: full branch switcher
       const currentSelected = localStorage.getItem("admin_selected_branch") || "all";
       container.innerHTML = `
         <label style="font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:4px;color:#f1ece0;margin-right:6px;">
@@ -877,6 +886,13 @@
           document.body.classList.add("dark-theme");
           updateThemeBtn();
         }
+
+        // Branch Management — sirf Super Admin ko dikhao
+        const branchSection = document.getElementById("branchSection");
+        if (branchSection) {
+          branchSection.style.display = currentAdmin.isSuperAdmin ? "" : "none";
+        }
+
         await loadBranches();
         renderBranchHeader(currentAdmin);
         allDemands = await api("/api/admin/demands");
