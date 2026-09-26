@@ -182,6 +182,87 @@ const InventoryAPI = {
     });
   },
 
+  exportToExcel(filename, rows, sheetName = 'Inventory') {
+    if (!Array.isArray(rows) || !rows.length) {
+      alert("No data to export.");
+      return;
+    }
+    const cleanName = filename.toLowerCase().endsWith('.xlsx') ? filename : filename.replace(/\.csv$/, '') + '.xlsx';
+
+    if (window.XLSX && typeof window.XLSX.utils?.aoa_to_sheet === 'function') {
+      const ws = window.XLSX.utils.aoa_to_sheet(rows);
+
+      // Auto-fit column widths
+      if (rows[0]) {
+        ws['!cols'] = rows[0].map((header, colIdx) => {
+          let maxLen = String(header || '').length;
+          for (let r = 1; r < rows.length; r++) {
+            const val = rows[r][colIdx];
+            const strLen = val == null ? 0 : String(val).length;
+            if (strLen > maxLen) maxLen = strLen;
+          }
+          return { wch: Math.min(Math.max(maxLen + 3, 10), 45) };
+        });
+      }
+
+      const wb = window.XLSX.utils.book_new();
+      window.XLSX.utils.book_append_sheet(wb, ws, String(sheetName || 'Sheet1').slice(0, 31));
+      window.XLSX.writeFile(wb, cleanName);
+      return true;
+    }
+
+    // Fallback: Excel XML Spreadsheet (.xls) which Microsoft Excel natively opens as a workbook
+    return this.exportToExcelXML(cleanName.replace(/\.xlsx$/, '.xls'), rows, sheetName);
+  },
+
+  exportToExcelXML(filename, rows, sheetName = 'Inventory') {
+    const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="Header">
+   <Font ss:Bold="1" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#0F2D4A" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="Number">
+   <NumberFormat ss:Format="0"/>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="${esc(sheetName)}">
+  <Table>`;
+
+    rows.forEach((row, rIdx) => {
+      xml += '\n   <Row>';
+      row.forEach(val => {
+        const isHeader = rIdx === 0;
+        const isNum = typeof val === 'number' || (!isNaN(val) && val !== '' && !isHeader);
+        const style = isHeader ? ' ss:StyleID="Header"' : (isNum ? ' ss:StyleID="Number"' : '');
+        const type = isNum ? 'Number' : 'String';
+        xml += `<Cell${style}><Data ss:Type="${type}">${esc(val)}</Data></Cell>`;
+      });
+      xml += '</Row>';
+    });
+
+    xml += `\n  </Table>
+ </Worksheet>
+</Workbook>`;
+
+    const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 300);
+    return true;
+  },
+
   exportToCSV(filename, rows) {
     if (!Array.isArray(rows) || !rows.length) {
       alert("No data to export.");

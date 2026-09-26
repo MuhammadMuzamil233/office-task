@@ -24,6 +24,8 @@ table{width:100%;border-collapse:collapse;min-width:760px}th,td{border-bottom:1p
 .model-badge{background:#e0f2fe;color:#0369a1;padding:3px 8px;border-radius:6px;font-weight:700;display:inline-block;font-size:13px}
 @media(max-width:800px){.cards{grid-template-columns:1fr}}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>window.XLSX || document.write('<script src="/xlsx.full.min.js"><\/script>')</script>
 <script src="/admin-theme.js"></script>
 <script src="/inventory-api.js"></script>
 </head>
@@ -217,9 +219,11 @@ function exportTransactionCSV() {
       t.reference ?? ''
     ])
   ];
-  const filename = 'transaction-history.csv';
-  if (window.InventoryAPI && typeof InventoryAPI.exportToCSV === 'function') {
-    InventoryAPI.exportToCSV(filename, data);
+  const filename = 'transaction-history.xlsx';
+  if (window.InventoryAPI && typeof InventoryAPI.exportToExcel === 'function') {
+    InventoryAPI.exportToExcel(filename, data, 'Transactions');
+  } else if (window.InventoryAPI && typeof InventoryAPI.exportToCSV === 'function') {
+    InventoryAPI.exportToCSV('transaction-history.csv', data);
   } else {
     const BOM = "\uFEFF";
     const csv = data.map(row => row.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
@@ -227,12 +231,12 @@ function exportTransactionCSV() {
     const a = document.createElement('a');
     a.style.display = 'none';
     a.href = URL.createObjectURL(blob);
-    a.download = filename;
+    a.download = 'transaction-history.csv';
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 300);
   }
-  toast(`✓ Exported ${transactions.length} transaction record(s) to Excel CSV`);
+  toast(`✓ Exported ${transactions.length} transaction record(s) to Excel`);
 }
 
 async function clearHistory() {

@@ -61,6 +61,8 @@ tr.lowrow{background:#fffaf0}tr.outrow{background:#fff5f5}.actions button{paddin
 
 .badge-ontheway{background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:3px;margin-left:6px;vertical-align:middle;white-space:nowrap}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>window.XLSX || document.write('<script src="/xlsx.full.min.js"><\/script>')</script>
 <script src="/admin-theme.js"></script>
 <script src="/inventory-api.js"></script>
 </head>
@@ -96,6 +98,8 @@ tr.lowrow{background:#fffaf0}tr.outrow{background:#fff5f5}.actions button{paddin
 <button style="background:#0369a1" onclick="location.href='transactions.html'">📊 Transaction History</button>
 <button onclick="location.href='virtual.html'">Virtual Warehouse</button>
 <button onclick="location.href='compare.html'">Physical Comparison</button>
+<button class="primary-excel" style="background:#107c41;color:#fff;border-color:#107c41;font-weight:700;" onclick="exportExcel()">📊 Export to Excel (.xlsx)</button>
+<button class="primary-excel" style="background:#0f5e31;color:#fff;border-color:#0f5e31;font-weight:700;" onclick="exportExcel(true)">📊 Export Filtered Excel</button>
 <button class="secondary" onclick="exportCSV()">Export CSV</button>
 <button class="secondary" onclick="exportCSV(true)">Export Filtered CSV</button>
 <button class="secondary" onclick="clearAll()">Clear All</button>
@@ -2704,6 +2708,40 @@ function importPaste(){
   toast((added+merged)+' row(s) imported; '+added+' new, '+merged+' merged');
 }
 
+function exportExcel(filtered=false){
+  const exportRows = filtered ? filteredRows() : rows;
+  if (!exportRows.length) {
+    toast('No inventory items to export');
+    return;
+  }
+  const customFields = getExtraFields();
+  const headers = ['Product', 'Brand', 'Model', ...customFields.map(field => field.label), 'Quantity', 'Stock Status'];
+  const data = [
+    headers,
+    ...exportRows.map(r => [
+      r.product ?? '',
+      r.brand ?? '',
+      r.model ?? '',
+      ...customFields.map(field => r[field.key] ?? ''),
+      Number(r.qty) || 0,
+      statusText(status(r.qty))
+    ])
+  ];
+  const filename = filtered ? 'inventory-filtered.xlsx' : 'inventory.xlsx';
+  if (window.InventoryAPI && typeof InventoryAPI.exportToExcel === 'function') {
+    InventoryAPI.exportToExcel(filename, data, 'Stock Inventory');
+  } else if (window.XLSX && typeof window.XLSX.utils?.aoa_to_sheet === 'function') {
+    const ws = window.XLSX.utils.aoa_to_sheet(data);
+    const wb = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(wb, ws, "Stock Inventory");
+    window.XLSX.writeFile(wb, filename);
+  } else {
+    exportCSV(filtered);
+    return;
+  }
+  toast(`✓ Exported ${exportRows.length} item(s) to Excel (.xlsx)`);
+}
+
 function exportCSV(filtered=false){
   const exportRows = filtered ? filteredRows() : rows;
   if (!exportRows.length) {
@@ -2738,7 +2776,7 @@ function exportCSV(filtered=false){
     a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 300);
   }
-  toast(`✓ Exported ${exportRows.length} item(s) to Excel CSV`);
+  toast(`✓ Exported ${exportRows.length} item(s) to CSV`);
 }
 
 async function clearAll(){

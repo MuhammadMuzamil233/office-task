@@ -38,6 +38,8 @@ button.primary-ocr:hover{background:#0369a1}
 .ocr-options{display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:13px;color:#475467;margin-bottom:12px;padding:8px 12px;background:#f8fafc;border-radius:8px}
 @media(max-width:900px){.cards{grid-template-columns:repeat(3,1fr)}}@media(max-width:600px){.cards{grid-template-columns:repeat(2,1fr)}.hint{width:100%;margin-left:0}}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>window.XLSX || document.write('<script src="/xlsx.full.min.js"><\/script>')</script>
 <script src="/admin-theme.js"></script>
 <script src="/inventory-api.js"></script>
 </head>
@@ -1151,9 +1153,11 @@ function exportCSV(){
       statusText(row.status)
     ])
   ];
-  const filename = 'physical-stock-comparison.csv';
-  if (window.InventoryAPI && typeof InventoryAPI.exportToCSV === 'function') {
-    InventoryAPI.exportToCSV(filename, data);
+  const filename = 'physical-stock-comparison.xlsx';
+  if (window.InventoryAPI && typeof InventoryAPI.exportToExcel === 'function') {
+    InventoryAPI.exportToExcel(filename, data, 'Stock Comparison');
+  } else if (window.InventoryAPI && typeof InventoryAPI.exportToCSV === 'function') {
+    InventoryAPI.exportToCSV('physical-stock-comparison.csv', data);
   } else {
     const BOM = "\uFEFF";
     const csv = data.map(row => row.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
@@ -1161,12 +1165,12 @@ function exportCSV(){
     const link = document.createElement('a');
     link.style.display = 'none';
     link.href = URL.createObjectURL(blob);
-    link.download = filename;
+    link.download = 'physical-stock-comparison.csv';
     document.body.appendChild(link);
     link.click();
     setTimeout(() => { document.body.removeChild(link); URL.revokeObjectURL(link.href); }, 300);
   }
-  toast(`✓ Exported ${list.length} comparison record(s) to Excel CSV`);
+  toast(`✓ Exported ${list.length} comparison record(s) to Excel`);
 }
 
 document.addEventListener('paste',event=>{

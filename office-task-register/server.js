@@ -1197,19 +1197,6 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
 
       const isAdminDemand = await isDemandCreatedByAdmin(demand);
 
-      // ONLY ADMIN DEMANDS CHECK INVENTORY
-      if (isAdminDemand && !skipInventoryUpdate) {
-        const match = await findMatchingInventoryItem(completedItem);
-        if (!match && !addNewModelToInventory) {
-          const mName = completedItem.inventoryModel || completedItem.name || "Item";
-          return res.status(409).json({
-            needsModelDecision: true,
-            modelName: mName,
-            error: "Model '" + mName + "' inventory mein mojood nahi hai."
-          });
-        }
-      }
-
       await DemandHistory.create({
         originalDemandId: demand._id,
         employeeId: demand.employeeId,
@@ -1231,11 +1218,6 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         completedAt: new Date()
       });
 
-      // ONLY ADMIN DEMANDS ADD STOCK TO INVENTORY (IF NOT SKIPPED)
-      if (isAdminDemand && !skipInventoryUpdate) {
-        await autoStockInInventoryItem(completedItem, req.user.name, Boolean(addNewModelToInventory));
-      }
-
       demand.products.splice(completeItemIndex, 1);
       if (!demand.products.length) {
         await Demand.deleteOne({ _id: demand._id });
@@ -1250,30 +1232,7 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
       const demand = await Demand.findById(req.params.id);
       if (!demand) return res.status(404).json({ error: "Demand not found" });
 
-      const prods = Array.isArray(demand.products) && demand.products.length
-        ? demand.products
-        : [{ name: demand.products, quantity: demand.quantity, warehouse: "FC Faizabad WH" }];
-
       const isAdminDemand = await isDemandCreatedByAdmin(demand);
-
-      // ONLY ADMIN DEMANDS CHECK INVENTORY
-      if (isAdminDemand && !skipInventoryUpdate) {
-        const missing = [];
-        for (const p of prods) {
-          if (p) {
-            const m = await findMatchingInventoryItem(p);
-            if (!m) missing.push(p.inventoryModel || p.name || "Item");
-          }
-        }
-        if (missing.length > 0 && !addNewModelToInventory) {
-          return res.status(409).json({
-            needsModelDecision: true,
-            modelName: missing.join(", "),
-            missingModels: missing,
-            error: "Yeh model(s) inventory mein mojood nahi hain: " + missing.join(", ") + "."
-          });
-        }
-      }
 
       await DemandHistory.create({
         originalDemandId: demand._id,
@@ -1295,15 +1254,6 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         submittedAt: demand.submittedAt,
         completedAt: new Date()
       });
-
-      // ONLY ADMIN DEMANDS ADD STOCK TO INVENTORY (IF NOT SKIPPED)
-      if (isAdminDemand && !skipInventoryUpdate) {
-        for (const p of prods) {
-          if (p) {
-            await autoStockInInventoryItem(p, req.user.name, Boolean(addNewModelToInventory));
-          }
-        }
-      }
 
       await Demand.deleteOne({ _id: demand._id });
       return res.json({ ok: true, archived: true });
