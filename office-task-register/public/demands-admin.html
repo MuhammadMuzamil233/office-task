@@ -491,10 +491,12 @@
     <header class="book">
       <h1>Demand & User Management</h1>
       <span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <span id="adminBranchBadgeContainer"></span>
         <button class="button" id="themeToggleBtn" type="button" style="border-color:#eab308;color:#fef08a;background:rgba(234,179,8,0.18);font-weight:700;border-radius:18px;">🌙 Dark Mode</button>
         <a href="/inventory.html" target="_blank" class="button" style="text-decoration:none;display:inline-block;color:#fff;background:#b08d3e;border-color:#b08d3e;font-weight:700;">📦 Office Inventory</a>
         <a href="#usersSection" class="button" style="text-decoration:none;display:inline-block;color:#fff;">Active Users</a>
         <a href="#warehouseSection" class="button" style="text-decoration:none;display:inline-block;color:#fff;">🏢 Warehouses</a>
+        <a href="#branchSection" class="button" style="text-decoration:none;display:inline-block;color:#fff;">🏢 Branches</a>
         <button class="button" id="history">Demand history</button>
         <button class="button" id="back">Back to tasks</button>
       </span>
@@ -558,6 +560,7 @@
             <tr>
               <th>Name</th>
               <th>Username</th>
+              <th>Branch</th>
               <th>Role / Access</th>
               <th>Account Status</th>
               <th>Last Active</th>
@@ -567,7 +570,7 @@
           </thead>
           <tbody id="user-list">
             <tr>
-              <td colspan="7" class="empty">Loading users...</td>
+              <td colspan="8" class="empty">Loading users...</td>
             </tr>
           </tbody>
         </table>
@@ -593,6 +596,35 @@
           <tbody id="warehouse-list">
             <tr>
               <td colspan="4" class="empty">Loading warehouses...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" id="branchSection">
+      <h2>🏢 Branch Management (<span id="branchCount">0</span>)</h2>
+      <div id="branchCreateContainer" style="padding:16px 20px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;background:rgba(8,13,23,0.4);">
+        <input type="text" id="newBranchNameInput" placeholder="Enter branch name (e.g. Akbar Saddar Branch)..." style="flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;color:#1c2b27;">
+        <input type="text" id="newBranchCodeInput" placeholder="Branch Code (e.g. saddar)..." style="width:160px;padding:9px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;color:#1c2b27;">
+        <button type="button" class="action" id="btnAddBranch" style="background:#10b981;border-color:#10b981;color:#fff;font-weight:700;">➕ Add Branch</button>
+      </div>
+      <div class="scroll">
+        <table class="table" id="branches-table">
+          <thead>
+            <tr>
+              <th>Branch Name</th>
+              <th>Code</th>
+              <th>Users</th>
+              <th>Active Demands</th>
+              <th>Stock Items</th>
+              <th>Status</th>
+              <th>Created At</th>
+            </tr>
+          </thead>
+          <tbody id="branch-list">
+            <tr>
+              <td colspan="7" class="empty">Loading branches...</td>
             </tr>
           </tbody>
         </table>
@@ -638,13 +670,22 @@
   </main>
 
   <script>
+    let allDemands = [];
+    let allBranches = [];
+    let currentAdmin = null;
+
     const api = async (path, opts = {}) => {
+      const selectedBranch = localStorage.getItem("admin_selected_branch") || "";
+      const headers = {
+        "Content-Type": "application/json",
+        ...(opts.headers || {})
+      };
+      if (selectedBranch && selectedBranch !== "all") {
+        headers["x-branch"] = selectedBranch;
+      }
       const response = await fetch(path, {
         ...opts,
-        headers: {
-          "Content-Type": "application/json",
-          ...(opts.headers || {})
-        },
+        headers,
         credentials: "include"
       });
       let data = null;
@@ -673,6 +714,66 @@
       minute: "2-digit"
     }) : "-";
 
+    function renderBranchHeader(me) {
+      const container = document.getElementById("adminBranchBadgeContainer");
+      if (!container) return;
+      if (me.isSuperAdmin) {
+        const currentSelected = localStorage.getItem("admin_selected_branch") || "all";
+        container.innerHTML = `
+          <label style="font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:4px;color:#f1ece0;margin-right:6px;">
+            🏢 Branch:
+            <select id="superAdminBranchSelect" style="padding:4px 8px;border-radius:6px;background:rgba(8,13,23,0.85);color:#fff;border:1px solid #b08d3e;font-size:12px;font-weight:600;">
+              <option value="all" ${currentSelected === 'all' ? 'selected' : ''}>🌐 All Branches</option>
+              ${allBranches.map(b => `<option value="${b.code}" ${currentSelected === b.code ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}
+            </select>
+          </label>
+        `;
+        const sel = container.querySelector("#superAdminBranchSelect");
+        if (sel) {
+          sel.onchange = () => {
+            localStorage.setItem("admin_selected_branch", sel.value);
+            load();
+          };
+        }
+      } else {
+        const bName = me.branchName || me.branch || "Akbar Electronics";
+        container.innerHTML = `<span style="background:rgba(255,255,255,0.15);padding:4px 9px;border-radius:6px;font-size:12px;font-weight:600;color:#f1ece0;margin-right:6px;">🏢 ${esc(bName)}</span>`;
+      }
+    }
+
+    async function loadBranches() {
+      const list = document.getElementById("branch-list");
+      try {
+        allBranches = await api("/api/admin/branches");
+        document.getElementById("branchCount").textContent = allBranches.length;
+        const createCard = document.getElementById("branchCreateContainer");
+        if (createCard) {
+          createCard.style.display = (currentAdmin && currentAdmin.isSuperAdmin) ? "flex" : "none";
+        }
+        if (!allBranches.length) {
+          list.innerHTML = '<tr><td colspan="7" class="empty">No branches found.</td></tr>';
+          return;
+        }
+        list.innerHTML = "";
+        allBranches.forEach(b => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td><b>${esc(b.name)}</b></td>
+            <td><code>${esc(b.code)}</code></td>
+            <td>${b.userCount || 0}</td>
+            <td>${b.demandCount || 0}</td>
+            <td>${b.itemCount || 0}</td>
+            <td><span style="color:${b.isActive ? '#10b981' : '#f43f5e'};font-weight:600;">${b.isActive ? '🟢 Active' : '🔴 Inactive'}</span></td>
+            <td>${date(b.createdAt)}</td>
+          `;
+          list.appendChild(tr);
+        });
+      } catch (err) {
+        console.error("Could not load branches", err);
+        list.innerHTML = `<tr><td colspan="7" class="error">${esc(err.message)}</td></tr>`;
+      }
+    }
+
     const itemList = d => Array.isArray(d.items) ? d.items : String(d.products || "").split(",").map(value => {
       const match = value.trim().match(/^(.*?)(?:\s*\((\d+)\))?$/);
       return {
@@ -696,13 +797,13 @@
       }
     }
 
-    let allDemands = [];
-
     async function load() {
       try {
-        const me = await api("/api/me");
-        if (me.role !== "admin") throw new Error("Admin access required");
+        currentAdmin = await api("/api/me");
+        if (currentAdmin.role !== "admin") throw new Error("Admin access required");
         localStorage.setItem("user_role", "admin");
+        if (currentAdmin.isSuperAdmin) localStorage.setItem("is_super_admin", "true");
+        else localStorage.removeItem("is_super_admin");
         if (!localStorage.getItem("admin_theme")) localStorage.setItem("admin_theme", "cyber");
         if (window.AdminTheme) {
           AdminTheme.apply();
@@ -711,6 +812,8 @@
           document.body.classList.add("dark-theme");
           updateThemeBtn();
         }
+        await loadBranches();
+        renderBranchHeader(currentAdmin);
         allDemands = await api("/api/admin/demands");
         render();
         await loadWarehouses();
@@ -805,12 +908,20 @@
           list.innerHTML = '<tr><td colspan="7" class="empty">No users found.</td></tr>';
           return;
         }
+        const isSuperAdmin = Boolean(currentAdmin && currentAdmin.isSuperAdmin);
         users.forEach(u => {
           const row = document.createElement("tr");
           const isPrimary = Boolean(u.isPrimaryAdmin);
+          const branchCellHtml = isSuperAdmin
+            ? `<select class="user-branch-select" ${isPrimary ? 'disabled title="Primary admin branch cannot be changed"' : ''}>
+                ${allBranches.map(b => `<option value="${b.code}" ${(u.branch || 'akbarelectronics') === b.code ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}
+               </select>`
+            : `<span>${esc(u.branchName || u.branch || "Akbar Electronics")}</span>`;
+
           row.innerHTML = `
             <td><b>${esc(u.name)}</b>${isPrimary ? ' <span class="primary-badge">PRIMARY ADMIN</span>' : ''}</td>
             <td>@${esc(u.username)}</td>
+            <td>${branchCellHtml}</td>
             <td>
               <select class="user-role-select" ${isPrimary ? 'disabled title="Primary admin role cannot be changed"' : ''}>
                 <option value="user" ${u.role === 'user' ? 'selected' : ''}>Employee (User)</option>
@@ -837,6 +948,7 @@
 
           const roleSelect = row.querySelector(".user-role-select");
           const statusSelect = row.querySelector(".user-status-select");
+          const branchSelect = row.querySelector(".user-branch-select");
           const saveBtn = row.querySelector(".save-access-btn");
           const resetBtn = row.querySelector(".reset-pwd-btn");
 
@@ -849,7 +961,8 @@
                   method: "PATCH",
                   body: JSON.stringify({
                     role: roleSelect.value,
-                    isActive: statusSelect.value === "true"
+                    isActive: statusSelect.value === "true",
+                    branch: branchSelect ? branchSelect.value : undefined
                   })
                 });
                 saveBtn.textContent = "Saved ✓";
@@ -884,7 +997,7 @@
           list.appendChild(row);
         });
       } catch (err) {
-        list.innerHTML = `<tr><td colspan="7" class="error">${esc(err.message)}</td></tr>`;
+        list.innerHTML = `<tr><td colspan="8" class="error">${esc(err.message)}</td></tr>`;
       }
     }
 
@@ -1292,6 +1405,44 @@
         document.getElementById("btnAddWarehouse").click();
       }
     };
+
+    const btnAddBranch = document.getElementById("btnAddBranch");
+    if (btnAddBranch) {
+      btnAddBranch.onclick = async () => {
+        const nameInput = document.getElementById("newBranchNameInput");
+        const codeInput = document.getElementById("newBranchCodeInput");
+        const name = nameInput ? nameInput.value.trim() : "";
+        const code = codeInput ? codeInput.value.trim() : "";
+        if (!name) {
+          alert("Branch name is required.");
+          return;
+        }
+        try {
+          await api("/api/admin/branches", {
+            method: "POST",
+            body: JSON.stringify({ name, code })
+          });
+          if (nameInput) nameInput.value = "";
+          if (codeInput) codeInput.value = "";
+          alert(`✓ Branch "${name}" added successfully!`);
+          await loadBranches();
+          renderBranchHeader(currentAdmin);
+          await loadUsers();
+        } catch (err) {
+          alert("❌ " + (err.message || "Failed to create branch"));
+        }
+      };
+    }
+
+    const branchNameInput = document.getElementById("newBranchNameInput");
+    if (branchNameInput) {
+      branchNameInput.onkeydown = (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          document.getElementById("btnAddBranch")?.click();
+        }
+      };
+    }
 
     document.getElementById("back").onclick = () => location.href = "/";
     document.getElementById("history").onclick = () => location.href = "/demand-history.html";

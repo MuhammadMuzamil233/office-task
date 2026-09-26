@@ -35,11 +35,23 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
 // ---------- Database models ----------
+const branchSchema = new mongoose.Schema({
+  name: { type: String, required: true, trim: true },
+  code: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  description: { type: String, default: "", trim: true },
+  isActive: { type: Boolean, default: true },
+  createdBy: { type: String, default: "" }
+}, { timestamps: true });
+
+const Branch = mongoose.model("Branch", branchSchema);
+
 const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true, lowercase: true, trim: true },
   name: { type: String, required: true, trim: true },
   passwordHash: { type: String, required: true },
   role: { type: String, enum: ["user", "admin", "logistics", "supporting_staff"], default: "user" },
+  branch: { type: String, default: "akbarelectronics", lowercase: true, trim: true, index: true },
+  isSuperAdmin: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true },
   lastActive: { type: Date, default: Date.now }
 }, { timestamps: true });
@@ -54,6 +66,7 @@ const taskSchema = new mongoose.Schema({
   assignedToUserId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   assignedToName: { type: String, default: "" },
   assignedToUsername: { type: String, default: "" },
+  branch: { type: String, default: "akbarelectronics", lowercase: true, trim: true, index: true },
   comments: [{
     text: { type: String, required: true, trim: true, maxlength: 1000 },
     addedBy: { type: String, required: true },
@@ -67,6 +80,7 @@ const demandSchema = new mongoose.Schema({
   employeeName: { type: String, required: true, trim: true },
   employeeUsername: { type: String, default: "" },
   creatorRole: { type: String, default: "user" },
+  branch: { type: String, default: "akbarelectronics", lowercase: true, trim: true, index: true },
   date: { type: String, required: true },
   products: { type: mongoose.Schema.Types.Mixed, required: true },
   quantity: { type: mongoose.Schema.Types.Mixed, default: null },
@@ -87,6 +101,7 @@ const demandHistorySchema = new mongoose.Schema({
   employeeName: { type: String, required: true, trim: true },
   employeeUsername: { type: String, default: "" },
   creatorRole: { type: String, default: "user" },
+  branch: { type: String, default: "akbarelectronics", lowercase: true, trim: true, index: true },
   date: { type: String, required: true },
   products: { type: mongoose.Schema.Types.Mixed, required: true },
   quantity: { type: mongoose.Schema.Types.Mixed, default: null },
@@ -106,6 +121,7 @@ const adminRequestSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   username: { type: String, required: true },
   name: { type: String, required: true },
+  branch: { type: String, default: "akbarelectronics", lowercase: true, trim: true, index: true },
   requestedRole: { type: String, enum: ["admin", "logistics", "supporting_staff"], default: "admin" },
   status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" }
 }, { timestamps: true });
@@ -139,6 +155,7 @@ const inventoryItemSchema = new mongoose.Schema({
   brand: { type: String, default: "", trim: true },
   model: { type: String, default: "", trim: true },
   quantity: { type: Number, default: 0 },
+  branch: { type: String, default: "akbarelectronics", lowercase: true, trim: true, index: true },
   extra: { type: mongoose.Schema.Types.Mixed, default: {} }
 }, { timestamps: true });
 
@@ -152,6 +169,7 @@ const stockTransactionSchema = new mongoose.Schema({
   date: { type: String, required: true },
   invoiceNo: { type: String, default: "", trim: true },
   sourceDestination: { type: String, default: "", trim: true },
+  branch: { type: String, default: "akbarelectronics", lowercase: true, trim: true, index: true },
   items: [{
     product: { type: String, default: "" },
     brand: { type: String, default: "" },
@@ -169,6 +187,7 @@ const StockTransaction = mongoose.model("StockTransaction", stockTransactionSche
 
 const warehouseSchema = new mongoose.Schema({
   name: { type: String, required: true, unique: true, trim: true },
+  branch: { type: String, default: "all", lowercase: true, trim: true },
   isActive: { type: Boolean, default: true },
   createdBy: { type: String, default: "" }
 }, { timestamps: true });
@@ -217,6 +236,7 @@ function taskToJson(t) {
     completed_at: t.completedAt,
     updated_at: t.updatedAt,
     added_by: t.addedBy,
+    branch: t.branch || "akbarelectronics",
     assigned_to_id: t.assignedToUserId ? t.assignedToUserId.toString() : null,
     assigned_to_name: t.assignedToName || "",
     assigned_to_username: t.assignedToUsername || "",
@@ -252,9 +272,24 @@ async function notifyMentionedUsers(text, actor, task, messageType) {
   }));
 }
 
-// ---------- Auth helpers ----------
+// ---------- Auth helpers & Multi-Branch Resolution ----------
+function isSuperAdminUser(user) {
+  if (!user) return false;
+  if (user.isSuperAdmin) return true;
+  if (ADMIN_USERNAME && user.username && user.username.toLowerCase().trim() === ADMIN_USERNAME) return true;
+  return false;
+}
+
 function signToken(user) {
-  return jwt.sign({ id: user._id.toString(), username: user.username, name: user.name, role: user.role }, JWT_SECRET, { expiresIn: "30d" });
+  const isSuper = isSuperAdminUser(user);
+  return jwt.sign({
+    id: user._id.toString(),
+    username: user.username,
+    name: user.name,
+    role: user.role,
+    branch: user.branch || "akbarelectronics",
+    isSuperAdmin: Boolean(isSuper)
+  }, JWT_SECRET, { expiresIn: "30d" });
 }
 
 async function authMiddleware(req, res, next) {
@@ -262,12 +297,14 @@ async function authMiddleware(req, res, next) {
   if (!token) return res.status(401).json({ error: "Not logged in" });
   try {
     req.user = jwt.verify(token, JWT_SECRET);
-    const dbUser = await User.findById(req.user.id).select("role isActive");
+    const dbUser = await User.findById(req.user.id).select("role isActive branch isSuperAdmin username name");
     if (!dbUser) return res.status(401).json({ error: "User no longer exists" });
     if (dbUser.isActive === false) {
       return res.status(403).json({ error: "Your account has been deactivated by administrator." });
     }
     req.user.role = dbUser.role;
+    req.user.branch = dbUser.branch || "akbarelectronics";
+    req.user.isSuperAdmin = isSuperAdminUser(dbUser);
     User.findByIdAndUpdate(req.user.id, { lastActive: new Date() }).exec().catch(() => {});
     next();
   } catch (e) {
@@ -275,9 +312,31 @@ async function authMiddleware(req, res, next) {
   }
 }
 
+function getEffectiveBranch(req) {
+  // If Super Admin, allow query parameter or x-branch header to inspect/switch branches
+  if (req.user && req.user.isSuperAdmin) {
+    const requested = req.query?.branch || req.headers?.["x-branch"];
+    if (requested && typeof requested === "string" && requested.trim()) {
+      const clean = requested.toLowerCase().trim();
+      if (clean === "all") return null; // null represents all branches
+      return clean;
+    }
+    // Default for super admin if none specified is their own branch
+    return req.user.branch || "akbarelectronics";
+  }
+  // All other users (including branch admins) are STRICTLY locked to their own branch
+  return (req.user && req.user.branch) ? req.user.branch.toLowerCase().trim() : "akbarelectronics";
+}
+
+function branchQuery(req) {
+  const branch = getEffectiveBranch(req);
+  if (!branch) return {}; // Super Admin querying all branches
+  return { branch };
+}
+
 async function adminMiddleware(req, res, next) {
   try {
-    const user = await User.findById(req.user.id).select("role");
+    const user = await User.findById(req.user.id).select("role isSuperAdmin username");
     if (!user || user.role !== "admin") {
       return res.status(403).json({ error: "Admin authority required" });
     }
@@ -289,7 +348,7 @@ async function adminMiddleware(req, res, next) {
 
 async function logisticsMiddleware(req, res, next) {
   try {
-    const user = await User.findById(req.user.id).select("role");
+    const user = await User.findById(req.user.id).select("role branch");
     if (!user || (user.role !== "admin" && user.role !== "logistics")) {
       return res.status(403).json({ error: "Logistics access required" });
     }
@@ -301,7 +360,7 @@ async function logisticsMiddleware(req, res, next) {
 
 async function supportingStaffMiddleware(req, res, next) {
   try {
-    const user = await User.findById(req.user.id).select("role");
+    const user = await User.findById(req.user.id).select("role branch");
     if (!user || (user.role !== "admin" && user.role !== "supporting_staff")) {
       return res.status(403).json({ error: "Supporting staff access required" });
     }
@@ -313,7 +372,7 @@ async function supportingStaffMiddleware(req, res, next) {
 
 async function historyReadMiddleware(req, res, next) {
   try {
-    const user = await User.findById(req.user.id).select("role");
+    const user = await User.findById(req.user.id).select("role branch");
     if (!user || !["admin", "logistics", "supporting_staff"].includes(user.role)) {
       return res.status(403).json({ error: "Demand history access required" });
     }
@@ -330,11 +389,49 @@ const COOKIE_OPTS = {
   maxAge: 30 * 24 * 60 * 60 * 1000
 };
 
+async function seedDefaultBranchesAndMigrate() {
+  try {
+    // 1. Ensure default branch "Akbar Electronics" exists
+    const akbar = await Branch.findOne({ code: "akbarelectronics" });
+    if (!akbar) {
+      await Branch.create({
+        name: "Akbar Electronics",
+        code: "akbarelectronics",
+        description: "Main Shop / Branch",
+        isActive: true,
+        createdBy: "system"
+      });
+      console.log("Default branch 'Akbar Electronics' created.");
+    }
+
+    // 2. Ensure Super Admin is set for ADMIN_USERNAME
+    if (ADMIN_USERNAME) {
+      await User.updateOne(
+        { username: ADMIN_USERNAME },
+        { $set: { role: "admin", isSuperAdmin: true, branch: "akbarelectronics" } }
+      );
+    }
+
+    // 3. Migrate existing records to "akbarelectronics"
+    const missingFilter = { $or: [{ branch: { $exists: false } }, { branch: null }, { branch: "" }] };
+    await User.updateMany(missingFilter, { $set: { branch: "akbarelectronics" } });
+    await Task.updateMany(missingFilter, { $set: { branch: "akbarelectronics" } });
+    await Demand.updateMany(missingFilter, { $set: { branch: "akbarelectronics" } });
+    await DemandHistory.updateMany(missingFilter, { $set: { branch: "akbarelectronics" } });
+    await InventoryItem.updateMany(missingFilter, { $set: { branch: "akbarelectronics" } });
+    await StockTransaction.updateMany(missingFilter, { $set: { branch: "akbarelectronics" } });
+    await AdminRequest.updateMany(missingFilter, { $set: { branch: "akbarelectronics" } });
+  } catch (err) {
+    console.error("Branch migration error:", err);
+  }
+}
+
 let databaseConnection;
 function connectDatabase() {
   if (!databaseConnection) {
     databaseConnection = mongoose.connect(MONGODB_URI).then(async (conn) => {
       await seedDefaultWarehouses();
+      await seedDefaultBranchesAndMigrate();
       return conn;
     });
   }
@@ -351,10 +448,83 @@ app.use(async (req, res, next) => {
   }
 });
 
-// ---------- Auth routes ----------
+// ---------- Branch & Auth routes ----------
+app.get("/api/branches", async (req, res) => {
+  try {
+    const branches = await Branch.find({ isActive: { $ne: false } }).sort({ name: 1 }).lean();
+    res.json(branches.map(b => ({
+      id: b._id.toString(),
+      name: b.name,
+      code: b.code,
+      description: b.description || ""
+    })));
+  } catch (e) {
+    res.status(500).json({ error: "Could not load branches" });
+  }
+});
+
+app.get("/api/admin/branches", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const branches = await Branch.find().sort({ createdAt: 1 }).lean();
+    const branchStats = await Promise.all(branches.map(async b => {
+      const userCount = await User.countDocuments({ branch: b.code });
+      const taskCount = await Task.countDocuments({ branch: b.code, completed: false });
+      const demandCount = await Demand.countDocuments({ branch: b.code });
+      const itemCount = await InventoryItem.countDocuments({ branch: b.code });
+      return {
+        id: b._id.toString(),
+        name: b.name,
+        code: b.code,
+        description: b.description || "",
+        isActive: b.isActive !== false,
+        userCount,
+        taskCount,
+        demandCount,
+        itemCount,
+        createdAt: b.createdAt
+      };
+    }));
+    res.json(branchStats);
+  } catch (e) {
+    res.status(500).json({ error: "Could not load branch stats" });
+  }
+});
+
+app.post("/api/admin/branches", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    if (!req.user.isSuperAdmin) {
+      return res.status(403).json({ error: "Only Super Admin can create new branches" });
+    }
+    const { name, code, description } = req.body || {};
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ error: "Branch name is required" });
+    }
+    const cleanName = String(name).trim();
+    let cleanCode = (code || cleanName).toLowerCase().replace(/[^a-z0-9_-]/g, "").trim();
+    if (!cleanCode || cleanCode.length < 2) {
+      return res.status(400).json({ error: "Branch code must be at least 2 alphanumeric characters" });
+    }
+    const existing = await Branch.findOne({ code: cleanCode });
+    if (existing) {
+      return res.status(409).json({ error: "A branch with code '" + cleanCode + "' already exists" });
+    }
+    const branch = await Branch.create({
+      name: cleanName,
+      code: cleanCode,
+      description: String(description || "").trim(),
+      isActive: true,
+      createdBy: req.user.username
+    });
+    res.json({ id: branch._id.toString(), name: branch.name, code: branch.code });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not create branch" });
+  }
+});
+
 app.post("/api/register", async (req, res) => {
   try {
-    const { username, password, name, requestAdmin, requestLogistics, requestSupportingStaff } = req.body;
+    const { username, password, name, branch, requestAdmin, requestLogistics, requestSupportingStaff } = req.body;
     if (!username || !password || !name) {
       return res.status(400).json({ error: "Name, username and password are all required" });
     }
@@ -366,20 +536,49 @@ app.post("/api/register", async (req, res) => {
     if (existing) {
       return res.status(409).json({ error: "That username is already taken" });
     }
+
+    // Branch resolution
+    let cleanBranch = "akbarelectronics";
+    if (branch && String(branch).trim()) {
+      const targetCode = String(branch).toLowerCase().trim();
+      const bDoc = await Branch.findOne({ code: targetCode, isActive: { $ne: false } });
+      if (bDoc) cleanBranch = bDoc.code;
+    }
+
     const passwordHash = await bcrypt.hash(password, 10);
+    const isSuper = cleanUsername === ADMIN_USERNAME;
     const user = await User.create({
       username: cleanUsername,
       name: name.trim(),
       passwordHash,
-      role: cleanUsername === ADMIN_USERNAME ? "admin" : "user"
+      role: isSuper ? "admin" : "user",
+      branch: cleanBranch,
+      isSuperAdmin: isSuper
     });
     const requestedRole = requestSupportingStaff ? "supporting_staff" : requestLogistics ? "logistics" : requestAdmin ? "admin" : null;
     if (requestedRole && user.role !== "admin") {
-      await AdminRequest.create({ userId: user._id, username: user.username, name: user.name, requestedRole });
+      await AdminRequest.create({
+        userId: user._id,
+        username: user.username,
+        name: user.name,
+        branch: cleanBranch,
+        requestedRole
+      });
     }
     const token = signToken(user);
     res.cookie("token", token, COOKIE_OPTS);
-    res.json({ id: user._id.toString(), username: user.username, name: user.name, role: user.role, approvalRequestPending: Boolean(requestedRole && user.role !== "admin"), requestedRole });
+    const bInfo = await Branch.findOne({ code: cleanBranch });
+    res.json({
+      id: user._id.toString(),
+      username: user.username,
+      name: user.name,
+      role: user.role,
+      branch: user.branch,
+      branchName: bInfo ? bInfo.name : "Akbar Electronics",
+      isSuperAdmin: Boolean(user.isSuperAdmin),
+      approvalRequestPending: Boolean(requestedRole && user.role !== "admin"),
+      requestedRole
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not create account, please try again" });
@@ -392,7 +591,8 @@ app.post("/api/login", async (req, res) => {
     if (!username || !password) {
       return res.status(400).json({ error: "Username and password are required" });
     }
-    const user = await User.findOne({ username: username.toLowerCase().trim() });
+    const cleanUsername = username.toLowerCase().trim();
+    const user = await User.findOne({ username: cleanUsername });
     if (!user) {
       return res.status(401).json({ error: "Incorrect username or password" });
     }
@@ -403,13 +603,24 @@ app.post("/api/login", async (req, res) => {
     if (user.isActive === false) {
       return res.status(403).json({ error: "Your account has been deactivated by administrator." });
     }
-    if (user.username === ADMIN_USERNAME && user.role !== "admin") {
+    if (cleanUsername === ADMIN_USERNAME) {
       user.role = "admin";
+      user.isSuperAdmin = true;
+      if (!user.branch) user.branch = "akbarelectronics";
       await user.save();
     }
     const token = signToken(user);
     res.cookie("token", token, COOKIE_OPTS);
-    res.json({ id: user._id.toString(), username: user.username, name: user.name, role: user.role });
+    const bInfo = await Branch.findOne({ code: user.branch || "akbarelectronics" });
+    res.json({
+      id: user._id.toString(),
+      username: user.username,
+      name: user.name,
+      role: user.role,
+      branch: user.branch || "akbarelectronics",
+      branchName: bInfo ? bInfo.name : "Akbar Electronics",
+      isSuperAdmin: isSuperAdminUser(user)
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not log in, please try again" });
@@ -421,8 +632,21 @@ app.post("/api/logout", (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/me", authMiddleware, (req, res) => {
-  res.json({ id: req.user.id, username: req.user.username, name: req.user.name, role: req.user.role || "user" });
+app.get("/api/me", authMiddleware, async (req, res) => {
+  try {
+    const bInfo = await Branch.findOne({ code: req.user.branch });
+    res.json({
+      id: req.user.id,
+      username: req.user.username,
+      name: req.user.name,
+      role: req.user.role || "user",
+      branch: req.user.branch || "akbarelectronics",
+      branchName: bInfo ? bInfo.name : "Akbar Electronics",
+      isSuperAdmin: Boolean(req.user.isSuperAdmin)
+    });
+  } catch (e) {
+    res.status(500).json({ error: "Could not get user info" });
+  }
 });
 
 // Admin can reset any user's password
@@ -467,7 +691,7 @@ app.post("/api/master-reset", async (req, res) => {
 
 app.get("/api/users", authMiddleware, async (req, res) => {
   try {
-    const users = await User.find({ _id: { $ne: req.user.id } }).select("username name").sort({ name: 1 });
+    const users = await User.find({ _id: { $ne: req.user.id }, ...branchQuery(req), isActive: { $ne: false } }).select("username name").sort({ name: 1 });
     res.json(users.map(user => ({ username: user.username, name: user.name })));
   } catch (e) {
     res.status(500).json({ error: "Could not load users" });
@@ -507,11 +731,12 @@ app.post("/api/push-subscriptions", authMiddleware, async (req, res) => {
 
 app.get("/api/admin-requests", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const requests = await AdminRequest.find({ status: "pending" }).sort({ createdAt: 1 });
+    const requests = await AdminRequest.find({ ...branchQuery(req), status: "pending" }).sort({ createdAt: 1 });
     res.json(requests.map(request => ({
       id: request._id.toString(),
       username: request.username,
       name: request.name,
+      branch: request.branch || "akbarelectronics",
       requested_role: request.requestedRole,
       created_at: request.createdAt
     })));
@@ -527,8 +752,12 @@ app.patch("/api/admin-requests/:id", authMiddleware, adminMiddleware, async (req
     if (!["approved", "rejected"].includes(status)) {
       return res.status(400).json({ error: "Request status must be approved or rejected" });
     }
+    const filter = { _id: req.params.id, status: "pending" };
+    if (!req.user.isSuperAdmin) {
+      filter.branch = req.user.branch || "akbarelectronics";
+    }
     const request = await AdminRequest.findOneAndUpdate(
-      { _id: req.params.id, status: "pending" },
+      filter,
       { status },
       { new: true }
     );
@@ -546,16 +775,22 @@ app.patch("/api/admin-requests/:id", authMiddleware, adminMiddleware, async (req
 // ---------- Admin User Management routes ----------
 app.get("/api/admin/users", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const users = await User.find().sort({ createdAt: -1 });
+    const query = branchQuery(req);
+    const users = await User.find(query).sort({ createdAt: -1 });
+    const allBranches = await Branch.find().lean();
+    const branchMap = new Map(allBranches.map(b => [b.code, b.name]));
     res.json(users.map(u => ({
       id: u._id.toString(),
       username: u.username,
       name: u.name,
       role: u.role || "user",
+      branch: u.branch || "akbarelectronics",
+      branchName: branchMap.get(u.branch) || u.branch || "Akbar Electronics",
+      isSuperAdmin: Boolean(u.isSuperAdmin || (ADMIN_USERNAME && u.username.toLowerCase() === ADMIN_USERNAME)),
+      isPrimaryAdmin: u.username.toLowerCase() === ADMIN_USERNAME,
       isActive: u.isActive !== false,
       lastActive: u.lastActive || u.updatedAt || u.createdAt,
-      createdAt: u.createdAt,
-      isPrimaryAdmin: u.username.toLowerCase() === ADMIN_USERNAME
+      createdAt: u.createdAt
     })));
   } catch (e) {
     console.error(e);
@@ -565,9 +800,14 @@ app.get("/api/admin/users", authMiddleware, adminMiddleware, async (req, res) =>
 
 app.patch("/api/admin/users/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { role, isActive } = req.body;
+    const { role, isActive, branch } = req.body;
     const targetUser = await User.findById(req.params.id);
     if (!targetUser) return res.status(404).json({ error: "User not found" });
+
+    // Branch Admin can only manage users in their own branch
+    if (!req.user.isSuperAdmin && targetUser.branch !== req.user.branch) {
+      return res.status(403).json({ error: "You can only manage users within your own branch" });
+    }
 
     const isPrimaryAdmin = targetUser.username.toLowerCase() === ADMIN_USERNAME;
 
@@ -597,12 +837,23 @@ app.patch("/api/admin/users/:id", authMiddleware, adminMiddleware, async (req, r
       targetUser.isActive = isActive;
     }
 
+    // Super Admin can change user's branch
+    if (req.user.isSuperAdmin && branch && String(branch).trim()) {
+      const bDoc = await Branch.findOne({ code: String(branch).toLowerCase().trim() });
+      if (bDoc) {
+        targetUser.branch = bDoc.code;
+      }
+    }
+
     await targetUser.save();
+    const bInfo = await Branch.findOne({ code: targetUser.branch });
     res.json({
       id: targetUser._id.toString(),
       username: targetUser.username,
       name: targetUser.name,
       role: targetUser.role,
+      branch: targetUser.branch,
+      branchName: bInfo ? bInfo.name : targetUser.branch,
       isActive: targetUser.isActive !== false,
       lastActive: targetUser.lastActive || targetUser.updatedAt || targetUser.createdAt,
       createdAt: targetUser.createdAt,
@@ -762,6 +1013,7 @@ function demandToJson(demand) {
     quantity: items.reduce((total, item) => total + item.quantity, 0),
     items,
     is_urgent: hasAnyUrgent,
+    branch: demand.branch || "akbarelectronics",
     status: demand.status,
     admin_remarks: demand.adminRemarks,
     support_status: demand.supportStatus || null,
@@ -814,7 +1066,7 @@ async function sortDemandsWithPriority(demands) {
 
 app.get("/api/demands", authMiddleware, async (req, res) => {
   try {
-    const demands = await Demand.find().sort({ submittedAt: -1, createdAt: -1 });
+    const demands = await Demand.find(branchQuery(req)).sort({ submittedAt: -1, createdAt: -1 });
     const sorted = await sortDemandsWithPriority(demands);
     res.json(sorted.map(demandToJson));
   } catch (e) {
@@ -825,7 +1077,7 @@ app.get("/api/demands", authMiddleware, async (req, res) => {
 
 app.get("/api/admin/demands", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const demands = await Demand.find().sort({ submittedAt: -1, createdAt: -1 });
+    const demands = await Demand.find(branchQuery(req)).sort({ submittedAt: -1, createdAt: -1 });
     const sorted = await sortDemandsWithPriority(demands);
     res.json(sorted.map(demandToJson));
   } catch (e) {
@@ -836,7 +1088,7 @@ app.get("/api/admin/demands", authMiddleware, adminMiddleware, async (req, res) 
 
 app.get(["/api/admin/demands/history", "/api/logistics/demands/history"], authMiddleware, historyReadMiddleware, async (req, res) => {
   try {
-    const demands = await DemandHistory.find().sort({ completedAt: -1 });
+    const demands = await DemandHistory.find(branchQuery(req)).sort({ completedAt: -1 });
     res.json(demands.map(demandToJson));
   } catch (e) {
     console.error(e);
@@ -852,6 +1104,9 @@ app.delete("/api/admin/demands/history/:id", authMiddleware, adminMiddleware, as
       const itemIndex = parseInt(itemIndexParam, 10);
       const doc = await DemandHistory.findById(req.params.id);
       if (!doc) return res.status(404).json({ error: "Demand history item not found" });
+      if (!req.user.isSuperAdmin && doc.branch && doc.branch !== req.user.branch) {
+        return res.status(403).json({ error: "Access denied" });
+      }
 
       if (Array.isArray(doc.products) && itemIndex >= 0 && itemIndex < doc.products.length) {
         if (doc.products.length > 1) {
@@ -869,8 +1124,12 @@ app.delete("/api/admin/demands/history/:id", authMiddleware, adminMiddleware, as
       }
     }
 
-    const deleted = await DemandHistory.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ error: "Demand history item not found" });
+    const doc = await DemandHistory.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: "Demand history item not found" });
+    if (!req.user.isSuperAdmin && doc.branch && doc.branch !== req.user.branch) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    await DemandHistory.findByIdAndDelete(req.params.id);
     res.json({ ok: true, id: req.params.id });
   } catch (e) {
     console.error(e);
@@ -884,6 +1143,9 @@ app.delete("/api/admin/demands/history/:id/item/:itemIndex", authMiddleware, adm
     const itemIndex = parseInt(req.params.itemIndex, 10);
     const doc = await DemandHistory.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: "Demand history item not found" });
+    if (!req.user.isSuperAdmin && doc.branch && doc.branch !== req.user.branch) {
+      return res.status(403).json({ error: "Access denied" });
+    }
 
     if (Array.isArray(doc.products) && itemIndex >= 0 && itemIndex < doc.products.length) {
       if (doc.products.length > 1) {
@@ -909,19 +1171,21 @@ app.delete("/api/admin/demands/history/:id/item/:itemIndex", authMiddleware, adm
 app.delete(["/api/admin/demands/history", "/api/admin/demands/history/month/:month"], authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const month = req.query.month || req.params.month;
+    const bQ = branchQuery(req);
     if (month) {
       const cleanMonth = String(month).trim();
       if (!/^\d{4}-\d{2}$/.test(cleanMonth)) {
         return res.status(400).json({ error: "Invalid month format. Expected YYYY-MM (e.g. 2026-09)" });
       }
       const filter = {
+        ...bQ,
         date: { $regex: new RegExp("^" + cleanMonth) }
       };
       const result = await DemandHistory.deleteMany(filter);
       return res.json({ ok: true, deletedCount: result.deletedCount, month: cleanMonth });
     }
 
-    const result = await DemandHistory.deleteMany({});
+    const result = await DemandHistory.deleteMany(bQ);
     res.json({ ok: true, deletedCount: result.deletedCount });
   } catch (e) {
     console.error(e);
@@ -974,6 +1238,7 @@ app.post("/api/demands", authMiddleware, async (req, res) => {
       employeeName: req.user.name,
       employeeUsername: req.user.username || "",
       creatorRole: isUserAdmin ? "admin" : "user",
+      branch: req.user.branch || "akbarelectronics",
       date,
       products: mergedItems,
       status: "pending",
@@ -989,7 +1254,8 @@ app.post("/api/demands", authMiddleware, async (req, res) => {
 
 async function notifyLogisticsUrgentDemand(demand, actorName) {
   try {
-    const logisticsUsers = await User.find({ role: "logistics", isActive: { $ne: false } }).select("_id");
+    const demandBranch = demand.branch || "akbarelectronics";
+    const logisticsUsers = await User.find({ role: "logistics", branch: demandBranch, isActive: { $ne: false } }).select("_id");
     if (!logisticsUsers.length) return;
     const itemsSummary = Array.isArray(demand.products)
       ? demand.products.map(p => `${p.name} (${p.quantity})`).join(", ")
@@ -1203,6 +1469,7 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         employeeName: demand.employeeName,
         employeeUsername: demand.employeeUsername || "",
         creatorRole: demand.creatorRole || (isAdminDemand ? "admin" : "user"),
+        branch: demand.branch || req.user.branch || "akbarelectronics",
         date: demand.date,
         products: [{ ...completedItem.toObject?.() || completedItem, status: "completed" }],
         quantity: completedItem.quantity,
@@ -1240,6 +1507,7 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
         employeeName: demand.employeeName,
         employeeUsername: demand.employeeUsername || "",
         creatorRole: demand.creatorRole || (isAdminDemand ? "admin" : "user"),
+        branch: demand.branch || req.user.branch || "akbarelectronics",
         date: demand.date,
         products: demand.products,
         quantity: demand.quantity,
@@ -1369,7 +1637,7 @@ app.patch("/api/admin/demands/:id/pickup-qty", authMiddleware, adminMiddleware, 
 app.get("/api/logistics/demands", authMiddleware, logisticsMiddleware, async (req, res) => {
   try {
     // Only show demands approved by admin or in progress (on_the_way)
-    const demands = await Demand.find({ status: { $in: ["approved", "on_the_way"] } }).sort({ submittedAt: -1, createdAt: -1 });
+    const demands = await Demand.find({ ...branchQuery(req), status: { $in: ["approved", "on_the_way"] } }).sort({ submittedAt: -1, createdAt: -1 });
     const sorted = await sortDemandsWithPriority(demands);
     res.json(sorted.map(demandToJson));
   } catch (e) {
@@ -1487,6 +1755,7 @@ app.post("/api/logistics/demands/:id/add-item", authMiddleware, logisticsMiddlew
 app.get("/api/supporting-staff/demands", authMiddleware, supportingStaffMiddleware, async (req, res) => {
   try {
     const demands = await Demand.find({
+      ...branchQuery(req),
       $or: [
         { status: "on_the_way" },
         { "products.status": "on_the_way" },
@@ -1619,7 +1888,7 @@ app.delete("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req
 // ---------- Task routes (Restricted to Supporting Staff & Admin) ----------
 app.get("/api/admin/supporting-staff-users", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const staff = await User.find({ role: "supporting_staff", isActive: { $ne: false } }).select("username name").sort({ name: 1 });
+    const staff = await User.find({ role: "supporting_staff", ...branchQuery(req), isActive: { $ne: false } }).select("username name").sort({ name: 1 });
     res.json(staff.map(u => ({ id: u._id.toString(), username: u.username, name: u.name })));
   } catch (e) {
     res.status(500).json({ error: "Could not load supporting staff users" });
@@ -1634,6 +1903,7 @@ app.get("/api/tasks", authMiddleware, async (req, res) => {
     }
     const today = todayStr();
     const query = {
+      ...branchQuery(req),
       $or: [
         { dateAdded: today, completed: false },
         { completed: false, dateAdded: { $lt: today } }
@@ -1665,7 +1935,7 @@ app.get("/api/tasks/history", authMiddleware, async (req, res) => {
       return res.json([]);
     }
     const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 100) : "";
-    const filter = { completed: true };
+    const filter = { ...branchQuery(req), completed: true };
     if (role === "supporting_staff") {
       filter.$or = [
         { assignedToUserId: req.user.id },
@@ -1701,6 +1971,7 @@ app.post("/api/tasks", authMiddleware, adminMiddleware, async (req, res) => {
       dateAdded: todayStr(),
       addedBy: req.user.name,
       userId: req.user.id,
+      branch: getEffectiveBranch(req),
       assignedToUserId: assignStaff ? assignStaff._id : null,
       assignedToName: assignStaff ? assignStaff.name : "",
       assignedToUsername: assignStaff ? assignStaff.username : ""
@@ -1805,22 +2076,25 @@ function inventoryItemToJson(item) {
 // GET /api/inventory - Get all inventory rows & extra fields
 app.get("/api/inventory", authMiddleware, async (req, res) => {
   try {
-    const rawItems = await InventoryItem.find().sort({ createdAt: -1 });
-    // Auto-heal/merge duplicate models in MongoDB
+    const rawItems = await InventoryItem.find(branchQuery(req)).sort({ createdAt: -1 });
+    // Auto-heal/merge duplicate models in MongoDB per branch
     const items = [];
     const seenModels = new Map();
     for (const it of rawItems) {
+      const bKey = String(it.branch || "akbarelectronics").toLowerCase();
       const m = String(it.model || "").trim().toLowerCase();
+      const dedupeKey = `${bKey}:::${m}`;
       if (m) {
-        if (seenModels.has(m)) {
-          const primary = seenModels.get(m);
+        if (seenModels.has(dedupeKey)) {
+          const primary = seenModels.get(dedupeKey);
           primary.quantity = (Number(primary.quantity) || 0) + (Number(it.quantity) || 0);
           if (!primary.product && it.product) primary.product = it.product;
           if (!primary.brand && it.brand) primary.brand = it.brand;
+          if (!primary.branch && it.branch) primary.branch = it.branch;
           await primary.save();
           await InventoryItem.findByIdAndDelete(it._id).catch(() => {});
         } else {
-          seenModels.set(m, it);
+          seenModels.set(dedupeKey, it);
           items.push(it);
         }
       } else {
@@ -1836,6 +2110,7 @@ app.get("/api/inventory", authMiddleware, async (req, res) => {
 
     // Find active demands with items on the way from inventory
     const activeDemands = await Demand.find({
+      ...branchQuery(req),
       $or: [
         { status: "on_the_way" },
         { "products.status": "on_the_way" }
@@ -1868,6 +2143,7 @@ app.get("/api/inventory", authMiddleware, async (req, res) => {
         it.quantity = Number(it.extra.qty);
       }
       const json = inventoryItemToJson(it);
+      json.branch = it.branch || "akbarelectronics";
       const mKey = String(json.model || "").trim().toLowerCase();
       json.onTheWayQty = onTheWayMapById[json.id] || onTheWayMapByModel[mKey] || 0;
       return json;
@@ -1894,7 +2170,9 @@ app.post("/api/inventory/save-all", authMiddleware, adminMiddleware, async (req,
     if (rows.length === 0) {
       return res.json({ ok: true, count: 0, message: "Ignored empty save-all to prevent accidental wipe" });
     }
-    await InventoryItem.deleteMany({});
+    const branch = getEffectiveBranch(req);
+    // Delete ONLY items of this branch!
+    await InventoryItem.deleteMany({ branch });
     const docs = rows.map(r => {
       const { id, _id, product, brand, model, quantity, qty, ...extra } = r;
       // Prioritize qty (from manual frontend adjustment), fallback to quantity
@@ -1907,6 +2185,7 @@ app.post("/api/inventory/save-all", authMiddleware, adminMiddleware, async (req,
       delete extra._id;
       delete extra.id;
       return {
+        branch,
         product: String(product || "").trim(),
         brand: String(brand || "").trim(),
         model: String(model || "").trim(),
@@ -1945,6 +2224,7 @@ app.post("/api/inventory/save-all", authMiddleware, adminMiddleware, async (req,
 // POST /api/inventory/item - Add single row
 app.post("/api/inventory/item", authMiddleware, adminMiddleware, async (req, res) => {
   try {
+    const branch = getEffectiveBranch(req);
     const { product, brand, model, quantity, qty, ...extra } = req.body || {};
     const finalQty = Number(qty !== undefined && qty !== null && qty !== "" ? qty : (quantity !== undefined && quantity !== null && quantity !== "" ? quantity : 0)) || 0;
     delete extra.qty;
@@ -1957,6 +2237,7 @@ app.post("/api/inventory/item", authMiddleware, adminMiddleware, async (req, res
     const cleanModel = String(model || "").trim();
     if (cleanModel) {
       const existing = await InventoryItem.findOne({
+        branch,
         model: { $regex: new RegExp("^" + escapeRegex(cleanModel) + "$", "i") }
       });
       if (existing) {
@@ -1964,17 +2245,22 @@ app.post("/api/inventory/item", authMiddleware, adminMiddleware, async (req, res
         if (!existing.product && product) existing.product = String(product).trim();
         if (!existing.brand && brand) existing.brand = String(brand).trim();
         await existing.save();
-        return res.json(inventoryItemToJson(existing));
+        const json = inventoryItemToJson(existing);
+        json.branch = existing.branch;
+        return res.json(json);
       }
     }
     const item = await InventoryItem.create({
+      branch,
       product: String(product || "").trim(),
       brand: String(brand || "").trim(),
       model: cleanModel,
       quantity: finalQty,
       extra
     });
-    res.json(inventoryItemToJson(item));
+    const json = inventoryItemToJson(item);
+    json.branch = item.branch;
+    res.json(json);
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not add inventory item" });
@@ -1987,6 +2273,9 @@ app.patch("/api/inventory/item/:id", authMiddleware, adminMiddleware, async (req
     const { product, brand, model, quantity, qty, ...extra } = req.body || {};
     const item = await InventoryItem.findById(req.params.id);
     if (!item) return res.status(404).json({ error: "Item not found" });
+    if (!req.user.isSuperAdmin && item.branch && item.branch !== req.user.branch) {
+      return res.status(403).json({ error: "Access denied to item from another branch" });
+    }
 
     if (product !== undefined) item.product = String(product).trim();
     if (brand !== undefined) item.brand = String(brand).trim();
@@ -2007,7 +2296,9 @@ app.patch("/api/inventory/item/:id", authMiddleware, adminMiddleware, async (req
       item.markModified("extra");
     }
     await item.save();
-    res.json(inventoryItemToJson(item));
+    const json = inventoryItemToJson(item);
+    json.branch = item.branch;
+    res.json(json);
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Could not update inventory item" });
@@ -2017,6 +2308,11 @@ app.patch("/api/inventory/item/:id", authMiddleware, adminMiddleware, async (req
 // DELETE /api/inventory/item/:id - Delete single item
 app.delete("/api/inventory/item/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
+    const item = await InventoryItem.findById(req.params.id);
+    if (!item) return res.json({ ok: true });
+    if (!req.user.isSuperAdmin && item.branch && item.branch !== req.user.branch) {
+      return res.status(403).json({ error: "Access denied to item from another branch" });
+    }
     await InventoryItem.findByIdAndDelete(req.params.id);
     res.json({ ok: true });
   } catch (e) {
@@ -2028,7 +2324,8 @@ app.delete("/api/inventory/item/:id", authMiddleware, adminMiddleware, async (re
 // DELETE /api/inventory/clear-all - Clear inventory
 app.delete("/api/inventory/clear-all", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    await InventoryItem.deleteMany({});
+    const branch = getEffectiveBranch(req);
+    await InventoryItem.deleteMany({ branch });
     res.json({ ok: true });
   } catch (e) {
     console.error(e);
@@ -2067,7 +2364,8 @@ app.post("/api/inventory/config/:key", authMiddleware, adminMiddleware, async (r
 app.get("/api/inventory/transactions", authMiddleware, async (req, res) => {
   try {
     const { type } = req.query;
-    const filter = type ? { type } : {};
+    const filter = { ...branchQuery(req) };
+    if (type) filter.type = type;
 
     // Auto-clean any corrupt 0-quantity or empty transactions
     try {
@@ -2084,6 +2382,7 @@ app.get("/api/inventory/transactions", authMiddleware, async (req, res) => {
     const txs = await StockTransaction.find(filter).sort({ createdAt: -1 });
     res.json(txs.map(t => ({
       id: t._id.toString(),
+      branch: t.branch || "akbarelectronics",
       type: t.type,
       date: t.date,
       invoiceNo: t.invoiceNo,
@@ -2105,7 +2404,9 @@ app.post("/api/inventory/transactions", authMiddleware, adminMiddleware, async (
     if (!["in", "out"].includes(type) || !Array.isArray(items) || !items.length) {
       return res.status(400).json({ error: "Valid type (in/out) and items are required" });
     }
+    const branch = getEffectiveBranch(req);
     const tx = await StockTransaction.create({
+      branch,
       type,
       date: date || todayStr(),
       invoiceNo: String(invoiceNo || "").trim(),
@@ -2134,20 +2435,23 @@ app.delete("/api/inventory/transactions/:id", authMiddleware, adminMiddleware, a
       return res.json({ ok: true });
     }
     const { itemIndex } = req.query;
+    const tx = await StockTransaction.findById(req.params.id);
+    if (!tx) return res.json({ ok: true });
+    if (!req.user.isSuperAdmin && tx.branch && tx.branch !== req.user.branch) {
+      return res.status(403).json({ error: "Access denied to transaction from another branch" });
+    }
+
     if (itemIndex !== undefined && itemIndex !== "") {
       const idx = parseInt(itemIndex, 10);
-      const tx = await StockTransaction.findById(req.params.id);
-      if (tx) {
-        if (Array.isArray(tx.items) && !isNaN(idx) && idx >= 0 && idx < tx.items.length) {
-          tx.items.splice(idx, 1);
-          if (tx.items.length === 0) {
-            await StockTransaction.findByIdAndDelete(req.params.id);
-          } else {
-            await tx.save();
-          }
-        } else {
+      if (Array.isArray(tx.items) && !isNaN(idx) && idx >= 0 && idx < tx.items.length) {
+        tx.items.splice(idx, 1);
+        if (tx.items.length === 0) {
           await StockTransaction.findByIdAndDelete(req.params.id);
+        } else {
+          await tx.save();
         }
+      } else {
+        await StockTransaction.findByIdAndDelete(req.params.id);
       }
     } else {
       await StockTransaction.findByIdAndDelete(req.params.id);
@@ -2163,7 +2467,8 @@ app.delete("/api/inventory/transactions/:id", authMiddleware, adminMiddleware, a
 app.delete("/api/inventory/transactions", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { type } = req.query;
-    const filter = type ? { type } : {};
+    const filter = { ...branchQuery(req) };
+    if (type) filter.type = type;
     await StockTransaction.deleteMany(filter);
     res.json({ ok: true });
   } catch (e) {

@@ -26,13 +26,18 @@ const InventoryAPI = {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
+      const selectedBranch = localStorage.getItem("admin_selected_branch") || "";
+      const headers = {
+        "Content-Type": "application/json",
+        ...(opts.headers || {})
+      };
+      if (selectedBranch && selectedBranch !== "all") {
+        headers["x-branch"] = selectedBranch;
+      }
       const res = await fetch(path, {
         ...opts,
         signal: controller.signal,
-        headers: {
-          "Content-Type": "application/json",
-          ...(opts.headers || {})
-        },
+        headers,
         credentials: "include"
       });
       let data = null;
@@ -54,7 +59,12 @@ const InventoryAPI = {
         location.href = "/";
         return null;
       }
+      this.currentUser = me;
       localStorage.setItem("user_role", "admin");
+      if (me.isSuperAdmin) localStorage.setItem("is_super_admin", "true");
+      else localStorage.removeItem("is_super_admin");
+      localStorage.setItem("user_branch", me.branch || "akbarelectronics");
+      localStorage.setItem("user_branch_name", me.branchName || me.branch || "Akbar Electronics");
       if (!localStorage.getItem("admin_theme")) localStorage.setItem("admin_theme", "cyber");
       if (window.AdminTheme) window.AdminTheme.apply();
       else document.body.classList.add("dark-theme");
@@ -314,8 +324,9 @@ const InventoryAPI = {
           <a href="/stock-in.html" class="nav-item \${activeTab === 'stock-in' ? 'active' : ''}">📥 In</a>
           <a href="/stock-out.html" class="nav-item \${activeTab === 'stock-out' ? 'active' : ''}">📤 Out</a>
           <a href="/transactions.html" class="nav-item \${activeTab === 'transactions' ? 'active' : ''}">📊 Log</a>
-          <a href="/virtual.html" class="nav-item \${activeTab === 'virtual' ? 'active' : ''}">Virtual WH</a>
-          <a href="/compare.html" class="nav-item \${activeTab === 'compare' ? 'active' : ''}">Compare</a>
+          <a href="/virtual.html" class="nav-item ${activeTab === 'virtual' ? 'active' : ''}">Virtual WH</a>
+          <a href="/compare.html" class="nav-item ${activeTab === 'compare' ? 'active' : ''}">Compare</a>
+          <span id="navBranchContainer" style="margin-left:6px;display:inline-flex;align-items:center;"></span>
           <span id="navAdminThemeSlot" style="margin-left:6px;display:inline-flex;align-items:center;"></span>
         </div>
       </div>
@@ -381,12 +392,46 @@ const InventoryAPI = {
     `;
     document.head.appendChild(style);
     document.body.insertBefore(nav, document.body.firstChild);
+    this.mountBranchSwitcher('#navBranchContainer');
     if (window.AdminTheme) {
       window.AdminTheme.mountSwitcher('#navAdminThemeSlot');
     } else {
       window.addEventListener('load', () => {
         if (window.AdminTheme) window.AdminTheme.mountSwitcher('#navAdminThemeSlot');
       });
+    }
+  },
+
+  async mountBranchSwitcher(containerSelector) {
+    const el = document.querySelector(containerSelector);
+    if (!el) return;
+    try {
+      const me = this.currentUser || await this.request("/api/me");
+      if (!me) return;
+      if (me.isSuperAdmin) {
+        const branches = await this.request("/api/branches");
+        const currentSelected = localStorage.getItem("admin_selected_branch") || "all";
+        el.innerHTML = `
+          <label style="font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:4px;color:#f1ece0;margin:0 4px;">
+            🏢 <select id="navGlobalBranchSelect" style="padding:3px 7px;border-radius:4px;background:#06101e;color:#fff;border:1px solid #b08d3e;font-size:11px;font-weight:600;">
+              <option value="all" ${currentSelected === 'all' ? 'selected' : ''}>🌐 All Branches</option>
+              ${(branches || []).map(b => `<option value="${b.code}" ${currentSelected === b.code ? 'selected' : ''}>${b.name}</option>`).join('')}
+            </select>
+          </label>
+        `;
+        const sel = el.querySelector("#navGlobalBranchSelect");
+        if (sel) {
+          sel.addEventListener("change", () => {
+            localStorage.setItem("admin_selected_branch", sel.value);
+            location.reload();
+          });
+        }
+      } else {
+        const bName = me.branchName || me.branch || "Akbar Electronics";
+        el.innerHTML = `<span style="background:rgba(255,255,255,0.12);padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600;color:#f1ece0;">🏢 ${bName}</span>`;
+      }
+    } catch (e) {
+      console.warn("Could not mount branch switcher", e);
     }
   }
 };

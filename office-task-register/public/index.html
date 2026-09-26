@@ -531,6 +531,12 @@
           <label>Choose a password</label>
           <input type="password" id="regPassword" autocomplete="new-password" required minlength="4">
         </div>
+        <div class="field">
+          <label>Branch / Shop</label>
+          <select id="regBranch" required>
+            <option value="akbarelectronics">Akbar Electronics (Main Branch)</option>
+          </select>
+        </div>
         <button type="submit">Create account</button>
       </form>
     </div>
@@ -546,7 +552,7 @@
       <span class="tag" id="pendingTag">…</span>
     </div>
     <div class="whoami">
-      <span class="greet">Signed in as <b id="myName"></b></span>
+      <span class="greet">Signed in as <b id="myName"></b> <span id="myBranchBadge" style="background:#e0e7ff;color:#3730a3;font-size:12px;font-weight:600;padding:2px 8px;border-radius:12px;margin-left:6px;"></span></span>
       <span>
           <button id="historyBtn" type="button">History</button>
           <button id="demandBtn" type="button">Demand Page</button>
@@ -656,6 +662,18 @@
   const supportingStaffRegisterBtn = document.getElementById("supportingStaffRegisterBtn");
   let requestedRole = null;
 
+  async function loadBranchesForRegister() {
+    try {
+      const branches = await api("/api/branches");
+      const sel = document.getElementById("regBranch");
+      if (sel && Array.isArray(branches) && branches.length) {
+        sel.innerHTML = branches.map(b => `<option value="${escapeHtml(b.code)}">${escapeHtml(b.name)}</option>`).join("");
+      }
+    } catch (e) {
+      console.warn("Could not load branches for registration", e);
+    }
+  }
+
   tabLogin.addEventListener("click", () => {
     tabLogin.classList.add("active"); tabRegister.classList.remove("active");
     loginForm.classList.remove("hidden"); registerForm.classList.add("hidden");
@@ -669,6 +687,7 @@
     requestedRole = null;
     adminHint.classList.add("hidden");
     authError.classList.add("hidden");
+    loadBranchesForRegister();
   });
   adminRegisterBtn.addEventListener("click", () => {
     tabRegister.click();
@@ -732,6 +751,7 @@
           name: document.getElementById("regName").value,
           username: document.getElementById("regUsername").value,
           password: document.getElementById("regPassword").value,
+          branch: document.getElementById("regBranch")?.value || "akbarelectronics",
           requestAdmin: requestedRole === "admin",
           requestLogistics: requestedRole === "logistics",
           requestSupportingStaff: requestedRole === "supporting_staff"
@@ -1139,6 +1159,10 @@
       await loadWarehouses();
       const myName = document.getElementById("myName");
       if (myName) myName.textContent = me.name;
+      const branchBadge = document.getElementById("myBranchBadge");
+      if (branchBadge) {
+        branchBadge.textContent = me.branchName || me.branch || "Akbar Electronics";
+      }
       const greet = document.querySelector(".greet");
       if (greet && greet.firstChild) {
         greet.firstChild.textContent = me.role === "admin" ? "Admin signed in as " : "Signed in as ";
@@ -1231,6 +1255,7 @@
   document.getElementById("demandHistoryBtn").addEventListener("click", () => { window.location.href = "/demand-history.html"; });
   document.getElementById("insertTaskMention").addEventListener("click", () => insertMention("taskMentionUser", "taskInput"));
   document.getElementById("enableNotificationsBtn").addEventListener("click", () => enableNotifications().catch(e => showError(e.message)));
+  loadBranchesForRegister();
   boot();
 </script>
 </body>
