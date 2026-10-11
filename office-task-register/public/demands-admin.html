@@ -193,12 +193,6 @@
       letter-spacing: 0.5px;
       margin-left: 4px;
       vertical-align: middle;
-      animation: pulse-urgent 1.5s infinite;
-    }
-
-    @keyframes pulse-urgent {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.7; }
     }
 
     .urgent-row {
@@ -239,49 +233,38 @@
       letter-spacing: 0.5px;
     }
 
-    /* ================= ULTRA-AESTHETIC OBSIDIAN & AURORA DARK THEME (ADMIN ONLY) ================= */
+    /* ================= DARK THEME (ADMIN ONLY) ================= */
     body.dark-theme {
       --ink: #f8fafc;
-      --paper: #0e1626;
-      --ledger: #060911;
-      --line: rgba(255, 255, 255, 0.08);
-      --teal: #06b6d4;
-      --red: #f43f5e;
+      --paper: #111827;
+      --ledger: #0b0f19;
+      --line: #1f2937;
+      --teal: #0284c7;
+      --red: #ef4444;
       --green: #10b981;
-      background: 
-        radial-gradient(ellipse 80% 50% at 20% -10%, rgba(99, 102, 241, 0.15), transparent),
-        radial-gradient(ellipse 60% 40% at 85% 15%, rgba(6, 182, 212, 0.12), transparent),
-        radial-gradient(ellipse 70% 60% at 50% 110%, rgba(245, 158, 11, 0.08), transparent),
-        #060911;
+      background: #0b0f19;
       color: #f1f5f9;
       min-height: 100vh;
     }
 
     body.dark-theme .book {
-      background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(17, 28, 48, 0.9) 100%);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border-bottom: 2px solid transparent;
-      border-image: linear-gradient(90deg, #f59e0b 0%, #ec4899 40%, #06b6d4 75%, #10b981 100%) 1;
-      border-radius: 12px 12px 0 0;
-      box-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      background: #111827;
+      border-bottom: 2px solid #0284c7;
+      border-radius: 4px 4px 0 0;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
 
     body.dark-theme .book h1 {
-      background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      letter-spacing: -0.02em;
+      color: #ffffff;
+      letter-spacing: -0.01em;
     }
 
     body.dark-theme .card {
-      background: rgba(14, 22, 38, 0.82);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 12px;
-      box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-      margin-top: 24px;
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 4px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      margin-top: 20px;
     }
 
     body.dark-theme .card h2 {
@@ -492,11 +475,12 @@
       <h1>Demand & User Management</h1>
       <span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
         <span id="adminBranchBadgeContainer"></span>
-        <button class="button" id="themeToggleBtn" type="button" style="border-color:#eab308;color:#fef08a;background:rgba(234,179,8,0.18);font-weight:700;border-radius:18px;">🌙 Dark Mode</button>
-        <a href="/inventory.html" target="_blank" class="button" style="text-decoration:none;display:inline-block;color:#fff;background:#b08d3e;border-color:#b08d3e;font-weight:700;">📦 Office Inventory</a>
+        <button class="button" id="themeToggleBtn" type="button" style="border-color:#0284c7;color:#fff;background:#0284c7;font-weight:600;border-radius:4px;">Dark Mode</button>
+        <a href="/inventory.html" target="_blank" class="button" style="text-decoration:none;display:inline-block;color:#fff;background:#b08d3e;border-color:#b08d3e;font-weight:700;">Office Inventory</a>
+        <a href="/warehouse.html" target="_blank" class="button" style="text-decoration:none;display:inline-block;color:#fff;background:#0f3d3e;border-color:#0f3d3e;font-weight:700;">Warehouse Overview</a>
         <a href="#usersSection" class="button" style="text-decoration:none;display:inline-block;color:#fff;">Active Users</a>
-        <a href="#warehouseSection" class="button" style="text-decoration:none;display:inline-block;color:#fff;">🏢 Warehouses</a>
-        <a href="#branchSection" class="button" style="text-decoration:none;display:inline-block;color:#fff;">🏢 Branches</a>
+        <a href="#warehouseSection" class="button" style="text-decoration:none;display:inline-block;color:#fff;">Warehouses</a>
+        <a href="#branchSection" class="button" style="text-decoration:none;display:inline-block;color:#fff;">Branches</a>
         <button class="button" id="history">Demand history</button>
         <button class="button" id="back">Back to tasks</button>
       </span>
@@ -578,10 +562,10 @@
     </section>
 
     <section class="card" id="warehouseSection">
-      <h2>🏢 Warehouse Management (<span id="warehouseCount">0</span>)</h2>
+      <h2>Warehouse Management (<span id="warehouseCount">0</span>)</h2>
       <div style="padding:16px 20px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;background:rgba(8,13,23,0.4);">
         <input type="text" id="newWarehouseInput" placeholder="Enter new warehouse name (e.g. FC Rawalpindi WH)..." style="flex:1;min-width:240px;padding:9px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;color:#1c2b27;">
-        <button type="button" class="action" id="btnAddWarehouse" style="background:#10b981;border-color:#10b981;color:#fff;font-weight:700;">➕ Add Warehouse</button>
+        <button type="button" class="action" id="btnAddWarehouse" style="background:#10b981;border-color:#10b981;color:#fff;font-weight:700;">Add Warehouse</button>
       </div>
       <div class="scroll">
         <table class="table" id="warehouses-table">
@@ -603,11 +587,11 @@
     </section>
 
     <section class="card" id="branchSection">
-      <h2>🏢 Branch Management (<span id="branchCount">0</span>)</h2>
+      <h2>Branch Management (<span id="branchCount">0</span>)</h2>
       <div id="branchCreateContainer" style="padding:16px 20px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;background:rgba(8,13,23,0.4);">
         <input type="text" id="newBranchNameInput" placeholder="Enter branch name (e.g. Akbar Saddar Branch)..." style="flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;color:#1c2b27;">
         <input type="text" id="newBranchCodeInput" placeholder="Branch Code (e.g. saddar)..." style="width:160px;padding:9px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;color:#1c2b27;">
-        <button type="button" class="action" id="btnAddBranch" style="background:#10b981;border-color:#10b981;color:#fff;font-weight:700;">➕ Add Branch</button>
+        <button type="button" class="action" id="btnAddBranch" style="background:#10b981;border-color:#10b981;color:#fff;font-weight:700;">Add Branch</button>
       </div>
       <div class="scroll">
         <table class="table" id="branches-table">
@@ -633,13 +617,13 @@
     </section>
 
     <section class="card">
-      <h2>📋 Assign Tasks to Supporting Staff</h2>
+      <h2>Assign Tasks to Supporting Staff</h2>
       <div style="padding:16px 20px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;background:rgba(8,13,23,0.4);">
         <input type="text" id="adminTaskTitleInput" placeholder="Enter task / instruction for supporting staff..." style="flex:1;min-width:240px;padding:9px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;color:#1c2b27;">
         <select id="adminTaskStaffSelect" style="padding:9px 12px;border:1px solid var(--line);border-radius:6px;min-width:180px;background:#fff;color:#1c2b27;">
           <option value="">All Supporting Staff</option>
         </select>
-        <button type="button" class="action" id="btnAdminCreateTask" style="background:#0284c7;border-color:#0284c7;color:#fff;font-weight:700;">📌 Assign Task</button>
+        <button type="button" class="action" id="btnAdminCreateTask" style="background:#0284c7;border-color:#0284c7;color:#fff;font-weight:700;">Assign Task</button>
       </div>
       <div id="adminTaskList" style="padding:14px 20px;"><div class="empty">Loading tasks...</div></div>
     </section>
@@ -673,6 +657,7 @@
   <script>
     let allDemands = [];
     let allBranches = [];
+    let allActiveWarehousesList = [];
     let currentAdmin = null;
 
     const api = async (path, opts = {}) => {
@@ -719,10 +704,10 @@
       const container = document.getElementById("adminBranchBadgeContainer");
       if (!container) return;
 
-      // Regular admin: just show their branch as a static badge — no switcher
+      // Regular admin: just show their branch as a static badge - no switcher
       if (!me || !me.isSuperAdmin) {
         const branchName = (allBranches.find(b => b.code === (me && me.branch)) || {}).name || (me && me.branch) || "My Branch";
-        container.innerHTML = `<span style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;background:#b08d3e;color:#fff;">🏢 ${esc(branchName)}</span>`;
+        container.innerHTML = `<span style="font-size:12px;font-weight:700;padding:4px 8px;border-radius:4px;background:#b08d3e;color:#fff;">${esc(branchName)}</span>`;
         return;
       }
 
@@ -730,9 +715,9 @@
       const currentSelected = localStorage.getItem("admin_selected_branch") || "all";
       container.innerHTML = `
         <label style="font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:4px;color:#f1ece0;margin-right:6px;">
-          🏢 Branch:
-          <select id="superAdminBranchSelect" style="padding:4px 8px;border-radius:6px;background:rgba(8,13,23,0.85);color:#fff;border:1px solid #b08d3e;font-size:12px;font-weight:600;">
-            <option value="all" ${currentSelected === 'all' ? 'selected' : ''}>🌐 All Branches</option>
+          Branch:
+          <select id="superAdminBranchSelect" style="padding:4px 8px;border-radius:4px;background:rgba(8,13,23,0.85);color:#fff;border:1px solid #b08d3e;font-size:12px;font-weight:600;">
+            <option value="all" ${currentSelected === 'all' ? 'selected' : ''}>All Branches</option>
             ${allBranches.map(b => `<option value="${b.code}" ${currentSelected === b.code ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}
           </select>
         </label>
@@ -769,11 +754,11 @@
             <td>${b.userCount || 0}</td>
             <td>${b.demandCount || 0}</td>
             <td>${b.itemCount || 0}</td>
-            <td><span style="color:${b.isActive ? '#10b981' : '#f43f5e'};font-weight:600;">${b.isActive ? '🟢 Active' : '🔴 Inactive'}</span></td>
+            <td><span style="color:${b.isActive ? '#10b981' : '#f43f5e'};font-weight:600;">${b.isActive ? 'Active' : 'Inactive'}</span></td>
             <td>${date(b.createdAt)}</td>
             <td>
               <div class="actions" style="display:flex;gap:4px;flex-wrap:wrap;min-width:170px;">
-                <button type="button" class="action edit-branch-btn" style="background:#0284c7;border-color:#0284c7;">✏️ Edit</button>
+                <button type="button" class="action edit-branch-btn" style="background:#0284c7;border-color:#0284c7;">Edit</button>
                 ${!isDefault ? `<button type="button" class="action toggle-branch-btn" style="background:#f59e0b;border-color:#f59e0b;">${b.isActive ? 'Deactivate' : 'Activate'}</button>` : ''}
                 ${!isDefault ? `<button type="button" class="action cancel delete-branch-btn" style="border-color:#f43f5e;color:#f43f5e;background:transparent;">Delete</button>` : ''}
               </div>
@@ -796,12 +781,12 @@
                   method: "PATCH",
                   body: JSON.stringify({ name: cleanName, description: newDesc || "" })
                 });
-                alert("✓ Branch updated successfully!");
+                alert("Branch updated successfully.");
                 await loadBranches();
                 renderBranchHeader(currentAdmin);
                 await loadUsers();
               } catch (e) {
-                alert("❌ " + (e.message || "Failed to update branch"));
+                alert("Error: " + (e.message || "Failed to update branch"));
               }
             };
           }
@@ -817,7 +802,7 @@
                 await loadBranches();
                 renderBranchHeader(currentAdmin);
               } catch (e) {
-                alert("❌ " + (e.message || "Failed to toggle status"));
+                alert("Error: " + (e.message || "Failed to toggle status"));
               }
             };
           }
@@ -830,12 +815,12 @@
                 await api("/api/admin/branches/" + b.id, {
                   method: "DELETE"
                 });
-                alert(`✓ Branch "${b.name}" deleted and data moved to Akbar Electronics.`);
+                alert(`Branch "${b.name}" deleted and data moved to Akbar Electronics.`);
                 await loadBranches();
                 renderBranchHeader(currentAdmin);
                 await loadUsers();
               } catch (e) {
-                alert("❌ " + (e.message || "Failed to delete branch"));
+                alert("Error: " + (e.message || "Failed to delete branch"));
               }
             };
           }
@@ -864,7 +849,7 @@
       const text = items.map(it => `${it.name} - ${it.quantity}${it.invoiceNumber ? ` (Inv: ${it.invoiceNumber})` : ''}`).join('\n');
       if (navigator.clipboard) {
         navigator.clipboard.writeText(text).then(() => {
-          alert(`✓ Copied item & quantity!`);
+          alert(`Copied item & quantity.`);
         }).catch(() => { alert(text); });
       } else {
         alert(text);
@@ -887,7 +872,7 @@
           updateThemeBtn();
         }
 
-        // Branch Management — sirf Super Admin ko dikhao
+        // Branch Management - sirf Super Admin ko dikhao
         const branchSection = document.getElementById("branchSection");
         if (branchSection) {
           branchSection.style.display = currentAdmin.isSuperAdmin ? "" : "none";
@@ -1007,14 +992,19 @@
               <select class="user-role-select" ${isPrimary ? 'disabled title="Primary admin role cannot be changed"' : ''}>
                 <option value="user" ${u.role === 'user' ? 'selected' : ''}>Employee (User)</option>
                 <option value="logistics" ${u.role === 'logistics' ? 'selected' : ''}>Logistics</option>
+                <option value="warehouse" ${u.role === 'warehouse' ? 'selected' : ''}>Warehouse User</option>
                 <option value="supporting_staff" ${u.role === 'supporting_staff' ? 'selected' : ''}>Supporting Staff</option>
                 <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Administrator</option>
+              </select>
+              <select class="user-warehouse-select" style="margin-top:4px;display:${u.role === 'warehouse' ? 'block' : 'none'};padding:4px 6px;font-size:11px;border-radius:4px;background:#fff;color:#1e293b;border:1px solid #cbd5e1;width:100%;">
+                <option value="">-- Assign Warehouse --</option>
+                ${allActiveWarehousesList.map(w => `<option value="${esc(w.name)}" ${(u.warehouse || '') === w.name ? 'selected' : ''}>${esc(w.name)}</option>`).join('')}
               </select>
             </td>
             <td>
               <select class="user-status-select" ${isPrimary ? 'disabled title="Primary admin cannot be deactivated"' : ''}>
-                <option value="true" ${u.isActive ? 'selected' : ''}>🟢 Active</option>
-                <option value="false" ${!u.isActive ? 'selected' : ''}>🔴 Disabled / Inactive</option>
+                <option value="true" ${u.isActive ? 'selected' : ''}>Active</option>
+                <option value="false" ${!u.isActive ? 'selected' : ''}>Disabled / Inactive</option>
               </select>
             </td>
             <td>${date(u.lastActive)}</td>
@@ -1022,18 +1012,25 @@
             <td>
               <div class="actions">
                 <button class="action save-access-btn" ${isPrimary ? 'disabled' : ''}>Save Access</button>
-                ${amISuperAdmin && !isPrimary ? `<button class="action super-toggle-btn" style="background:${isUserSuperAdmin ? '#9333ea' : '#6d28d9'};border-color:${isUserSuperAdmin ? '#9333ea' : '#6d28d9'};">${isUserSuperAdmin ? '👑 Remove Super' : '👑 Make Super Admin'}</button>` : ''}
+                ${amISuperAdmin && !isPrimary ? `<button class="action super-toggle-btn" style="background:#334155;border-color:#334155;">${isUserSuperAdmin ? 'Remove Super' : 'Make Super Admin'}</button>` : ''}
                 <button class="action reset-pwd-btn" style="background:#4a69bd;border-color:#4a69bd;">Reset Password</button>
               </div>
             </td>
           `;
 
           const roleSelect = row.querySelector(".user-role-select");
+          const whSelect = row.querySelector(".user-warehouse-select");
           const statusSelect = row.querySelector(".user-status-select");
           const branchSelect = row.querySelector(".user-branch-select");
           const saveBtn = row.querySelector(".save-access-btn");
           const resetBtn = row.querySelector(".reset-pwd-btn");
           const superToggleBtn = row.querySelector(".super-toggle-btn");
+
+          if (roleSelect && whSelect) {
+            roleSelect.onchange = () => {
+              whSelect.style.display = roleSelect.value === 'warehouse' ? 'block' : 'none';
+            };
+          }
 
           if (!isPrimary) {
             saveBtn.onclick = async () => {
@@ -1044,11 +1041,12 @@
                   method: "PATCH",
                   body: JSON.stringify({
                     role: roleSelect.value,
+                    warehouse: whSelect ? whSelect.value : undefined,
                     isActive: statusSelect.value === "true",
                     branch: branchSelect ? branchSelect.value : undefined
                   })
                 });
-                saveBtn.textContent = "Saved ✓";
+                saveBtn.textContent = "Saved";
                 setTimeout(() => { saveBtn.textContent = "Save Access"; saveBtn.disabled = false; }, 1500);
                 loadUsers();
               } catch (err) {
@@ -1072,10 +1070,10 @@
                   method: "PATCH",
                   body: JSON.stringify({ isSuperAdmin: makingSuper, role: "admin" })
                 });
-                alert(makingSuper ? `✓ @${u.username} is now a Super Admin!` : `✓ Super Admin rights removed from @${u.username}`);
+                alert(makingSuper ? `@${u.username} is now a Super Admin!` : `Super Admin rights removed from @${u.username}`);
                 loadUsers();
               } catch (err) {
-                alert("❌ " + err.message);
+                alert("Error: " + err.message);
                 superToggleBtn.disabled = false;
               }
             };
@@ -1113,6 +1111,7 @@
       const filterSelect = document.getElementById("warehouse-filter");
       try {
         const warehouses = await api("/api/admin/warehouses");
+        allActiveWarehousesList = (warehouses || []).filter(w => w.isActive !== false);
         if (countSpan) countSpan.textContent = warehouses.length;
 
         // Update warehouse filter dropdown, preserving currently selected value if any
@@ -1139,7 +1138,7 @@
           const row = document.createElement("tr");
           row.innerHTML = `
             <td><b>${esc(w.name)}</b></td>
-            <td><span style="color:${w.isActive ? '#10b981' : '#f43f5e'};font-weight:600;">${w.isActive ? '🟢 Active' : '🔴 Inactive'}</span></td>
+            <td><span style="color:${w.isActive ? '#10b981' : '#f43f5e'};font-weight:600;">${w.isActive ? 'Active' : 'Inactive'}</span></td>
             <td>${date(w.createdAt)}</td>
             <td>
               <div class="actions">
@@ -1155,7 +1154,7 @@
               await loadWarehouses();
               render();
             } catch (err) {
-              alert("❌ " + (err.message || "Could not delete warehouse"));
+              alert("Error: " + (err.message || "Could not delete warehouse"));
             }
           };
 
@@ -1174,7 +1173,8 @@
         requests.forEach(request => {
           const row = document.createElement("div");
           row.className = "admin-request";
-          row.innerHTML = `<span><b>${esc(request.name)}</b><small> @${esc(request.username)} · Request: ${esc(request.requested_role || "admin")}</small></span><span class="actions"><button class="action approve">Approve</button><button class="action reject">Reject</button></span>`;
+          const whDetail = request.warehouse ? ` (${esc(request.warehouse)})` : '';
+          row.innerHTML = `<span><b>${esc(request.name)}</b><small> @${esc(request.username)} · Request: ${esc(request.requested_role || "admin")}${whDetail}</small></span><span class="actions"><button class="action approve">Approve</button><button class="action reject">Reject</button></span>`;
           row.querySelector(".approve").onclick = () => processAccessRequest(request.id, "approved");
           row.querySelector(".reject").onclick = () => processAccessRequest(request.id, "rejected");
           list.appendChild(row);
@@ -1246,9 +1246,9 @@
           row.className = (index === 0 ? "demand-head item-row" : "item-row") + (demand.is_urgent || isItemUrgent ? " urgent-row" : "");
           
           row.innerHTML = `
-            <td>${index === 0 ? `<b>${esc(demand.employee_name)}</b>${demand.creator_role === 'admin' ? ' <span style="background:#172554;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;">ADMIN DEMAND</span>' : ''}${demand.is_urgent ? (demand.status === 'pending' ? ' <span class="badge-urgent" title="Urgent requested by employee - approve to notify logistics">⚡ URGENT REQUESTED</span>' : ' <span class="badge-urgent">⚡ URGENT</span>') : ''}` : ""}</td>
+            <td>${index === 0 ? `<b>${esc(demand.employee_name)}</b>${demand.creator_role === 'admin' ? ' <span style="background:#172554;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;">ADMIN DEMAND</span>' : ''}${demand.is_urgent ? (demand.status === 'pending' ? ' <span class="badge-urgent" title="Urgent requested by employee - approve to notify logistics">[URGENT REQUESTED]</span>' : ' <span class="badge-urgent">[URGENT]</span>') : ''}` : ""}</td>
             <td>${index === 0 ? esc(demand.date) : ""}</td>
-            <td>${esc(item.name)}${isItemUrgent ? ' <span class="badge-urgent">⚡ URGENT</span>' : ''}</td>
+            <td>${esc(item.name)}${isItemUrgent ? ' <span class="badge-urgent">[URGENT]</span>' : ''}</td>
             <td>${esc(item.warehouse || "-")}</td>
             <td>${item.quantity}</td>
             <td>
@@ -1268,7 +1268,7 @@
                   class="admin-pickup-save"
                   style="background:#0f3d3e;color:#fff;border:none;border-radius:4px;padding:4px 7px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;"
                   title="Save pickup quantity"
-                >💾 Save</button>
+                >Save</button>
               </div>
             </td>
             <td>${esc(item.invoiceNumber || "-")}</td>
@@ -1277,11 +1277,11 @@
               <div>${esc(item.status || demand.status)}</div>
               ${
                 item.supportStatus === 'ok'
-                  ? `<div style="margin-top:4px;display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;">🟢 Staff OK (${esc(item.supportCheckedBy || demand.support_checked_by || 'Staff')})</div>`
+                  ? `<div style="margin-top:4px;display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;">Staff OK (${esc(item.supportCheckedBy || demand.support_checked_by || 'Staff')})</div>`
                   : item.supportStatus === 'issue'
-                  ? `<div style="margin-top:4px;display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;background:#ffebee;color:#c62828;border:1px solid #ef9a9a;" title="${esc(item.supportRemarks || demand.support_remarks)}">🔴 Staff Issue: ${esc(item.supportRemarks || demand.support_remarks)}</div>`
+                  ? `<div style="margin-top:4px;display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;background:#ffebee;color:#c62828;border:1px solid #ef9a9a;" title="${esc(item.supportRemarks || demand.support_remarks)}">Staff Issue: ${esc(item.supportRemarks || demand.support_remarks)}</div>`
                   : (demand.status === 'on_the_way' || item.status === 'on_the_way')
-                  ? `<div style="margin-top:4px;display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;background:#fff8e1;color:#f57f17;border:1px solid #ffe082;">⏳ Awaiting Staff Check</div>`
+                  ? `<div style="margin-top:4px;display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;background:#fff8e1;color:#f57f17;border:1px solid #ffe082;">Awaiting Staff Check</div>`
                   : ''
               }
             </td>
@@ -1289,8 +1289,8 @@
             <td>
               <div class="actions">
                 ${index === 0 ? `
-                  <button class="action copy-btn" style="background:#0284c7;border-color:#0284c7;color:#fff;" onclick="copyAdminDemand('${demand.id}')">📋 Copy</button>
-                  <button class="action urgent-btn ${demand.is_urgent ? 'urgent-active' : ''}">${demand.is_urgent ? '⚡ Urgent Demand (ON)' : '⚡ Mark Demand Urgent'}</button>
+                  <button class="action copy-btn" style="background:#0284c7;border-color:#0284c7;color:#fff;" onclick="copyAdminDemand('${demand.id}')">Copy</button>
+                  <button class="action urgent-btn ${demand.is_urgent ? 'urgent-active' : ''}">${demand.is_urgent ? 'Urgent Demand (ON)' : 'Mark Demand Urgent'}</button>
                   <button class="action approve">Approve</button>
                   <button class="action reject">Reject</button>
                   <button class="action complete">Complete all</button>
@@ -1557,18 +1557,18 @@
 
   <!-- Missing Model Decision Modal -->
   <div id="missingModelModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;align-items:center;justify-content:center;padding:16px;">
-    <div style="background:#fff;border-radius:12px;max-width:500px;width:100%;padding:24px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.3);font-family:Inter,Segoe UI,sans-serif;">
-      <h3 style="margin:0 0 10px;font-size:18px;color:#1e293b;display:flex;align-items:center;gap:8px;">⚠️ Model Inventory Mein Mojood Nahi Hai</h3>
+    <div style="background:#fff;border-radius:6px;max-width:500px;width:100%;padding:24px;box-shadow:0 10px 25px rgba(0,0,0,0.2);font-family:Inter,Segoe UI,sans-serif;">
+      <h3 style="margin:0 0 10px;font-size:17px;color:#1e293b;display:flex;align-items:center;gap:8px;">Model Inventory Mein Mojood Nahi Hai</h3>
       <p id="missingModelModalText" style="font-size:14px;color:#475467;line-height:1.5;margin:0 0 20px;"></p>
       <div style="display:flex;flex-direction:column;gap:10px;">
-        <button type="button" id="btnConfirmAddModel" style="background:#0284c7;color:#fff;border:none;border-radius:8px;padding:12px 16px;font-weight:600;font-size:13px;cursor:pointer;">
-          📦 Naya Model Inventory Mein Add Karein &amp; Complete
+        <button type="button" id="btnConfirmAddModel" style="background:#0284c7;color:#fff;border:none;border-radius:4px;padding:10px 16px;font-weight:600;font-size:13px;cursor:pointer;">
+          Naya Model Inventory Mein Add Karein &amp; Complete
         </button>
-        <button type="button" id="btnConfirmSkipModel" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;border-radius:8px;padding:12px 16px;font-weight:600;font-size:13px;cursor:pointer;">
-          ✅ Baghair Inventory Update Kiye Sirf Complete Karein
+        <button type="button" id="btnConfirmSkipModel" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;border-radius:4px;padding:10px 16px;font-weight:600;font-size:13px;cursor:pointer;">
+          Baghair Inventory Update Kiye Sirf Complete Karein
         </button>
-        <button type="button" id="btnCancelModelAction" style="background:none;color:#64748b;border:none;padding:8px;font-size:13px;cursor:pointer;margin-top:4px;">
-          ✕ Cancel
+        <button type="button" id="btnCancelModelAction" style="background:none;color:#64748b;border:none;padding:6px;font-size:13px;cursor:pointer;margin-top:4px;">
+          Cancel
         </button>
       </div>
     </div>

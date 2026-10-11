@@ -49,7 +49,8 @@ const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true, lowercase: true, trim: true },
   name: { type: String, required: true, trim: true },
   passwordHash: { type: String, required: true },
-  role: { type: String, enum: ["user", "admin", "logistics", "supporting_staff"], default: "user" },
+  role: { type: String, enum: ["user", "admin", "logistics", "supporting_staff", "warehouse"], default: "user" },
+  warehouse: { type: String, default: "", trim: true },
   branch: { type: String, default: "akbarelectronics", lowercase: true, trim: true, index: true },
   isSuperAdmin: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true },
@@ -122,7 +123,8 @@ const adminRequestSchema = new mongoose.Schema({
   username: { type: String, required: true },
   name: { type: String, required: true },
   branch: { type: String, default: "akbarelectronics", lowercase: true, trim: true, index: true },
-  requestedRole: { type: String, enum: ["admin", "logistics", "supporting_staff"], default: "admin" },
+  requestedRole: { type: String, enum: ["admin", "logistics", "supporting_staff", "warehouse"], default: "admin" },
+  warehouse: { type: String, default: "", trim: true },
   status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" }
 }, { timestamps: true });
 
@@ -287,6 +289,7 @@ function signToken(user) {
     username: user.username,
     name: user.name,
     role: user.role,
+    warehouse: user.warehouse || "",
     branch: user.branch || "akbarelectronics",
     isSuperAdmin: Boolean(isSuper)
   }, JWT_SECRET, { expiresIn: "30d" });
@@ -297,12 +300,13 @@ async function authMiddleware(req, res, next) {
   if (!token) return res.status(401).json({ error: "Not logged in" });
   try {
     req.user = jwt.verify(token, JWT_SECRET);
-    const dbUser = await User.findById(req.user.id).select("role isActive branch isSuperAdmin username name");
+    const dbUser = await User.findById(req.user.id).select("role isActive branch isSuperAdmin username name warehouse");
     if (!dbUser) return res.status(401).json({ error: "User no longer exists" });
     if (dbUser.isActive === false) {
       return res.status(403).json({ error: "Your account has been deactivated by administrator." });
     }
     req.user.role = dbUser.role;
+    req.user.warehouse = dbUser.warehouse || "";
     req.user.branch = dbUser.branch || "akbarelectronics";
     req.user.isSuperAdmin = isSuperAdminUser(dbUser);
     User.findByIdAndUpdate(req.user.id, { lastActive: new Date() }).exec().catch(() => {});
@@ -348,13 +352,27 @@ async function adminMiddleware(req, res, next) {
 
 async function logisticsMiddleware(req, res, next) {
   try {
-    const user = await User.findById(req.user.id).select("role branch");
-    if (!user || (user.role !== "admin" && user.role !== "logistics")) {
-      return res.status(403).json({ error: "Logistics access required" });
+    const user = await User.findById(req.user.id).select("role branch warehouse");
+    if (!user || (!["admin", "logistics", "warehouse"].includes(user.role))) {
+      return res.status(403).json({ error: "Logistics or Warehouse access required" });
     }
+    req.user.warehouse = user.warehouse || "";
     next();
   } catch (e) {
     res.status(500).json({ error: "Could not verify logistics access" });
+  }
+}
+
+async function warehouseMiddleware(req, res, next) {
+  try {
+    const user = await User.findById(req.user.id).select("role branch warehouse");
+    if (!user || (!["admin", "warehouse", "logistics"].includes(user.role))) {
+      return res.status(403).json({ error: "Warehouse access required" });
+    }
+    req.user.warehouse = user.warehouse || "";
+    next();
+  } catch (e) {
+    res.status(500).json({ error: "Could not verify warehouse access" });
   }
 }
 
@@ -373,7 +391,7 @@ async function supportingStaffMiddleware(req, res, next) {
 async function historyReadMiddleware(req, res, next) {
   try {
     const user = await User.findById(req.user.id).select("role branch");
-    if (!user || !["admin", "logistics", "supporting_staff"].includes(user.role)) {
+    if (!user || !["admin", "logistics", "supporting_staff", "warehouse"].includes(user.role)) {
       return res.status(403).json({ error: "Demand history access required" });
     }
     next();
@@ -581,7 +599,7 @@ app.delete("/api/admin/branches/:id", authMiddleware, adminMiddleware, async (re
 
 app.post("/api/register", async (req, res) => {
   try {
-    const { username, password, name, branch, requestAdmin, requestLogistics, requestSupportingStaff } = req.body;
+    const { username, password, name, branch, requestAdmin, requestLogistics, requestSupportingStaff, requestWarehouse, warehouse } = req.body;
     if (!username || !password || !name) {
       return res.status(400).json({ error: "Name, username and password are all required" });
     }
@@ -602,6 +620,7 @@ app.post("/api/register", async (req, res) => {
       if (bDoc) cleanBranch = bDoc.code;
     }
 
+    const cleanWarehouse = String(warehouse || "").trim();
     const passwordHash = await bcrypt.hash(password, 10);
     const isSuper = cleanUsername === ADMIN_USERNAME;
     const user = await User.create({
@@ -609,17 +628,19 @@ app.post("/api/register", async (req, res) => {
       name: name.trim(),
       passwordHash,
       role: isSuper ? "admin" : "user",
+      warehouse: cleanWarehouse,
       branch: cleanBranch,
       isSuperAdmin: isSuper
     });
-    const requestedRole = requestSupportingStaff ? "supporting_staff" : requestLogistics ? "logistics" : requestAdmin ? "admin" : null;
+    const requestedRole = requestWarehouse ? "warehouse" : requestSupportingStaff ? "supporting_staff" : requestLogistics ? "logistics" : requestAdmin ? "admin" : null;
     if (requestedRole && user.role !== "admin") {
       await AdminRequest.create({
         userId: user._id,
         username: user.username,
         name: user.name,
         branch: cleanBranch,
-        requestedRole
+        requestedRole,
+        warehouse: cleanWarehouse
       });
     }
     const token = signToken(user);
@@ -630,6 +651,7 @@ app.post("/api/register", async (req, res) => {
       username: user.username,
       name: user.name,
       role: user.role,
+      warehouse: user.warehouse || "",
       branch: user.branch,
       branchName: bInfo ? bInfo.name : "Akbar Electronics",
       isSuperAdmin: Boolean(user.isSuperAdmin),
@@ -674,6 +696,7 @@ app.post("/api/login", async (req, res) => {
       username: user.username,
       name: user.name,
       role: user.role,
+      warehouse: user.warehouse || "",
       branch: user.branch || "akbarelectronics",
       branchName: bInfo ? bInfo.name : "Akbar Electronics",
       isSuperAdmin: isSuperAdminUser(user)
@@ -697,6 +720,7 @@ app.get("/api/me", authMiddleware, async (req, res) => {
       username: req.user.username,
       name: req.user.name,
       role: req.user.role || "user",
+      warehouse: req.user.warehouse || "",
       branch: req.user.branch || "akbarelectronics",
       branchName: bInfo ? bInfo.name : "Akbar Electronics",
       isSuperAdmin: Boolean(req.user.isSuperAdmin)
@@ -795,6 +819,7 @@ app.get("/api/admin-requests", authMiddleware, adminMiddleware, async (req, res)
       name: request.name,
       branch: request.branch || "akbarelectronics",
       requested_role: request.requestedRole,
+      warehouse: request.warehouse || "",
       created_at: request.createdAt
     })));
   } catch (e) {
@@ -820,7 +845,11 @@ app.patch("/api/admin-requests/:id", authMiddleware, adminMiddleware, async (req
     );
     if (!request) return res.status(404).json({ error: "Admin request not found" });
     if (status === "approved") {
-      await User.findByIdAndUpdate(request.userId, { role: request.requestedRole || "admin" });
+      const updateData = { role: request.requestedRole || "admin" };
+      if (request.requestedRole === "warehouse" && request.warehouse) {
+        updateData.warehouse = request.warehouse;
+      }
+      await User.findByIdAndUpdate(request.userId, updateData);
     }
     res.json({ ok: true, status: request.status });
   } catch (e) {
@@ -845,6 +874,7 @@ app.get("/api/admin/users", authMiddleware, adminMiddleware, async (req, res) =>
       username: u.username,
       name: u.name,
       role: u.role || "user",
+      warehouse: u.warehouse || "",
       branch: u.branch || "akbarelectronics",
       branchName: branchMap.get(u.branch) || u.branch || "Akbar Electronics",
       isSuperAdmin: Boolean(u.isSuperAdmin || (ADMIN_USERNAME && u.username.toLowerCase() === ADMIN_USERNAME)),
@@ -861,7 +891,7 @@ app.get("/api/admin/users", authMiddleware, adminMiddleware, async (req, res) =>
 
 app.patch("/api/admin/users/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { role, isActive, branch, isSuperAdmin } = req.body;
+    const { role, isActive, branch, isSuperAdmin, warehouse } = req.body;
     const targetUser = await User.findById(req.params.id);
     if (!targetUser) return res.status(404).json({ error: "User not found" });
 
@@ -885,14 +915,17 @@ app.patch("/api/admin/users/:id", authMiddleware, adminMiddleware, async (req, r
       return res.status(400).json({ error: "You cannot deactivate your own account" });
     }
 
-    if (role && ["user", "logistics", "supporting_staff", "admin"].includes(role)) {
+    if (role && ["user", "logistics", "supporting_staff", "warehouse", "admin"].includes(role)) {
       targetUser.role = role;
-      if (role === "logistics" || role === "supporting_staff") {
+      if (role === "logistics" || role === "supporting_staff" || role === "warehouse") {
         await AdminRequest.updateMany(
           { userId: targetUser._id, requestedRole: role },
           { status: "approved" }
         );
       }
+    }
+    if (typeof warehouse === "string") {
+      targetUser.warehouse = warehouse.trim();
     }
     if (typeof isActive === "boolean") {
       targetUser.isActive = isActive;
@@ -922,6 +955,7 @@ app.patch("/api/admin/users/:id", authMiddleware, adminMiddleware, async (req, r
       username: targetUser.username,
       name: targetUser.name,
       role: targetUser.role,
+      warehouse: targetUser.warehouse || "",
       branch: targetUser.branch,
       branchName: bInfo ? bInfo.name : targetUser.branch,
       isSuperAdmin: Boolean(targetUser.isSuperAdmin),
@@ -1159,7 +1193,15 @@ app.get("/api/admin/demands", authMiddleware, adminMiddleware, async (req, res) 
 
 app.get(["/api/admin/demands/history", "/api/logistics/demands/history"], authMiddleware, historyReadMiddleware, async (req, res) => {
   try {
-    const demands = await DemandHistory.find(branchQuery(req)).sort({ completedAt: -1 });
+    const isGlobal = req.user.role === "warehouse" || req.user.role === "logistics" || req.user.isSuperAdmin;
+    let bQ = {};
+    const queryBranch = req.query?.branch;
+    if (queryBranch && queryBranch !== "all") {
+      bQ = { branch: queryBranch.toLowerCase().trim() };
+    } else if (!isGlobal) {
+      bQ = branchQuery(req);
+    }
+    const demands = await DemandHistory.find(bQ).sort({ completedAt: -1 });
     res.json(demands.map(demandToJson));
   } catch (e) {
     console.error(e);
@@ -1323,6 +1365,30 @@ app.post("/api/demands", authMiddleware, async (req, res) => {
       isUrgent: hasAnyUrgent,
       urgentNotified: false
     });
+
+    // Notify warehouse users whose warehouse matches any of the demand items
+    try {
+      const warehousesInDemand = [...new Set(mergedItems.map(it => String(it.warehouse || "").trim()).filter(Boolean))];
+      if (warehousesInDemand.length > 0) {
+        const warehouseUsers = await User.find({
+          role: "warehouse",
+          warehouse: { $in: warehousesInDemand },
+          isActive: { $ne: false }
+        }).select("_id warehouse");
+        if (warehouseUsers.length > 0) {
+          const actorName = req.user.name || "Employee";
+          const notifs = warehouseUsers.map(wu => ({
+            recipientId: wu._id,
+            actorName,
+            message: `New demand added from ${targetBranch} for ${wu.warehouse}: ${mergedItems.filter(i => i.warehouse === wu.warehouse).map(i => `${i.name} (${i.quantity})`).join(", ").slice(0, 160)}`
+          }));
+          await Notification.insertMany(notifs);
+        }
+      }
+    } catch (whNotifErr) {
+      console.error("Error notifying warehouse user:", whNotifErr);
+    }
+
     res.json(demandToJson(demand));
   } catch (e) {
     console.error(e);
@@ -1683,9 +1749,13 @@ app.patch("/api/admin/demands/:id", authMiddleware, adminMiddleware, async (req,
   }
 });
 
-// Admin: update pickup quantity for a specific item (without changing status)
-app.patch("/api/admin/demands/:id/pickup-qty", authMiddleware, adminMiddleware, async (req, res) => {
+// Admin / Warehouse / Logistics: update pickup quantity for a specific item (without changing status)
+app.patch(["/api/admin/demands/:id/pickup-qty", "/api/warehouse/demands/:id/pickup-qty"], authMiddleware, async (req, res) => {
   try {
+    const user = await User.findById(req.user.id).select("role branch warehouse");
+    if (!user || (!["admin", "logistics", "warehouse"].includes(user.role))) {
+      return res.status(403).json({ error: "Access denied" });
+    }
     const { itemIndex, pickedQuantity } = req.body || {};
     if (!Number.isInteger(itemIndex) || itemIndex < 0) {
       return res.status(400).json({ error: "Valid itemIndex required" });
@@ -1712,19 +1782,27 @@ app.patch("/api/admin/demands/:id/pickup-qty", authMiddleware, adminMiddleware, 
   }
 });
 
-app.get("/api/logistics/demands", authMiddleware, logisticsMiddleware, async (req, res) => {
+app.get(["/api/logistics/demands", "/api/warehouse/demands"], authMiddleware, logisticsMiddleware, async (req, res) => {
   try {
-    // Only show demands approved by admin or in progress (on_the_way)
-    const demands = await Demand.find({ ...branchQuery(req), status: { $in: ["approved", "on_the_way"] } }).sort({ submittedAt: -1, createdAt: -1 });
+    const isGlobalViewer = req.user.role === "warehouse" || req.user.role === "logistics" || req.user.isSuperAdmin;
+    let bQ = {};
+    const queryBranch = req.query?.branch;
+    if (queryBranch && queryBranch !== "all") {
+      bQ = { branch: queryBranch.toLowerCase().trim() };
+    } else if (!isGlobalViewer) {
+      bQ = branchQuery(req);
+    }
+    // Show active demands: pending, approved, on_the_way
+    const demands = await Demand.find({ ...bQ, status: { $in: ["pending", "approved", "on_the_way"] } }).sort({ submittedAt: -1, createdAt: -1 });
     const sorted = await sortDemandsWithPriority(demands);
     res.json(sorted.map(demandToJson));
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: "Could not load logistics demands" });
+    res.status(500).json({ error: "Could not load demands" });
   }
 });
 
-app.patch("/api/logistics/demands/:id", authMiddleware, logisticsMiddleware, async (req, res) => {
+app.patch(["/api/logistics/demands/:id", "/api/warehouse/demands/:id"], authMiddleware, logisticsMiddleware, async (req, res) => {
   try {
     const { itemIndexes, status, pickedQuantity } = req.body || {};
     if (!Array.isArray(itemIndexes) || !itemIndexes.length || status !== "on_the_way" || itemIndexes.some(index => !Number.isInteger(index) || index < 0)) {
@@ -1773,11 +1851,11 @@ app.patch("/api/logistics/demands/:id", authMiddleware, logisticsMiddleware, asy
     res.json(demandToJson(demand));
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: "Could not update logistics status" });
+    res.status(500).json({ error: "Could not update dispatch status" });
   }
 });
 
-app.post("/api/logistics/demands/:id/add-item", authMiddleware, logisticsMiddleware, async (req, res) => {
+app.post(["/api/logistics/demands/:id/add-item", "/api/warehouse/demands/:id/add-item"], authMiddleware, logisticsMiddleware, async (req, res) => {
   try {
     const { name, quantity, pickedQuantity, warehouse, invoiceNumber } = req.body || {};
     if (!name || !String(name).trim() || !Number.isInteger(Number(quantity)) || Number(quantity) < 1) {

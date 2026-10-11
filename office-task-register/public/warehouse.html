@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Warehouse | Demand Overview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1c2b27;--paper:#fbf9f3;--ledger:#f1ece0;--line:#d9cfb8;--teal:#0f3d3e;--green:#3f6b4c;--red:#a6402b}*{box-sizing:border-box}
+body{margin:0;padding:32px 16px 70px;background:var(--ledger);font-family:'IBM Plex Sans',sans-serif;color:var(--ink)}
+main{max-width:1150px;margin:auto}
+.book{background:var(--teal);color:#f1ece0;padding:26px 30px 22px;border-bottom:4px solid #b08d3e;border-radius:6px 6px 2px 2px;box-shadow:0 8px 20px #1c2b2720;position:relative;}
+.book h1{font:700 27px 'IBM Plex Serif',serif;margin:0 0 5px}
+.book p{margin:0;color:#cfe3dd;font:12px 'IBM Plex Mono',monospace}
+.button,.action{border:1px solid var(--teal);background:var(--teal);color:#fff;border-radius:4px;padding:8px 12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:all 0.15s ease}
+.button:hover,.action:hover{opacity:0.9}
+.header-actions{float:right;display:flex;gap:8px;margin-top:-32px;flex-wrap:wrap}
+.header-actions .button{background:#ffffff18;border-color:#ffffff55}
+.card{margin-top:22px;background:var(--paper);border:1px solid var(--line);border-radius:4px;overflow:hidden;box-shadow:0 6px 16px #1c2b2718}
+.card h2{font:600 17px 'IBM Plex Serif',serif;margin:0;padding:14px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+.filters{display:flex;gap:14px;align-items:center;padding:14px 20px;background:var(--ledger);border-bottom:1px solid var(--line);flex-wrap:wrap}
+select,input[type="text"]{border:1px solid var(--line);background:var(--paper);border-radius:4px;padding:8px 10px;color:var(--ink);font-size:13px}
+.scroll{overflow-x:auto}
+.table{width:100%;border-collapse:collapse;min-width:800px}
+.table th,.table td{padding:11px 16px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
+.table th{background:var(--ledger);color:#68766d;font:600 11px 'IBM Plex Mono',monospace;text-transform:uppercase}
+.table tr:last-child td{border-bottom:0}
+.items{display:grid;gap:7px}
+.item{display:flex;align-items:center;gap:8px}
+.item label{min-width:250px}
+.item input{accent-color:var(--teal)}
+.status{font:600 11px 'IBM Plex Mono',monospace;text-transform:uppercase;color:var(--green);white-space:nowrap}
+.pending{color:#b45309;font-weight:700;}
+.action{font-size:12px}
+.action:disabled{opacity:.5;cursor:not-allowed}
+.btn-copy-single{background:#0284c7;border-color:#0284c7;color:#fff;padding:4px 8px;font-size:11px;font-weight:700;border-radius:4px;margin-top:4px;cursor:pointer;display:inline-flex;align-items:center;gap:3px}
+.btn-copy-single:hover{background:#0369a1}
+.btn-add-extra-item{background:#059669;border-color:#059669;color:#fff;padding:4px 8px;font-size:11px;font-weight:700;border-radius:4px;margin-top:4px;cursor:pointer;display:inline-flex;align-items:center;gap:3px}
+.btn-add-extra-item:hover{background:#047857}
+.badge-extra{display:inline-block;padding:2px 5px;font-size:10px;font-weight:700;color:#fff;background:#0284c7;border-radius:3px;margin-left:4px;vertical-align:middle}
+.empty,.error{padding:22px 20px;color:#78827d}
+.error{color:var(--red)}
+.summary td:last-child{font-weight:600;color:var(--teal)}
+.badge-urgent{display:inline-block;padding:2px 6px;font-size:10px;font-weight:700;color:#fff;background:#c0392b;border-radius:3px;margin-left:4px;vertical-align:middle;}
+.urgent-banner{background:#c0392b;color:#fff;padding:12px 18px;margin-bottom:14px;border-radius:4px;font-weight:600;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px #c0392b40}
+.urgent-row{background:#fff8f4}
+.urgent-row.first-row td{border-top:3px solid #c0392b!important}
+.wh-user-badge{display:inline-flex;align-items:center;gap:5px;background:#e0f2fe;color:#0369a1;padding:4px 8px;border-radius:4px;font-size:12px;font-weight:700;border:1px solid #7dd3fc;}
+.toast-notice{position:fixed;bottom:24px;right:24px;background:#0f172a;color:#fff;padding:12px 18px;border-radius:4px;font-weight:600;font-size:13px;display:none;z-index:99999;box-shadow:0 10px 25px rgba(0,0,0,0.3);border:1px solid #334155}
+
+/* Branch Filter Tabs Bar */
+.branch-tabs-container {
+  padding: 12px 20px 8px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+.branch-tabs-bar {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  align-items: center;
+}
+.branch-tab {
+  border: 1px solid var(--line);
+  background: var(--ledger);
+  color: var(--ink);
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.branch-tab:hover {
+  background: #e2dcd0;
+  border-color: #b08d3e;
+}
+.branch-tab.active {
+  background: var(--teal);
+  color: #fff;
+  border-color: var(--teal);
+}
+.tab-badge {
+  background: rgba(0,0,0,0.08);
+  color: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.branch-tab.active .tab-badge {
+  background: rgba(255,255,255,0.25);
+  color: #fff;
+}
+
+/* Branch Group Header Divider in Table */
+.branch-group-header-row td {
+  background: #f1f5f9 !important;
+  border-top: 2px solid #0284c7 !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+  padding: 8px 16px !important;
+}
+.branch-header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.branch-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.branch-pill-tag {
+  background: #0284c7;
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.branch-header-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f3d3e;
+}
+.branch-count-tag {
+  background: #fff;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.btn-copy-branch {
+  background: #0284c7;
+  border: 1px solid #0284c7;
+  color: #fff;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+.btn-copy-branch:hover {
+  background: #0369a1;
+}
+
+@media(max-width:620px){
+  body{padding:16px 10px 50px}
+  .book{padding:22px 18px}
+  .book h1{font-size:22px}
+  .header-actions{float:none;margin:14px 0 0;flex-wrap:wrap}
+  .filters{align-items:stretch;flex-direction:column}
+  .item label{min-width:220px}
+}
+
+/* DARK THEME STYLES */
+body.dark-theme {
+  background: #0b0f19 !important;
+  color: #f1f5f9 !important;
+}
+body.dark-theme .book {
+  background: #111827 !important;
+  border-bottom: 2px solid #0284c7 !important;
+}
+body.dark-theme .book p { color: #94a3b8 !important; }
+body.dark-theme .card {
+  background: #111827 !important;
+  border: 1px solid #1f2937 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+body.dark-theme .card h2 {
+  border-bottom: 1px solid #1f2937 !important;
+  color: #f8fafc !important;
+}
+body.dark-theme .filters {
+  background: #0f172a !important;
+  border-bottom: 1px solid #1f2937 !important;
+}
+body.dark-theme select,
+body.dark-theme input {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  border: 1px solid #334155 !important;
+}
+body.dark-theme .table th {
+  background: #0f172a !important;
+  color: #94a3b8 !important;
+  border-bottom: 1px solid #1f2937 !important;
+}
+body.dark-theme .table td {
+  border-bottom: 1px solid #1f2937 !important;
+  color: #f1f5f9 !important;
+}
+body.dark-theme .table tr:hover td {
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+body.dark-theme .wh-user-badge {
+  background: rgba(14, 165, 233, 0.12) !important;
+  color: #38bdf8 !important;
+  border-color: rgba(14, 165, 233, 0.35) !important;
+}
+body.dark-theme .urgent-row { background: rgba(192, 57, 43, 0.12) !important; }
+body.dark-theme .urgent-banner {
+  background: rgba(192, 57, 43, 0.3) !important;
+  border: 1px solid #c0392b !important;
+}
+body.dark-theme #extraItemModal > div {
+  background: #111827 !important;
+  color: #f1f5f9 !important;
+  border: 1px solid #1f2937 !important;
+}
+body.dark-theme #extraItemModal h3 { color: #f8fafc !important; }
+body.dark-theme #extraItemModal label { color: #cbd5e1 !important; }
+body.dark-theme .branch-tabs-container {
+  background: #111827 !important;
+  border-bottom: 1px solid #1f2937 !important;
+}
+body.dark-theme .branch-tab {
+  background: #0f172a !important;
+  color: #94a3b8 !important;
+  border-color: #334155 !important;
+}
+body.dark-theme .branch-tab:hover {
+  background: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+body.dark-theme .branch-tab.active {
+  background: #0284c7 !important;
+  color: #fff !important;
+  border-color: #0284c7 !important;
+}
+body.dark-theme .branch-group-header-row td {
+  background: #0f172a !important;
+  border-top: 2px solid #0284c7 !important;
+  border-bottom: 1px solid #1f2937 !important;
+}
+body.dark-theme .branch-header-name {
+  color: #f8fafc !important;
+}
+body.dark-theme .branch-count-tag {
+  background: #111827 !important;
+  color: #38bdf8 !important;
+  border-color: #1f2937 !important;
+}
+</style>
+<script src="/admin-theme.js"></script>
+</head>
+<body>
+<script>if(window.AdminTheme){AdminTheme.apply();}else if(localStorage.getItem('user_role')==='admin'||(localStorage.getItem('admin_theme')&&localStorage.getItem('admin_theme')!=='light')){document.body.classList.add('dark-theme');}else{document.body.classList.remove('dark-theme');}</script>
+<main>
+<header class="book">
+  <div class="header-actions">
+    <button class="button" id="copySelectedBtn" style="background:#0284c7;border-color:#0284c7;color:#fff;">Copy Selected</button>
+    <button class="button" id="historyBtn" style="background:#b08d3e;border-color:#b08d3e;color:#fff;">Demand History</button>
+    <button class="button" id="back">Back to tasks</button>
+  </div>
+  <h1>Warehouse Demand Overview</h1>
+  <p id="userStatusLine">Demands added for this warehouse. View required quantities, prepare items, and dispatch.</p>
+  <div id="userBadgeRow" style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <span id="warehouseBadge" class="wh-user-badge">Loading warehouse...</span>
+    <span id="userNameBadge" style="font-size:12px;color:#cfe3dd;font-family:'IBM Plex Mono',monospace;"></span>
+  </div>
+</header>
+
+<section class="card">
+  <div id="urgentAlert" class="urgent-banner" style="display:none"><span>[URGENT] Orders requiring immediate attention and priority pickup for this warehouse.</span></div>
+  <h2>
+    <span>Demands for Warehouse</span>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button type="button" class="button" id="copyAllVisibleBtn" style="background:rgba(15,61,62,0.1);color:var(--teal);border-color:var(--teal);font-size:12px;padding:5px 10px;">Copy All Demands</button>
+    </div>
+  </h2>
+
+  <!-- Branch Tabs Filter Bar -->
+  <div class="branch-tabs-container">
+    <div style="font-size:11px;font-weight:700;color:var(--teal);text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+      <span>Select Branch:</span>
+    </div>
+    <div class="branch-tabs-bar" id="branchTabsBar">
+      <button type="button" class="branch-tab active" data-branch="all">
+        All Branches <span class="tab-badge" id="badge-all">0</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="filters">
+    <label for="branchFilter" id="branchFilterLabel" style="font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:5px;">
+      Branch:
+      <select id="branchFilter">
+        <option value="all">All Branches</option>
+      </select>
+    </label>
+
+    <label for="warehouse" style="font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:5px;">
+      Warehouse:
+      <select id="warehouse">
+        <option value="all">All warehouses</option>
+      </select>
+    </label>
+
+    <label for="statusFilter" style="font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:5px;">
+      Status:
+      <select id="statusFilter">
+        <option value="all">All Active Demands</option>
+        <option value="approved">Approved (Ready to Dispatch)</option>
+        <option value="on_the_way">On the Way (Dispatched)</option>
+        <option value="pending">Pending (Awaiting Admin Approval)</option>
+      </select>
+    </label>
+
+    <label for="searchInput" style="font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:5px;flex:1;min-width:200px;">
+      Search:
+      <input type="text" id="searchInput" placeholder="Search item, employee, invoice..." style="flex:1;">
+    </label>
+  </div>
+
+  <div class="scroll">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Branch</th>
+          <th>Demand</th>
+          <th>Item</th>
+          <th>Demanded</th>
+          <th>Pickup / Dispatched Qty</th>
+          <th>Invoice Number</th>
+          <th>Warehouse</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="demands">
+        <tr><td colspan="9" class="empty">Loading demands...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Required Quantities Summary</h2>
+  <div class="scroll">
+    <table class="table summary">
+      <thead>
+        <tr>
+          <th>Branch</th>
+          <th>Product</th>
+          <th>Warehouse</th>
+          <th>Total Demanded Quantity</th>
+        </tr>
+      </thead>
+      <tbody id="summary">
+        <tr><td colspan="4" class="empty">Loading summary...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+</main>
+
+<div id="toast" class="toast-notice"></div>
+
+<!-- Modal for adding extra item -->
+<div id="extraItemModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:#fff;border-radius:6px;max-width:440px;width:100%;padding:22px;box-shadow:0 10px 25px rgba(0,0,0,0.2);font-family:'IBM Plex Sans',sans-serif;">
+    <h3 style="margin:0 0 8px;font-size:16px;color:#0f3d3e;display:flex;align-items:center;gap:6px;">Demand Mein Extra Item Add Karein</h3>
+    <p style="margin:0 0 16px;font-size:12px;color:#64748b;line-height:1.4;">Warehouse user is demand mein extra item add kar sakta hai. Yeh item Supporting Staff aur Logistics screen par bhi dikhai dega.</p>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <label style="font-size:12px;font-weight:600;color:#334155;">
+        Item Name / Product: *
+        <input type="text" id="extraItemName" placeholder="e.g. HDMI Cable, Power Supply" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:4px;margin-top:4px;box-sizing:border-box;">
+      </label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <label style="font-size:12px;font-weight:600;color:#334155;">
+          Demanded Qty: *
+          <input type="number" id="extraItemQty" min="1" value="1" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:4px;margin-top:4px;box-sizing:border-box;">
+        </label>
+        <label style="font-size:12px;font-weight:600;color:#334155;">
+          Picked Qty:
+          <input type="number" id="extraItemPickedQty" min="0" value="1" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:4px;margin-top:4px;box-sizing:border-box;">
+        </label>
+      </div>
+      <label style="font-size:12px;font-weight:600;color:#334155;">
+        Warehouse:
+        <select id="extraItemWarehouse" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:4px;margin-top:4px;box-sizing:border-box;"></select>
+      </label>
+      <label style="font-size:12px;font-weight:600;color:#334155;">
+        Invoice Number (Optional):
+        <input type="text" id="extraItemInvoice" placeholder="e.g. INV-2026-99" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:4px;margin-top:4px;box-sizing:border-box;">
+      </label>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">
+      <button type="button" id="btnCancelExtraItem" style="background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;border-radius:4px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>
+      <button type="button" id="btnSubmitExtraItem" style="background:#059669;color:#fff;border:none;border-radius:4px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;">Add Extra Item</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const api = async (path, opts = {}) => {
+  const r = await fetch(path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    credentials: 'include'
+  });
+  const d = await r.json();
+  if (!r.ok) throw Error(d.error || 'Request failed');
+  return d;
+};
+
+const esc = v => {
+  const e = document.createElement('div');
+  e.textContent = v ?? '';
+  return e.innerHTML;
+};
+
+let all = [];
+let currentUser = null;
+let isAdmin = false;
+let userAssignedWarehouse = '';
+let branchesList = [];
+const branchMap = new Map();
+
+function getBranchName(code) {
+  if (!code) return 'Akbar Electronics';
+  const c = String(code).trim().toLowerCase();
+  return branchMap.get(c) || code;
+}
+
+function itemsOf(d) {
+  return Array.isArray(d.items) ? d.items : [];
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 3000);
+}
+
+function copyToClipboard(text, successMsg) {
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast(successMsg || "✓ Copied to clipboard!");
+    }).catch(() => fallbackCopy(text, successMsg));
+  } else {
+    fallbackCopy(text, successMsg);
+  }
+}
+
+function fallbackCopy(text, successMsg) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showToast(successMsg || "Copied to clipboard.");
+  } catch (err) {
+    alert("Copy failed. Please copy manually.");
+  }
+  document.body.removeChild(ta);
+}
+
+function copySingleDemand(demandId) {
+  const d = all.find(x => x.id === demandId);
+  if (!d) return;
+  const targetWh = getActiveWarehouseFilter();
+  const bName = getBranchName(d.branch);
+  const items = itemsOf(d).filter(it => targetWh === 'all' || (it.warehouse && it.warehouse.toLowerCase() === targetWh.toLowerCase()));
+  const header = `[${bName}] ${d.employee_name} (${d.date}):\n`;
+  const text = header + items.map(it => `- ${it.name} - ${it.quantity}${it.invoiceNumber ? ` (Inv: ${it.invoiceNumber})` : ''}`).join('\n');
+  copyToClipboard(text, `Copied item & quantity for ${bName}.`);
+}
+
+function copyBranchDemands(branchCode) {
+  const targetWh = getActiveWarehouseFilter();
+  const statusFilter = document.getElementById('statusFilter').value;
+  const searchVal = document.getElementById('searchInput').value.trim().toLowerCase();
+  const bName = getBranchName(branchCode);
+  const itemsList = [];
+
+  all.forEach(d => {
+    const dBranch = (d.branch || 'akbarelectronics').toLowerCase();
+    if (dBranch !== branchCode.toLowerCase()) return;
+    const items = itemsOf(d).filter(it => {
+      if (it.status === 'completed') return false;
+      if (targetWh !== 'all' && (!it.warehouse || it.warehouse.toLowerCase() !== targetWh.toLowerCase())) return false;
+      if (statusFilter !== 'all' && it.status !== statusFilter) return false;
+      if (searchVal) {
+        const matchName = String(it.name || '').toLowerCase().includes(searchVal);
+        const matchEmp = String(d.employee_name || '').toLowerCase().includes(searchVal);
+        const matchInv = String(it.invoiceNumber || '').toLowerCase().includes(searchVal);
+        if (!matchName && !matchEmp && !matchInv) return false;
+      }
+      return true;
+    });
+    items.forEach(it => itemsList.push({ ...it, employee: d.employee_name, date: d.date }));
+  });
+
+  if (!itemsList.length) {
+    alert(`Is branch (${bName}) ke liye koi demand item mojood nahi hai.`);
+    return;
+  }
+
+  const header = `=== ${bName.toUpperCase()} DEMANDS ===\n`;
+  const text = header + itemsList.map(it => `- ${it.name} - ${it.quantity}${it.invoiceNumber ? ` (Inv: ${it.invoiceNumber})` : ''} [${it.employee}]`).join('\n') + `\nTotal: ${itemsList.length} item(s)`;
+  copyToClipboard(text, `Copied all demands for ${bName}.`);
+}
+
+function copySelectedDemands() {
+  const checkedBoxes = [...document.querySelectorAll('#demands input[type="checkbox"]:checked')];
+  if (!checkedBoxes.length) {
+    alert("Pehle copy karne ke liye items ke checkboxes select/check karein.");
+    return;
+  }
+
+  const itemsList = [];
+  checkedBoxes.forEach(cb => {
+    const demandId = cb.dataset.did;
+    const itemIndex = parseInt(cb.dataset.index, 10);
+    const d = all.find(x => x.id === demandId);
+    if (d) {
+      const items = itemsOf(d);
+      if (items[itemIndex]) {
+        itemsList.push({ ...items[itemIndex], branch: getBranchName(d.branch), employee: d.employee_name });
+      }
+    }
+  });
+
+  const text = itemsList.map(it => `[${it.branch}] ${it.name} - ${it.quantity}${it.invoiceNumber ? ` (Inv: ${it.invoiceNumber})` : ''}`).join('\n');
+  copyToClipboard(text, `Copied ${itemsList.length} item(s) & quantity.`);
+}
+
+function copyAllVisibleDemands() {
+  const targetWh = getActiveWarehouseFilter();
+  const statusFilter = document.getElementById('statusFilter').value;
+  const searchVal = document.getElementById('searchInput').value.trim().toLowerCase();
+  const branchFilter = document.getElementById('branchFilter') ? document.getElementById('branchFilter').value : 'all';
+
+  const branchGroups = new Map();
+
+  all.forEach(d => {
+    const bCode = (d.branch || 'akbarelectronics').toLowerCase();
+    if (branchFilter !== 'all' && bCode !== branchFilter.toLowerCase()) return;
+    const items = itemsOf(d).filter(it => {
+      if (it.status === 'completed') return false;
+      if (targetWh !== 'all' && (!it.warehouse || it.warehouse.toLowerCase() !== targetWh.toLowerCase())) return false;
+      if (statusFilter !== 'all' && it.status !== statusFilter) return false;
+      if (searchVal) {
+        const matchName = String(it.name || '').toLowerCase().includes(searchVal);
+        const matchEmp = String(d.employee_name || '').toLowerCase().includes(searchVal);
+        const matchInv = String(it.invoiceNumber || '').toLowerCase().includes(searchVal);
+        if (!matchName && !matchEmp && !matchInv) return false;
+      }
+      return true;
+    });
+    if (!items.length) return;
+    if (!branchGroups.has(bCode)) branchGroups.set(bCode, []);
+    items.forEach(it => branchGroups.get(bCode).push({ ...it, employee: d.employee_name }));
+  });
+
+  if (!branchGroups.size) {
+    alert("Is filter ke liye koi demand item mojood nahi hai.");
+    return;
+  }
+
+  let fullText = [];
+  branchGroups.forEach((items, bCode) => {
+    const bName = getBranchName(bCode);
+    fullText.push(`=== ${bName.toUpperCase()} (${items.length} items) ===`);
+    items.forEach(it => {
+      fullText.push(`- ${it.name} - ${it.quantity}${it.invoiceNumber ? ` (Inv: ${it.invoiceNumber})` : ''} [${it.employee}]`);
+    });
+    fullText.push('');
+  });
+
+  copyToClipboard(fullText.join('\n').trim(), `Copied all visible demands grouped by branch.`);
+}
+
+function getActiveWarehouseFilter() {
+  if (currentUser && currentUser.role === 'warehouse' && userAssignedWarehouse) {
+    return userAssignedWarehouse;
+  }
+  const sel = document.getElementById('warehouse');
+  return sel ? sel.value : 'all';
+}
+
+function updateBranchTabs(countMap, selectedBranch) {
+  const container = document.getElementById('branchTabsBar');
+  if (!container) return;
+
+  const totalAll = [...countMap.values()].reduce((a, b) => a + b, 0);
+  let html = `
+    <button type="button" class="branch-tab ${selectedBranch === 'all' ? 'active' : ''}" data-branch="all">
+      All Branches <span class="tab-badge">${totalAll}</span>
+    </button>
+  `;
+
+  // Merge known branches from branchesList with any seen in countMap
+  const allCodes = new Set([...branchesList.map(b => b.code.toLowerCase()), ...countMap.keys()]);
+  
+  [...allCodes].sort().forEach(code => {
+    const name = getBranchName(code);
+    const count = countMap.get(code) || 0;
+    const isActive = selectedBranch.toLowerCase() === code;
+    html += `
+      <button type="button" class="branch-tab ${isActive ? 'active' : ''}" data-branch="${esc(code)}">
+        ${esc(name)} <span class="tab-badge">${count}</span>
+      </button>
+    `;
+  });
+
+  container.innerHTML = html;
+
+  container.querySelectorAll('.branch-tab').forEach(btn => {
+    btn.onclick = () => {
+      const targetBranch = btn.dataset.branch;
+      const branchSel = document.getElementById('branchFilter');
+      if (branchSel) branchSel.value = targetBranch;
+      render();
+    };
+  });
+}
+
+function render() {
+  const targetWh = getActiveWarehouseFilter();
+  const statusFilter = document.getElementById('statusFilter').value;
+  const searchVal = document.getElementById('searchInput').value.trim().toLowerCase();
+  const branchFilter = document.getElementById('branchFilter') ? document.getElementById('branchFilter').value : 'all';
+  const body = document.getElementById('demands');
+  const summary = new Map();
+  body.innerHTML = '';
+  let shown = 0;
+
+  // 1. Calculate urgent banner status
+  const hasUrgent = all.some(d => {
+    const isUrgent = Boolean(d.is_urgent);
+    const matchBranch = branchFilter === 'all' || (d.branch || 'akbarelectronics').toLowerCase() === branchFilter.toLowerCase();
+    return matchBranch && itemsOf(d).some(item => {
+      const matchWh = targetWh === 'all' || (item.warehouse && item.warehouse.toLowerCase() === targetWh.toLowerCase());
+      return matchWh && item.status !== 'completed' && item.status !== 'on_the_way' && (isUrgent || item.isUrgent);
+    });
+  });
+  const alertBox = document.getElementById('urgentAlert');
+  if (alertBox) alertBox.style.display = hasUrgent ? 'flex' : 'none';
+
+  // 2. Count demands per branch (ignoring branchFilter so tabs always show full counts)
+  const branchCountMap = new Map();
+  all.forEach(d => {
+    const bCode = (d.branch || 'akbarelectronics').toLowerCase();
+    const hasMatchingItems = itemsOf(d).some(item => {
+      if (item.status === 'completed') return false;
+      if (targetWh !== 'all' && (!item.warehouse || item.warehouse.toLowerCase() !== targetWh.toLowerCase())) return false;
+      if (statusFilter !== 'all' && item.status !== statusFilter) return false;
+      if (searchVal) {
+        const matchName = String(item.name || '').toLowerCase().includes(searchVal);
+        const matchEmp = String(d.employee_name || '').toLowerCase().includes(searchVal);
+        const matchInv = String(item.invoiceNumber || '').toLowerCase().includes(searchVal);
+        if (!matchName && !matchEmp && !matchInv) return false;
+      }
+      return true;
+    });
+    if (hasMatchingItems) {
+      branchCountMap.set(bCode, (branchCountMap.get(bCode) || 0) + 1);
+    }
+  });
+  updateBranchTabs(branchCountMap, branchFilter);
+
+  // 3. Filter demands for the current view and group by branch
+  const branchGroups = new Map();
+
+  all.forEach(d => {
+    const bCode = (d.branch || 'akbarelectronics').toLowerCase();
+    if (branchFilter !== 'all' && bCode !== branchFilter.toLowerCase()) return;
+
+    const allItems = itemsOf(d).map((item, index) => ({ ...item, index }));
+    const filteredItems = allItems.filter(item => {
+      if (item.status === 'completed') return false;
+      if (targetWh !== 'all' && (!item.warehouse || item.warehouse.toLowerCase() !== targetWh.toLowerCase())) return false;
+      if (statusFilter !== 'all' && item.status !== statusFilter) return false;
+      if (searchVal) {
+        const matchName = String(item.name || '').toLowerCase().includes(searchVal);
+        const matchEmp = String(d.employee_name || '').toLowerCase().includes(searchVal);
+        const matchInv = String(item.invoiceNumber || '').toLowerCase().includes(searchVal);
+        if (!matchName && !matchEmp && !matchInv) return false;
+      }
+      return true;
+    });
+
+    if (!filteredItems.length) return;
+    shown++;
+
+    if (!branchGroups.has(bCode)) branchGroups.set(bCode, []);
+    branchGroups.get(bCode).push({ demand: d, items: filteredItems });
+
+    // Summary accumulation: group by Branch + Product + Warehouse
+    filteredItems.forEach(item => {
+      const bName = getBranchName(bCode);
+      const key = bCode + '::' + item.name + '::' + (item.warehouse || 'Unknown');
+      if (!summary.has(key)) {
+        summary.set(key, { branch: bName, name: item.name, warehouse: item.warehouse || '-', quantity: 0 });
+      }
+      summary.get(key).quantity += item.quantity;
+    });
+  });
+
+  if (!shown) {
+    body.innerHTML = `<tr><td colspan="9" class="empty">Is filter ke liye filhal koi active demands mojood nahi hain.</td></tr>`;
+  } else {
+    // Render grouped by branch!
+    branchGroups.forEach((groupEntries, bCode) => {
+      const bName = getBranchName(bCode);
+      const totalBranchItems = groupEntries.reduce((sum, entry) => sum + entry.items.length, 0);
+
+      // Render branch separator header if viewing all branches or multiple
+      const branchHeaderRow = document.createElement('tr');
+      branchHeaderRow.className = 'branch-group-header-row';
+      branchHeaderRow.innerHTML = `
+        <td colspan="9">
+          <div class="branch-header-content">
+            <div class="branch-header-left">
+              <span class="branch-pill-tag">BRANCH</span>
+              <span class="branch-header-name">${esc(bName)}</span>
+              <span class="branch-count-tag">${groupEntries.length} Demand${groupEntries.length > 1 ? 's' : ''} (${totalBranchItems} items)</span>
+            </div>
+            <button type="button" class="btn-copy-branch" onclick="copyBranchDemands('${esc(bCode)}')">
+              Copy ${esc(bName)} Demands
+            </button>
+          </div>
+        </td>
+      `;
+      body.appendChild(branchHeaderRow);
+
+      // Render demands in this branch
+      groupEntries.forEach(({ demand: d, items: filteredItems }) => {
+        const isUrgent = Boolean(d.is_urgent);
+
+        filteredItems.forEach((item, index) => {
+          const row = document.createElement('tr');
+          const savedPickup = item.pickedQuantity == null ? '' : item.pickedQuantity;
+          const isItemUrgent = Boolean(item.isUrgent) || isUrgent;
+          row.className = (index === 0 ? 'first-row ' : '') + (isItemUrgent ? 'urgent-row' : '');
+
+          row.innerHTML = `
+            <td style="font-size:11px;font-weight:700;color:#0369a1;background:#e0f2fe;border-radius:4px;padding:6px 10px;white-space:nowrap;">
+              ${index === 0 ? esc(bName) : ''}
+            </td>
+            <td>
+              ${index === 0 ? `
+                <b>${esc(d.employee_name)}</b>${isUrgent ? ' <span class="badge-urgent">[URGENT]</span>' : ''}<br>
+                <small style="color:#64748b;">${esc(d.date)}</small><br>
+                <div style="display:flex;flex-direction:column;gap:3px;margin-top:4px;">
+                  <button type="button" class="btn-copy-single" onclick="copySingleDemand('${d.id}')">Copy Demand</button>
+                  <button type="button" class="btn-add-extra-item" onclick="openAddExtraItemModal('${d.id}')">Extra Item</button>
+                </div>
+              ` : ''}
+            </td>
+            <td>
+              <label class="item">
+                <input type="checkbox" data-did="${d.id}" data-index="${item.index}">
+                <span>${esc(item.name)}${item.isUrgent ? ' <span class="badge-urgent">[URGENT]</span>' : ''}${item.isExtraItem ? ' <span class="badge-extra">[Extra Item]</span>' : ''}</span>
+              </label>
+            </td>
+            <td><b>${item.quantity}</b></td>
+            <td>
+              <input class="pickup" type="number" min="0" max="${item.quantity}" step="1" value="${savedPickup}" placeholder="${item.quantity}">
+            </td>
+            <td>${esc(item.invoiceNumber || '-')}</td>
+            <td><span style="font-weight:600;color:var(--teal);">${esc(item.warehouse || '-')}</span></td>
+            <td class="status">
+              ${item.status === 'on_the_way'
+                ? `<span style="background:#dcfce7;color:#15803d;padding:3px 8px;border-radius:4px;font-weight:700;font-size:11px;">On the way</span>`
+                : item.status === 'approved'
+                ? `<span style="background:#e0f2fe;color:#0369a1;padding:3px 8px;border-radius:4px;font-weight:700;font-size:11px;">Approved</span>`
+                : `<span class="pending">${esc(item.status || d.status || 'Pending')}</span>`}
+            </td>
+            <td>
+              ${item.status === 'on_the_way' ? `
+                <div style="display:flex;gap:4px;align-items:center;">
+                  <span style="color:#15803d;font-weight:700;font-size:11px;">Dispatched</span>
+                  <button type="button" class="action save-pickup-btn" style="background:#0f3d3e;border-color:#0f3d3e;color:#fff;font-size:11px;padding:4px 8px;">
+                    Save Qty
+                  </button>
+                </div>
+              ` : item.status === 'approved' ? `
+                <button class="action dispatch-btn" style="background:#15803d;border-color:#15803d;color:#fff;font-size:11px;padding:5px 9px;">
+                  Dispatch (OK)
+                </button>
+              ` : `
+                <span style="color:#b45309;font-size:11px;font-weight:600;">Awaiting Approval</span>
+              `}
+            </td>
+          `;
+
+          // Dispatch action
+          const dispatchBtn = row.querySelector('.dispatch-btn');
+          if (dispatchBtn) {
+            dispatchBtn.onclick = async () => {
+              try {
+                const pickupInput = row.querySelector('.pickup');
+                const value = pickupInput ? pickupInput.value.trim() : '';
+                if (value !== '') {
+                  const numVal = Number(value);
+                  if (isNaN(numVal) || numVal < 0 || !Number.isInteger(numVal)) {
+                    alert("Pickup quantity 0 ya zyada ek poora adad hona chahiye.");
+                    return;
+                  }
+                  if (numVal > item.quantity) {
+                    alert(`Pickup quantity (${numVal}) demanded quantity (${item.quantity}) se zyada nahi ho sakti.`);
+                    return;
+                  }
+                }
+                dispatchBtn.disabled = true;
+                dispatchBtn.textContent = "Dispatching...";
+                await api('/api/warehouse/demands/' + d.id, {
+                  method: 'PATCH',
+                  body: JSON.stringify({
+                    itemIndexes: [item.index],
+                    status: 'on_the_way',
+                    pickedQuantity: value === '' ? null : Number(value)
+                  })
+                });
+                showToast("Item dispatched (On the way).");
+                await load();
+              } catch (e) {
+                dispatchBtn.disabled = false;
+                dispatchBtn.textContent = "Dispatch (OK)";
+                alert("Error: " + e.message);
+              }
+            };
+          }
+
+          // Save Qty action
+          const savePickupBtn = row.querySelector('.save-pickup-btn');
+          if (savePickupBtn) {
+            savePickupBtn.onclick = async () => {
+              const pickupInput = row.querySelector('.pickup');
+              const value = pickupInput ? pickupInput.value.trim() : '';
+              const numVal = value === '' ? null : Number(value);
+              if (value !== '' && (!Number.isInteger(numVal) || numVal < 0 || numVal > item.quantity)) {
+                alert(`Pickup quantity 0 aur ${item.quantity} ke darmiyan ek poora adad hona chahiye.`);
+                return;
+              }
+              try {
+                savePickupBtn.disabled = true;
+                savePickupBtn.textContent = 'Saving...';
+                await api('/api/warehouse/demands/' + d.id + '/pickup-qty', {
+                  method: 'PATCH',
+                  body: JSON.stringify({ itemIndex: item.index, pickedQuantity: numVal })
+                });
+                savePickupBtn.textContent = 'Saved';
+                showToast("Pickup quantity updated.");
+                setTimeout(() => { savePickupBtn.textContent = 'Save Qty'; savePickupBtn.disabled = false; }, 1500);
+              } catch (e) {
+                savePickupBtn.disabled = false;
+                savePickupBtn.textContent = 'Save Qty';
+                alert('Error: ' + e.message);
+              }
+            };
+          }
+
+          body.appendChild(row);
+        });
+      });
+    });
+  }
+
+  // Summary Table: 4 columns (Branch, Product, Warehouse, Total Demanded Quantity)
+  const summaryBody = document.getElementById('summary');
+  summaryBody.innerHTML = '';
+  [...summary.values()].sort((a, b) => (a.branch || '').localeCompare(b.branch || '') || a.name.localeCompare(b.name)).forEach(item => {
+    summaryBody.innerHTML += `
+      <tr>
+        <td><span style="font-weight:700;color:#0369a1;background:#e0f2fe;padding:2px 8px;border-radius:4px;font-size:11px;">${esc(item.branch)}</span></td>
+        <td><b>${esc(item.name)}</b></td>
+        <td>${esc(item.warehouse)}</td>
+        <td><b>${item.quantity}</b></td>
+      </tr>
+    `;
+  });
+  if (!summary.size) summaryBody.innerHTML = '<tr><td colspan="4" class="empty">No quantities required.</td></tr>';
+}
+
+async function loadWarehouses() {
+  try {
+    const list = await api('/api/warehouses');
+    if (Array.isArray(list) && list.length) {
+      const whSelect = document.getElementById('warehouse');
+      const extraWhSelect = document.getElementById('extraItemWarehouse');
+      
+      if (whSelect) {
+        whSelect.innerHTML = (isAdmin || !userAssignedWarehouse) ? '<option value="all">All warehouses</option>' : '';
+        list.forEach(w => {
+          const opt = document.createElement('option');
+          opt.value = w.name;
+          opt.textContent = w.name;
+          whSelect.appendChild(opt);
+        });
+
+        if (userAssignedWarehouse && currentUser.role === 'warehouse') {
+          whSelect.value = userAssignedWarehouse;
+          whSelect.disabled = true;
+        }
+      }
+
+      if (extraWhSelect) {
+        extraWhSelect.innerHTML = '';
+        list.forEach(w => {
+          const opt = document.createElement('option');
+          opt.value = w.name;
+          opt.textContent = w.name;
+          if (userAssignedWarehouse && w.name === userAssignedWarehouse) opt.selected = true;
+          extraWhSelect.appendChild(opt);
+        });
+        if (userAssignedWarehouse && currentUser.role === 'warehouse') {
+          extraWhSelect.value = userAssignedWarehouse;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Could not load warehouses", e);
+  }
+}
+
+async function loadBranches() {
+  try {
+    const branches = await api('/api/branches');
+    if (Array.isArray(branches) && branches.length) {
+      branchesList = branches;
+      branchMap.clear();
+      branches.forEach(b => branchMap.set(b.code.toLowerCase(), b.name));
+    }
+    const branchSel = document.getElementById('branchFilter');
+    if (branchSel) {
+      const currentVal = branchSel.value || 'all';
+      branchSel.innerHTML = '<option value="all">All Branches</option>';
+      branchesList.forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b.code;
+        opt.textContent = b.name || b.code;
+        branchSel.appendChild(opt);
+      });
+      branchSel.value = currentVal;
+    }
+  } catch (e) {
+    console.warn('Could not load branches', e);
+  }
+}
+
+async function load() {
+  try {
+    all = await api('/api/warehouse/demands');
+    render();
+  } catch (e) {
+    document.getElementById('demands').innerHTML = `<tr><td colspan="9" class="error">${esc(e.message)}</td></tr>`;
+  }
+}
+
+document.getElementById('warehouse').onchange = render;
+document.getElementById('statusFilter').onchange = render;
+document.getElementById('searchInput').oninput = render;
+document.getElementById('branchFilter').onchange = render;
+document.getElementById('historyBtn').onclick = () => location.href = '/demand-history.html';
+document.getElementById('back').onclick = () => location.href = '/';
+document.getElementById('copySelectedBtn').onclick = copySelectedDemands;
+document.getElementById('copyAllVisibleBtn').onclick = copyAllVisibleDemands;
+
+api('/api/me').then(async me => {
+  currentUser = me;
+  isAdmin = me.role === 'admin';
+  userAssignedWarehouse = me.warehouse || '';
+
+  if (me.role === 'admin') {
+    localStorage.setItem('user_role', 'admin');
+    if (!localStorage.getItem('admin_theme')) localStorage.setItem('admin_theme', 'cyber');
+    if (window.AdminTheme) window.AdminTheme.apply();
+    else document.body.classList.add('dark-theme');
+  } else {
+    localStorage.setItem('user_role', me.role || '');
+    if (window.AdminTheme) window.AdminTheme.apply();
+  }
+
+  if (!['admin', 'warehouse', 'logistics'].includes(me.role)) {
+    location.href = '/';
+    return;
+  }
+
+  // Update Header Badges
+  const whBadge = document.getElementById('warehouseBadge');
+  const nameBadge = document.getElementById('userNameBadge');
+  if (whBadge) {
+    whBadge.textContent = userAssignedWarehouse ? userAssignedWarehouse : (isAdmin ? 'Admin (All Warehouses)' : 'Warehouse');
+  }
+  if (nameBadge) {
+    nameBadge.textContent = `Signed in as @${me.username || me.name}`;
+  }
+
+  await loadBranches();
+  await loadWarehouses();
+  await load();
+}).catch(() => { location.href = '/'; });
+
+setInterval(load, 30000);
+
+let currentExtraItemDemandId = null;
+function openAddExtraItemModal(demandId) {
+  currentExtraItemDemandId = demandId;
+  const d = all.find(x => x.id === demandId);
+  document.getElementById('extraItemName').value = '';
+  document.getElementById('extraItemQty').value = '1';
+  document.getElementById('extraItemPickedQty').value = '1';
+  document.getElementById('extraItemInvoice').value = '';
+  const items = itemsOf(d);
+  if (userAssignedWarehouse) {
+    document.getElementById('extraItemWarehouse').value = userAssignedWarehouse;
+  } else if (items && items[0] && items[0].warehouse) {
+    document.getElementById('extraItemWarehouse').value = items[0].warehouse;
+  }
+  document.getElementById('extraItemModal').style.display = 'flex';
+}
+
+document.getElementById('btnCancelExtraItem').onclick = () => {
+  document.getElementById('extraItemModal').style.display = 'none';
+  currentExtraItemDemandId = null;
+};
+
+document.getElementById('btnSubmitExtraItem').onclick = async () => {
+  const name = document.getElementById('extraItemName').value.trim();
+  const qty = parseInt(document.getElementById('extraItemQty').value, 10);
+  const pickedQty = document.getElementById('extraItemPickedQty').value;
+  const warehouse = document.getElementById('extraItemWarehouse').value;
+  const invoice = document.getElementById('extraItemInvoice').value.trim();
+
+  if (!name) {
+    alert("Baraye mehrbani item name likhein.");
+    return;
+  }
+  if (!qty || qty < 1) {
+    alert("Quantity kam az kam 1 honi chahiye.");
+    return;
+  }
+
+  try {
+    document.getElementById('btnSubmitExtraItem').disabled = true;
+    document.getElementById('btnSubmitExtraItem').textContent = "Adding...";
+    await api('/api/warehouse/demands/' + currentExtraItemDemandId + '/add-item', {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        quantity: qty,
+        pickedQuantity: pickedQty === '' ? qty : parseInt(pickedQty, 10),
+        warehouse,
+        invoiceNumber: invoice
+      })
+    });
+    document.getElementById('extraItemModal').style.display = 'none';
+    showToast("✓ Extra item demand mein add kar diya gaya hai!");
+    await load();
+  } catch (err) {
+    alert("❌ " + (err.message || "Extra item add karne mein nakami hui"));
+  } finally {
+    document.getElementById('btnSubmitExtraItem').disabled = false;
+    document.getElementById('btnSubmitExtraItem').textContent = "➕ Add Extra Item";
+  }
+};
+</script>
+</body>
+</html>

@@ -7,7 +7,7 @@
 <style>
 :root{--ink:#1c2b27;--paper:#fbf9f3;--ledger:#f1ece0;--line:#d9cfb8;--teal:#0f3d3e;--green:#3f6b4c;--danger:#b42318;--danger-hover:#912018}
 *{box-sizing:border-box}
-body{margin:0;padding:32px 16px 70px;background:radial-gradient(circle at 15% 5%,#b08d3e18,transparent 38%),var(--ledger);font-family:'IBM Plex Sans',Arial,sans-serif;color:var(--ink)}
+body{margin:0;padding:32px 16px 70px;background:var(--ledger);font-family:'IBM Plex Sans',Arial,sans-serif;color:var(--ink)}
 main{max-width:1150px;margin:auto}
 .book{background:var(--teal);color:#f1ece0;padding:26px 30px 22px;border-bottom:4px solid #b08d3e;border-radius:6px 6px 2px 2px;position:relative}
 .book h1{font:700 27px Georgia,serif;margin:0 0 5px}
@@ -28,7 +28,7 @@ main{max-width:1150px;margin:auto}
 .table th{background:var(--ledger);color:#68766d;font-size:11px;text-transform:uppercase;letter-spacing:0.5px}
 .table tr:last-child td{border-bottom:0}
 .table tr:hover td{background:#fdfcf9}
-.status{color:var(--green);font-weight:700;display:inline-block;padding:3px 8px;background:#e8f5e9;border-radius:12px;font-size:12px}
+.status{color:var(--green);font-weight:700;display:inline-block;padding:3px 8px;background:#e8f5e9;border-radius:4px;font-size:12px}
 .btn-delete{background:#b42318;color:#fff;border:none;border-radius:4px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px;transition:background 0.2s}
 .btn-delete:hover{background:#912018}
 .empty,.error{padding:30px 20px;text-align:center;color:#78827d;font-size:14px}
@@ -47,15 +47,15 @@ main{max-width:1150px;margin:auto}
 }
 .scroll-hint{display:none}
 /* DARK THEME STYLES */
-body.dark-theme{background:radial-gradient(ellipse 80% 50% at 20% -10%, rgba(99, 102, 241, 0.15), transparent),radial-gradient(ellipse 60% 40% at 85% 15%, rgba(6, 182, 212, 0.12), transparent),#060911 !important;color:#f1f5f9 !important;}
-body.dark-theme .book{background:linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(17, 28, 48, 0.9) 100%) !important;border-bottom:2px solid transparent !important;border-image:linear-gradient(90deg, #f59e0b 0%, #ec4899 40%, #06b6d4 75%, #10b981 100%) 1 !important;}
-body.dark-theme .card{background:rgba(14, 22, 38, 0.85) !important;border:1px solid rgba(255, 255, 255, 0.08) !important;box-shadow:0 12px 36px -8px rgba(0, 0, 0, 0.55) !important;}
-body.dark-theme .filters{background:rgba(10, 16, 28, 0.75) !important;border-bottom:1px solid rgba(255, 255, 255, 0.07) !important;}
+body.dark-theme{background:#0b0f19 !important;color:#f1f5f9 !important;}
+body.dark-theme .book{background:#111827 !important;border-bottom:2px solid #0284c7 !important;}
+body.dark-theme .card{background:#0f172a !important;border:1px solid #1f2937 !important;box-shadow:0 4px 12px rgba(0, 0, 0, 0.3) !important;}
+body.dark-theme .filters{background:#111827 !important;border-bottom:1px solid #1f2937 !important;}
 body.dark-theme .filter-item label{color:#94a3b8 !important;}
-body.dark-theme .filter-item select,body.dark-theme .filter-item input{background:rgba(6, 10, 18, 0.9) !important;color:#f8fafc !important;border:1px solid rgba(255, 255, 255, 0.14) !important;}
-body.dark-theme .table th{background:rgba(10, 16, 28, 0.95) !important;color:#94a3b8 !important;border-bottom:1px solid rgba(255, 255, 255, 0.08) !important;}
-body.dark-theme .table td{border-bottom:1px solid rgba(255, 255, 255, 0.05) !important;color:#f1f5f9 !important;}
-body.dark-theme .table tr:hover td{background:rgba(255, 255, 255, 0.035) !important;}
+body.dark-theme .filter-item select,body.dark-theme .filter-item input{background:#0b0f19 !important;color:#f8fafc !important;border:1px solid #334155 !important;}
+body.dark-theme .table th{background:#111827 !important;color:#94a3b8 !important;border-bottom:1px solid #1f2937 !important;}
+body.dark-theme .table td{border-bottom:1px solid #1f2937 !important;color:#f1f5f9 !important;}
+body.dark-theme .table tr:hover td{background:#1e293b !important;}
 body.dark-theme .status{background:rgba(16, 185, 129, 0.15) !important;color:#34d399 !important;border:1px solid rgba(16, 185, 129, 0.3) !important;}
 body.dark-theme .empty{color:#94a3b8 !important;}
 </style>
@@ -66,9 +66,9 @@ body.dark-theme .empty{color:#94a3b8 !important;}
 <main>
   <header class="book">
     <div class="header-actions">
-      <button type="button" class="button danger" id="deleteMonthBtn" onclick="deleteMonthlyHistory()" style="display:none;background:#b45309;border-color:#b45309;">📅 Delete Monthly Records</button>
-      <button type="button" class="button danger" id="clearAllBtn" onclick="clearAllHistory()">🗑️ Clear All History</button>
-      <button type="button" class="button" id="back">← Back</button>
+      <button type="button" class="button danger" id="deleteMonthBtn" onclick="deleteMonthlyHistory()" style="display:none;background:#b45309;border-color:#b45309;">Delete Monthly Records</button>
+      <button type="button" class="button danger" id="clearAllBtn" onclick="clearAllHistory()">Clear All History</button>
+      <button type="button" class="button" id="back">Back</button>
     </div>
     <h1>Completed Demand History</h1>
     <p id="subHeader">Archived completed demands overview.</p>
@@ -89,7 +89,7 @@ body.dark-theme .empty{color:#94a3b8 !important;}
         <input type="search" id="searchInput" placeholder="Search by employee, product, invoice..." style="width:100%;">
       </div>
     </div>
-    <div class="scroll-hint">👈 Swipe table left / right to view items &amp; delete 👉</div>
+    <div class="scroll-hint">Swipe table left / right to view items &amp; delete</div>
     <div class="scroll">
       <table class="table">
         <thead>
@@ -152,10 +152,10 @@ function render() {
   if (deleteMonthBtn && isAdmin) {
     if (monthFilter) {
       const matchingCount = allRows.filter(d => d.date && d.date.startsWith(monthFilter)).length;
-      deleteMonthBtn.textContent = `📅 Delete ${formatMonthName(monthFilter)} (${matchingCount})`;
+      deleteMonthBtn.textContent = `Delete ${formatMonthName(monthFilter)} (${matchingCount})`;
       deleteMonthBtn.title = `Delete all ${matchingCount} records for ${formatMonthName(monthFilter)}`;
     } else {
-      deleteMonthBtn.textContent = '📅 Delete Monthly Records';
+      deleteMonthBtn.textContent = 'Delete Monthly Records';
       deleteMonthBtn.title = 'Select or enter a month to delete records';
     }
   }
@@ -200,9 +200,9 @@ function render() {
         <td>${d.quantity || 0}</td>
         <td>-</td>
         <td><span class="status">Completed</span></td>
-        <td><span style="color:#94a3b8;font-size:11px;font-style:italic;">⏳ Not Checked</span></td>
+        <td><span style="color:#94a3b8;font-size:11px;">Not Checked</span></td>
         <td>${new Date(d.completedAt || d.updated_at).toLocaleString('en-GB')}</td>
-        ${isAdmin ? `<td><button type="button" class="btn-delete" onclick="deleteFullHistoryRecord('${d.id}')">🗑️ Delete</button></td>` : ''}
+        ${isAdmin ? `<td><button type="button" class="btn-delete" onclick="deleteFullHistoryRecord('${d.id}')">Delete</button></td>` : ''}
       `;
       list.appendChild(row);
       return;
@@ -219,12 +219,12 @@ function render() {
 
       let supportStatusHtml = '';
       if (itemSupportStatus === 'ok') {
-        supportStatusHtml = `<span style="background:#e8f5e9;color:#2e7d32;border:1px solid #86efac;padding:3px 7px;border-radius:4px;font-size:11px;font-weight:700;display:inline-block;">🟢 Verified OK</span>`;
+        supportStatusHtml = `<span style="background:#e8f5e9;color:#2e7d32;border:1px solid #86efac;padding:3px 7px;border-radius:4px;font-size:11px;font-weight:700;display:inline-block;">Verified OK</span>`;
         if (itemSupportCheckedBy) {
           supportStatusHtml += `<div style="font-size:10px;color:#64748b;margin-top:2px;">By <b>${esc(itemSupportCheckedBy)}</b></div>`;
         }
       } else if (itemSupportStatus === 'issue') {
-        supportStatusHtml = `<span style="background:#ffebee;color:#c62828;border:1px solid #fca5a5;padding:3px 7px;border-radius:4px;font-size:11px;font-weight:700;display:inline-block;">🔴 Issue Reported</span>`;
+        supportStatusHtml = `<span style="background:#ffebee;color:#c62828;border:1px solid #fca5a5;padding:3px 7px;border-radius:4px;font-size:11px;font-weight:700;display:inline-block;">Issue Reported</span>`;
         if (itemSupportRemarks) {
           supportStatusHtml += `<div style="font-size:11px;color:#b91c1c;margin-top:2px;font-weight:600;">${esc(itemSupportRemarks)}</div>`;
         }
@@ -232,13 +232,13 @@ function render() {
           supportStatusHtml += `<div style="font-size:10px;color:#64748b;margin-top:1px;">By <b>${esc(itemSupportCheckedBy)}</b></div>`;
         }
       } else {
-        supportStatusHtml = `<span style="color:#94a3b8;font-size:11px;font-style:italic;">⏳ Not Checked</span>`;
+        supportStatusHtml = `<span style="color:#94a3b8;font-size:11px;">Not Checked</span>`;
       }
 
       row.innerHTML = `
         <td>${itemIdx === 0 ? `<b>${esc(d.employee_name)}</b>${d.creator_role === 'admin' ? ' <span style="background:#172554;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;">ADMIN</span>' : ''}` : ''}</td>
         <td>${itemIdx === 0 ? esc(d.date) : ''}</td>
-        <td><b>${esc(item.name)}</b>${item.isUrgent ? ' <span style="background:#c0392b;color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;">⚡ URGENT</span>' : ''}${item.isExtraItem ? ' <span style="background:#0284c7;color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;">➕ Extra Item</span>' : ''}</td>
+        <td><b>${esc(item.name)}</b>${item.isUrgent ? ' <span style="background:#c0392b;color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;">[URGENT]</span>' : ''}${item.isExtraItem ? ' <span style="background:#0284c7;color:#fff;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;">[Extra Item]</span>' : ''}</td>
         <td>${esc(item.warehouse || '-')}</td>
         <td><code>${esc(item.invoiceNumber || '-')}</code></td>
         <td>${item.quantity}</td>
@@ -249,8 +249,8 @@ function render() {
         ${isAdmin ? `
           <td>
             <div style="display:flex;gap:4px;flex-wrap:wrap;">
-              <button type="button" class="btn-delete" title="Delete only this item from history" onclick="deleteSingleHistoryItem('${d.id}', ${itemIdx}, '${esc(item.name).replace(/'/g, "\\'")}')">🗑️ Delete Item</button>
-              ${demandItems.length > 1 && itemIdx === 0 ? `<button type="button" class="btn-delete" style="background:#4b5563;" title="Delete all items of this demand" onclick="deleteFullHistoryRecord('${d.id}')">🗑️ All</button>` : ''}
+              <button type="button" class="btn-delete" title="Delete only this item from history" onclick="deleteSingleHistoryItem('${d.id}', ${itemIdx}, '${esc(item.name).replace(/'/g, "\\'")}')">Delete Item</button>
+              ${demandItems.length > 1 && itemIdx === 0 ? `<button type="button" class="btn-delete" style="background:#4b5563;" title="Delete all items of this demand" onclick="deleteFullHistoryRecord('${d.id}')">All</button>` : ''}
             </div>
           </td>
         ` : ''}
@@ -297,8 +297,8 @@ async function load() {
       if (window.AdminTheme) window.AdminTheme.apply();
       else document.body.classList.remove('dark-theme');
     }
-    if (!['admin', 'logistics', 'supporting_staff'].includes(currentUser.role)) {
-      throw Error('Admin, logistics or supporting staff access required');
+    if (!['admin', 'logistics', 'supporting_staff', 'warehouse'].includes(currentUser.role)) {
+      throw Error('Admin, logistics, warehouse or supporting staff access required');
     }
     await loadWarehouses();
 
@@ -314,13 +314,16 @@ async function load() {
 
     const backBtn = document.getElementById('back');
     if (isAdmin) {
-      backBtn.textContent = '← Back to admin';
+      backBtn.textContent = 'Back to admin';
       backBtn.onclick = () => location.href = '/demands-admin.html';
     } else if (currentUser.role === 'supporting_staff') {
-      backBtn.textContent = '← Back to inspection';
+      backBtn.textContent = 'Back to inspection';
       backBtn.onclick = () => location.href = '/supporting-staff.html';
+    } else if (currentUser.role === 'warehouse') {
+      backBtn.textContent = 'Back to warehouse';
+      backBtn.onclick = () => location.href = '/warehouse.html';
     } else {
-      backBtn.textContent = '← Back to logistics';
+      backBtn.textContent = 'Back to logistics';
       backBtn.onclick = () => location.href = '/logistics.html';
     }
 
@@ -348,7 +351,7 @@ async function deleteMonthlyHistory() {
   }
 
   if (!/^\d{4}-\d{2}$/.test(month)) {
-    alert('❌ Invalid month format. Please enter YYYY-MM (e.g. 2026-09).');
+    alert('Invalid month format. Please enter YYYY-MM (e.g. 2026-09).');
     return;
   }
 
@@ -365,13 +368,13 @@ async function deleteMonthlyHistory() {
 
   try {
     const res = await api('/api/admin/demands/history?month=' + encodeURIComponent(month), { method: 'DELETE' });
-    alert(`✓ Successfully deleted ${res.deletedCount !== undefined ? res.deletedCount : matchingCount} records for ${monthName}.`);
+    alert(`Successfully deleted ${res.deletedCount !== undefined ? res.deletedCount : matchingCount} records for ${monthName}.`);
     if (document.getElementById('monthFilter').value === month) {
       document.getElementById('monthFilter').value = '';
     }
     load();
   } catch (err) {
-    alert('❌ ' + err.message);
+    alert(err.message);
   }
 }
 
@@ -381,7 +384,7 @@ async function deleteSingleHistoryItem(id, itemIndex, itemName) {
     await api(`/api/admin/demands/history/${id}/item/${itemIndex}`, { method: 'DELETE' });
     load();
   } catch (err) {
-    alert('❌ ' + err.message);
+    alert(err.message);
   }
 }
 
@@ -391,7 +394,7 @@ async function deleteFullHistoryRecord(id) {
     await api('/api/admin/demands/history/' + id, { method: 'DELETE' });
     load();
   } catch (err) {
-    alert('❌ ' + err.message);
+    alert(err.message);
   }
 }
 
@@ -401,7 +404,7 @@ async function clearAllHistory() {
     await api('/api/admin/demands/history', { method: 'DELETE' });
     load();
   } catch (err) {
-    alert('❌ ' + err.message);
+    alert(err.message);
   }
 }
 

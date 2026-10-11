@@ -12,11 +12,11 @@
   'use strict';
 
   const THEMES = [
-    { id: 'cyber', name: '🌙 Cyber Dark', desc: 'Obsidian & Cyan' },
-    { id: 'midnight', name: '🌊 Midnight Navy', desc: 'Oceanic Sapphire' },
-    { id: 'emerald', name: '🌲 Emerald Forest', desc: 'Botanical Jade' },
-    { id: 'purple', name: '🔮 Royal Amethyst', desc: 'Cosmic Violet' },
-    { id: 'light', name: '☀️ Light Mode', desc: 'Standard Light' }
+    { id: 'cyber', name: 'Dark (Slate)', desc: 'Slate' },
+    { id: 'midnight', name: 'Dark (Navy)', desc: 'Navy' },
+    { id: 'emerald', name: 'Dark (Forest)', desc: 'Forest' },
+    { id: 'purple', name: 'Dark (Charcoal)', desc: 'Charcoal' },
+    { id: 'light', name: 'Light Mode', desc: 'Light' }
   ];
 
   const THEME_IDS = ['cyber', 'midnight', 'emerald', 'purple', 'light'];
@@ -97,7 +97,7 @@
       const currentTheme = this.getTheme();
       const container = document.createElement('div');
       container.className = 'admin-theme-select-wrap';
-      container.title = 'Switch Admin Theme';
+      container.title = 'Admin Theme';
 
       const select = document.createElement('select');
       select.className = 'admin-theme-select';
@@ -145,127 +145,118 @@
       style.textContent = `
         /* ===== ADMIN MULTI-THEME CSS VARIABLES ===== */
         
-        /* 1. Cyber Dark (Default) */
+        /* 1. Dark Slate (Default) */
         body.dark-theme,
         body.dark-theme.theme-cyber {
-          --adm-bg: #060911;
-          --adm-bg-grad: radial-gradient(ellipse 80% 50% at 20% -10%, rgba(99, 102, 241, 0.16), transparent),
-                         radial-gradient(ellipse 60% 40% at 85% 15%, rgba(6, 182, 212, 0.14), transparent),
-                         #060911;
-          --adm-card-bg: rgba(14, 22, 38, 0.90);
-          --adm-card-border: rgba(255, 255, 255, 0.09);
-          --adm-card-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.65);
-          --adm-header-bg: linear-gradient(135deg, rgba(15, 23, 42, 0.97) 0%, rgba(17, 28, 48, 0.94) 100%);
-          --adm-header-border: linear-gradient(90deg, #f59e0b 0%, #ec4899 40%, #06b6d4 75%, #10b981 100%);
-          --adm-nav-bg: #09101d;
-          --adm-nav-border: #06b6d4;
-          --adm-accent: #06b6d4;
-          --adm-accent-rgb: 6, 182, 212;
-          --adm-accent-hover: #22d3ee;
-          --adm-table-th: rgba(10, 16, 28, 0.98);
-          --adm-table-border: rgba(255, 255, 255, 0.06);
-          --adm-input-bg: rgba(6, 10, 18, 0.92);
-          --adm-input-border: rgba(255, 255, 255, 0.14);
+          --adm-bg: #0b0f19;
+          --adm-bg-grad: #0b0f19;
+          --adm-card-bg: #111827;
+          --adm-card-border: #1f2937;
+          --adm-card-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+          --adm-header-bg: #111827;
+          --adm-header-border: #0ea5e9;
+          --adm-nav-bg: #0f172a;
+          --adm-nav-border: #0ea5e9;
+          --adm-accent: #0ea5e9;
+          --adm-accent-rgb: 14, 165, 233;
+          --adm-accent-hover: #38bdf8;
+          --adm-table-th: #0f172a;
+          --adm-table-border: #1f2937;
+          --adm-input-bg: #0f172a;
+          --adm-input-border: #334155;
           --adm-text: #f1f5f9;
           --adm-text-muted: #94a3b8;
           --adm-text-bright: #ffffff;
-          --adm-badge-bg: rgba(6, 182, 212, 0.18);
-          --adm-badge-border: rgba(6, 182, 212, 0.45);
+          --adm-badge-bg: rgba(14, 165, 233, 0.12);
+          --adm-badge-border: rgba(14, 165, 233, 0.35);
         }
 
-        /* 2. Midnight Navy */
+        /* 2. Dark Navy */
         body.dark-theme.theme-midnight {
-          --adm-bg: #030914;
-          --adm-bg-grad: radial-gradient(ellipse 80% 50% at 20% -10%, rgba(30, 64, 175, 0.32), transparent),
-                         radial-gradient(ellipse 60% 40% at 85% 15%, rgba(14, 165, 233, 0.22), transparent),
-                         #030914;
-          --adm-card-bg: rgba(8, 20, 42, 0.92);
-          --adm-card-border: rgba(56, 189, 248, 0.18);
-          --adm-card-shadow: 0 12px 32px -8px rgba(2, 12, 30, 0.75);
-          --adm-header-bg: linear-gradient(135deg, #051329 0%, #0a254d 100%);
-          --adm-header-border: linear-gradient(90deg, #0284c7 0%, #38bdf8 50%, #818cf8 100%);
-          --adm-nav-bg: #051329;
+          --adm-bg: #070d18;
+          --adm-bg-grad: #070d18;
+          --adm-card-bg: #0c1526;
+          --adm-card-border: #1e293b;
+          --adm-card-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+          --adm-header-bg: #0c1526;
+          --adm-header-border: #38bdf8;
+          --adm-nav-bg: #070d18;
           --adm-nav-border: #38bdf8;
           --adm-accent: #38bdf8;
           --adm-accent-rgb: 56, 189, 248;
           --adm-accent-hover: #7dd3fc;
-          --adm-table-th: rgba(6, 17, 36, 0.98);
-          --adm-table-border: rgba(56, 189, 248, 0.12);
-          --adm-input-bg: rgba(4, 12, 26, 0.94);
-          --adm-input-border: rgba(56, 189, 248, 0.24);
+          --adm-table-th: #070d18;
+          --adm-table-border: #1e293b;
+          --adm-input-bg: #070d18;
+          --adm-input-border: #1e293b;
           --adm-text: #f0f9ff;
           --adm-text-muted: #93c5fd;
           --adm-text-bright: #ffffff;
-          --adm-badge-bg: rgba(56, 189, 248, 0.18);
-          --adm-badge-border: rgba(56, 189, 248, 0.45);
+          --adm-badge-bg: rgba(56, 189, 248, 0.12);
+          --adm-badge-border: rgba(56, 189, 248, 0.35);
         }
 
-        /* 3. Emerald Forest */
+        /* 3. Dark Forest */
         body.dark-theme.theme-emerald {
-          --adm-bg: #02120b;
-          --adm-bg-grad: radial-gradient(ellipse 80% 50% at 20% -10%, rgba(5, 150, 105, 0.28), transparent),
-                         radial-gradient(ellipse 60% 40% at 85% 15%, rgba(16, 185, 129, 0.20), transparent),
-                         #02120b;
-          --adm-card-bg: rgba(6, 26, 18, 0.92);
-          --adm-card-border: rgba(16, 185, 129, 0.18);
-          --adm-card-shadow: 0 12px 32px -8px rgba(1, 20, 12, 0.75);
-          --adm-header-bg: linear-gradient(135deg, #031c13 0%, #073525 100%);
-          --adm-header-border: linear-gradient(90deg, #059669 0%, #10b981 50%, #34d399 100%);
-          --adm-nav-bg: #031c13;
+          --adm-bg: #05130e;
+          --adm-bg-grad: #05130e;
+          --adm-card-bg: #0a1f18;
+          --adm-card-border: #133327;
+          --adm-card-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+          --adm-header-bg: #0a1f18;
+          --adm-header-border: #10b981;
+          --adm-nav-bg: #05130e;
           --adm-nav-border: #10b981;
           --adm-accent: #10b981;
           --adm-accent-rgb: 16, 185, 129;
           --adm-accent-hover: #34d399;
-          --adm-table-th: rgba(4, 21, 14, 0.98);
-          --adm-table-border: rgba(16, 185, 129, 0.12);
-          --adm-input-bg: rgba(2, 16, 10, 0.94);
-          --adm-input-border: rgba(16, 185, 129, 0.24);
+          --adm-table-th: #05130e;
+          --adm-table-border: #133327;
+          --adm-input-bg: #05130e;
+          --adm-input-border: #133327;
           --adm-text: #ecfdf5;
           --adm-text-muted: #86efac;
           --adm-text-bright: #ffffff;
-          --adm-badge-bg: rgba(16, 185, 129, 0.18);
-          --adm-badge-border: rgba(16, 185, 129, 0.45);
+          --adm-badge-bg: rgba(16, 185, 129, 0.12);
+          --adm-badge-border: rgba(16, 185, 129, 0.35);
         }
 
-        /* 4. Royal Amethyst */
+        /* 4. Dark Charcoal (Replaces Purple/Amethyst) */
         body.dark-theme.theme-purple {
-          --adm-bg: #090414;
-          --adm-bg-grad: radial-gradient(ellipse 80% 50% at 20% -10%, rgba(147, 51, 234, 0.28), transparent),
-                         radial-gradient(ellipse 60% 40% at 85% 15%, rgba(236, 72, 153, 0.20), transparent),
-                         #090414;
-          --adm-card-bg: rgba(19, 9, 34, 0.92);
-          --adm-card-border: rgba(168, 85, 247, 0.18);
-          --adm-card-shadow: 0 12px 32px -8px rgba(12, 4, 24, 0.75);
-          --adm-header-bg: linear-gradient(135deg, #130724 0%, #250d44 100%);
-          --adm-header-border: linear-gradient(90deg, #7e22ce 0%, #a855f7 50%, #f472b6 100%);
-          --adm-nav-bg: #130724;
-          --adm-nav-border: #a855f7;
-          --adm-accent: #a855f7;
-          --adm-accent-rgb: 168, 85, 247;
-          --adm-accent-hover: #c084fc;
-          --adm-table-th: rgba(15, 6, 26, 0.98);
-          --adm-table-border: rgba(168, 85, 247, 0.12);
-          --adm-input-bg: rgba(12, 5, 22, 0.94);
-          --adm-input-border: rgba(168, 85, 247, 0.24);
-          --adm-text: #faf5ff;
-          --adm-text-muted: #d8b4fe;
+          --adm-bg: #111418;
+          --adm-bg-grad: #111418;
+          --adm-card-bg: #181c22;
+          --adm-card-border: #28303a;
+          --adm-card-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+          --adm-header-bg: #181c22;
+          --adm-header-border: #64748b;
+          --adm-nav-bg: #111418;
+          --adm-nav-border: #64748b;
+          --adm-accent: #94a3b8;
+          --adm-accent-rgb: 148, 163, 184;
+          --adm-accent-hover: #cbd5e1;
+          --adm-table-th: #111418;
+          --adm-table-border: #28303a;
+          --adm-input-bg: #111418;
+          --adm-input-border: #28303a;
+          --adm-text: #f8fafc;
+          --adm-text-muted: #94a3b8;
           --adm-text-bright: #ffffff;
-          --adm-badge-bg: rgba(168, 85, 247, 0.18);
-          --adm-badge-border: rgba(168, 85, 247, 0.45);
+          --adm-badge-bg: rgba(148, 163, 184, 0.12);
+          --adm-badge-border: rgba(148, 163, 184, 0.35);
         }
 
         /* ===== UNIFIED APPLIED STYLES WHEN DARK THEME IS ACTIVE ===== */
         body.dark-theme {
-          background: var(--adm-bg-grad) !important;
+          background: var(--adm-bg) !important;
           color: var(--adm-text) !important;
-          transition: background 0.25s ease, color 0.25s ease;
+          transition: background 0.2s ease, color 0.2s ease;
         }
 
         body.dark-theme header,
         body.dark-theme header.book {
           background: var(--adm-header-bg) !important;
-          border-bottom: 2px solid transparent !important;
-          border-image: var(--adm-header-border) 1 !important;
+          border-bottom: 2px solid var(--adm-header-border) !important;
         }
 
         body.dark-theme header h1,
@@ -395,21 +386,20 @@
         .admin-theme-select {
           appearance: none;
           -webkit-appearance: none;
-          background: var(--adm-badge-bg, rgba(6, 182, 212, 0.18));
-          border: 1.5px solid var(--adm-badge-border, rgba(6, 182, 212, 0.45));
-          color: var(--adm-accent, #06b6d4);
-          font-family: Inter, Segoe UI, sans-serif;
+          background: var(--adm-badge-bg, rgba(14, 165, 233, 0.12));
+          border: 1px solid var(--adm-badge-border, rgba(14, 165, 233, 0.35));
+          color: var(--adm-accent, #0ea5e9);
+          font-family: inherit;
           font-size: 12px;
-          font-weight: 700;
-          padding: 6px 26px 6px 12px;
-          border-radius: 20px;
+          font-weight: 600;
+          padding: 6px 26px 6px 10px;
+          border-radius: 4px;
           cursor: pointer;
           outline: none;
-          transition: all 0.2s ease;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2306b6d4' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+          transition: all 0.15s ease;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%230ea5e9' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
           background-repeat: no-repeat;
           background-position: right 8px center;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
         }
 
         body.dark-theme.theme-midnight .admin-theme-select {
@@ -419,7 +409,7 @@
           background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2310b981' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
         }
         body.dark-theme.theme-purple .admin-theme-select {
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a855f7' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
         }
 
         .admin-theme-select:hover {

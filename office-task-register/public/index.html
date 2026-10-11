@@ -21,7 +21,7 @@
   *{box-sizing:border-box;}
   body{
     margin:0;min-height:100vh;
-    background:radial-gradient(circle at 15% 10%, rgba(176,141,62,0.07), transparent 40%), var(--ledger);
+    background:var(--ledger);
     font-family:'IBM Plex Sans', sans-serif;color:var(--ink);
     padding:32px 16px 80px;
   }
@@ -227,54 +227,43 @@
 
   body.dark-theme {
     --ink: #f8fafc;
-    --ledger: #060911;
-    --ledger-line: rgba(255, 255, 255, 0.08);
-    --brass: #f59e0b;
-    --teal: #06b6d4;
+    --ledger: #0b0f19;
+    --ledger-line: #1e293b;
+    --brass: #0284c7;
+    --teal: #0284c7;
     --teal-light: #38bdf8;
-    --stamp-red: #f43f5e;
+    --stamp-red: #ef4444;
     --done-green: #10b981;
-    --paper-shadow: rgba(0, 0, 0, 0.6);
-    background: 
-      radial-gradient(ellipse 80% 50% at 20% -10%, rgba(99, 102, 241, 0.15), transparent),
-      radial-gradient(ellipse 60% 40% at 85% 15%, rgba(6, 182, 212, 0.12), transparent),
-      radial-gradient(ellipse 70% 60% at 50% 110%, rgba(245, 158, 11, 0.08), transparent),
-      #060911;
+    --paper-shadow: rgba(0, 0, 0, 0.4);
+    background: #0b0f19;
     color: #f1f5f9;
     min-height: 100vh;
   }
 
   body.dark-theme header.book {
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(17, 28, 48, 0.9) 100%);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-bottom: 2px solid transparent;
-    border-image: linear-gradient(90deg, #f59e0b 0%, #ec4899 40%, #06b6d4 75%, #10b981 100%) 1;
-    border-radius: 12px 12px 0 0;
-    box-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    background: #111827;
+    border-bottom: 2px solid #0284c7;
+    border-radius: 4px 4px 0 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   }
 
   body.dark-theme header.book h1 {
-    background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    letter-spacing: -0.02em;
+    color: #ffffff;
+    letter-spacing: -0.01em;
   }
 
   body.dark-theme section.card {
-    background: rgba(14, 22, 38, 0.85) !important;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
-    box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    margin-top: 24px;
+    background: #111827 !important;
+    border: 1px solid #1f2937;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    margin-top: 20px;
     overflow: hidden;
   }
 
   body.dark-theme section.card h2 {
-    background: rgba(10, 16, 28, 0.75) !important;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    background: #0f172a !important;
+    border-bottom: 1px solid #1f2937;
     color: #f8fafc;
     letter-spacing: -0.01em;
   }
@@ -502,6 +491,7 @@
       </div>
       <button type="button" id="adminRegisterBtn" class="admin-link">Create admin account</button>
       <button type="button" id="logisticsRegisterBtn" class="admin-link">Request logistics access</button>
+      <button type="button" id="warehouseRegisterBtn" class="admin-link">Request warehouse access</button>
       <button type="button" id="supportingStaffRegisterBtn" class="admin-link">Request supporting staff access</button>
       <div id="authError" class="auth-err hidden"></div>
 
@@ -537,6 +527,12 @@
             <option value="akbarelectronics">Akbar Electronics (Main Branch)</option>
           </select>
         </div>
+        <div class="field hidden" id="regWarehouseField">
+          <label>Assigned Warehouse</label>
+          <select id="regWarehouse">
+            <option value="">Select Warehouse</option>
+          </select>
+        </div>
         <button type="submit">Create account</button>
       </form>
     </div>
@@ -546,17 +542,18 @@
 <!-- ================= APP SCREEN ================= -->
 <div class="wrap hidden" id="appScreen">
   <header class="book">
-    <h1>Add demand and if you want unit without deliver order from akbar warehouse add it </h1>
+    <h1>Office Tasks & Demands</h1>
     <div class="sub">
       <span id="todayLabel"></span>
       <span class="tag" id="pendingTag">…</span>
     </div>
     <div class="whoami">
-      <span class="greet">Signed in as <b id="myName"></b> <span id="myBranchBadge" style="background:#e0e7ff;color:#3730a3;font-size:12px;font-weight:600;padding:2px 8px;border-radius:12px;margin-left:6px;"></span></span>
+      <span class="greet">Signed in as <b id="myName"></b> <span id="myBranchBadge" style="background:#e0e7ff;color:#3730a3;font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;margin-left:6px;"></span></span>
       <span>
           <button id="historyBtn" type="button">History</button>
           <button id="demandBtn" type="button">Demand Page</button>
           <button id="logisticsBtn" type="button" class="hidden">Logistics</button>
+          <button id="warehouseBtn" type="button" class="hidden">Warehouse</button>
           <button id="supportingStaffBtn" type="button" class="hidden">Supporting Staff</button>
           <button id="demandHistoryBtn" type="button" class="hidden">Demand History</button>
           <button id="inventoryBtn" type="button" class="hidden" style="background:#b08d3e;border-color:#b08d3e;font-weight:700;">Inventory</button>
@@ -574,7 +571,7 @@
   </section>
 
   <section class="card" id="reminders" style="display:none;">
-    <h2>Not done yet — carried over <span class="count" id="remCount">0</span></h2>
+    <h2>Not done yet - carried over <span class="count" id="remCount">0</span></h2>
     <div id="remList"></div>
   </section>
 
@@ -595,7 +592,7 @@
     <h2>Submit a Demand</h2>
     <form class="demand-form" id="demandForm">
       <div id="demandItems"><div class="demand-item"><input class="demand-product" type="text" maxlength="200" placeholder="Product name" required><select class="demand-warehouse" required><option value="">Select warehouse</option><option>FC Faizabad WH</option><option>FC I10 WH</option></select><input class="demand-quantity" type="number" min="1" step="1" placeholder="Quantity" required><input class="demand-invoice" type="text" maxlength="100" placeholder="Invoice number (optional)"></div></div>
-      <div class="demand-actions"><input id="demandDate" type="date" required><label class="urgent-checkbox-label"><input type="checkbox" id="demandUrgent"> ⚡ Mark as Urgent (Requires Admin Approval)</label><button type="button" id="addDemandItem">Add another item</button><button type="submit">Submit demand</button></div>
+      <div class="demand-actions"><input id="demandDate" type="date" required><label class="urgent-checkbox-label"><input type="checkbox" id="demandUrgent"> Mark as Urgent (Requires Admin Approval)</label><button type="button" id="addDemandItem">Add another item</button><button type="submit">Submit demand</button></div>
     </form>
     <div id="myDemands"><div class="loading">Loading your demands...</div></div>
   </section>
@@ -663,6 +660,7 @@
   const adminHint = document.getElementById("adminHint");
   const logisticsRegisterBtn = document.getElementById("logisticsRegisterBtn");
   const supportingStaffRegisterBtn = document.getElementById("supportingStaffRegisterBtn");
+  const warehouseRegisterBtn = document.getElementById("warehouseRegisterBtn");
   let requestedRole = null;
 
   async function loadBranchesForRegister() {
@@ -675,6 +673,15 @@
     } catch (e) {
       console.warn("Could not load branches for registration", e);
     }
+    try {
+      const whs = await api("/api/warehouses");
+      const whSel = document.getElementById("regWarehouse");
+      if (whSel && Array.isArray(whs) && whs.length) {
+        whSel.innerHTML = whs.map(w => `<option value="${escapeHtml(w.name)}">${escapeHtml(w.name)}</option>`).join("");
+      }
+    } catch (e) {
+      console.warn("Could not load warehouses for registration", e);
+    }
   }
 
   tabLogin.addEventListener("click", () => {
@@ -683,6 +690,7 @@
     requestedRole = null;
     adminHint.classList.add("hidden");
     authError.classList.add("hidden");
+    document.getElementById("regWarehouseField")?.classList.add("hidden");
   });
   tabRegister.addEventListener("click", () => {
     tabRegister.classList.add("active"); tabLogin.classList.remove("active");
@@ -690,12 +698,14 @@
     requestedRole = null;
     adminHint.classList.add("hidden");
     authError.classList.add("hidden");
+    document.getElementById("regWarehouseField")?.classList.add("hidden");
     loadBranchesForRegister();
   });
   adminRegisterBtn.addEventListener("click", () => {
     tabRegister.click();
     requestedRole = "admin";
     adminHint.classList.remove("hidden");
+    document.getElementById("regWarehouseField")?.classList.add("hidden");
     document.getElementById("regUsername").focus();
   });
   logisticsRegisterBtn.addEventListener("click", () => {
@@ -703,6 +713,7 @@
     requestedRole = "logistics";
     adminHint.textContent = "Your logistics access request must be approved by an admin.";
     adminHint.classList.remove("hidden");
+    document.getElementById("regWarehouseField")?.classList.add("hidden");
     document.getElementById("regUsername").focus();
   });
   supportingStaffRegisterBtn.addEventListener("click", () => {
@@ -710,8 +721,18 @@
     requestedRole = "supporting_staff";
     adminHint.textContent = "Your supporting staff access request must be approved by an admin.";
     adminHint.classList.remove("hidden");
+    document.getElementById("regWarehouseField")?.classList.add("hidden");
     document.getElementById("regUsername").focus();
   });
+  warehouseRegisterBtn?.addEventListener("click", () => {
+    tabRegister.click();
+    requestedRole = "warehouse";
+    adminHint.textContent = "Your warehouse access request must be approved by an admin.";
+    adminHint.classList.remove("hidden");
+    document.getElementById("regWarehouseField")?.classList.remove("hidden");
+    document.getElementById("regUsername").focus();
+  });
+
 
   function showAuthError(msg){
     authError.textContent = msg;
@@ -757,14 +778,23 @@
           branch: document.getElementById("regBranch")?.value || "akbarelectronics",
           requestAdmin: requestedRole === "admin",
           requestLogistics: requestedRole === "logistics",
-          requestSupportingStaff: requestedRole === "supporting_staff"
+          requestSupportingStaff: requestedRole === "supporting_staff",
+          requestWarehouse: requestedRole === "warehouse",
+          warehouse: document.getElementById("regWarehouse")?.value || ""
         })
       });
       if (account && account.role) {
         localStorage.setItem("user_role", account.role);
       }
       await boot();
-      if(account.approvalRequestPending) showError(`${account.requestedRole === "logistics" ? "Logistics" : account.requestedRole === "supporting_staff" ? "Supporting Staff" : "Admin"} access request sent. An existing admin must approve it first.`);
+      if(account.approvalRequestPending) {
+        const roleLabel = account.requestedRole === "logistics" ? "Logistics"
+          : account.requestedRole === "supporting_staff" ? "Supporting Staff"
+          : account.requestedRole === "warehouse" ? "Warehouse"
+          : "Admin";
+        showError(`${roleLabel} access request sent. An existing admin must approve it first.`);
+      }
+
     }catch(err){
       showAuthError(err.message);
     }finally{
@@ -1171,6 +1201,12 @@
       if (greet && greet.firstChild) {
         greet.firstChild.textContent = me.role === "admin" ? "Admin signed in as " : "Signed in as ";
       }
+      const isWarehouse = me.role === "warehouse";
+      // Warehouse users get redirected to their dedicated page
+      if (isWarehouse) {
+        window.location.href = "/warehouse.html";
+        return;
+      }
       const restrictedRole = me.role === "logistics" || me.role === "supporting_staff";
       document.getElementById("historyBtn")?.classList.toggle("hidden", restrictedRole);
       document.getElementById("demandBtn")?.classList.toggle("hidden", restrictedRole);
@@ -1178,6 +1214,7 @@
       const isAdmin = me.role === "admin";
       document.getElementById("adminBtn")?.classList.toggle("hidden", !isAdmin);
       document.getElementById("inventoryBtn")?.classList.toggle("hidden", !isAdmin);
+      document.getElementById("warehouseBtn")?.classList.toggle("hidden", !isAdmin);
       
       const themeSlot = document.getElementById("adminThemeContainer") || document.getElementById("adminThemeBtn");
       if (themeSlot) {
@@ -1230,7 +1267,7 @@
       window.AdminTheme.mountSwitcher(slot);
       return;
     }
-    slot.innerHTML = isDark ? "☀️ Light Mode" : "🌙 Dark Mode";
+    slot.innerHTML = isDark ? "Light Mode" : "Dark Mode";
     slot.style.borderColor = isDark ? "#38bdf8" : "#eab308";
     slot.style.color = isDark ? "#bae6fd" : "#fef08a";
     slot.style.background = isDark ? "rgba(56, 189, 248, 0.2)" : "rgba(234, 179, 8, 0.18)";
@@ -1257,6 +1294,7 @@
   document.getElementById("logisticsBtn").addEventListener("click", () => { window.location.href = "/logistics.html"; });
   document.getElementById("supportingStaffBtn").addEventListener("click", () => { window.location.href = "/supporting-staff.html"; });
   document.getElementById("demandHistoryBtn").addEventListener("click", () => { window.location.href = "/demand-history.html"; });
+  document.getElementById("warehouseBtn")?.addEventListener("click", () => { window.location.href = "/warehouse.html"; });
   document.getElementById("insertTaskMention").addEventListener("click", () => insertMention("taskMentionUser", "taskInput"));
   document.getElementById("enableNotificationsBtn").addEventListener("click", () => enableNotifications().catch(e => showError(e.message)));
   loadBranchesForRegister();
