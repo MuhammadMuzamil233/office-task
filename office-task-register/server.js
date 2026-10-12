@@ -1792,8 +1792,9 @@ app.get(["/api/logistics/demands", "/api/warehouse/demands"], authMiddleware, lo
     } else if (!isGlobalViewer) {
       bQ = branchQuery(req);
     }
-    // Show active demands: pending, approved, on_the_way
-    const demands = await Demand.find({ ...bQ, status: { $in: ["pending", "approved", "on_the_way"] } }).sort({ submittedAt: -1, createdAt: -1 });
+    // Show only admin-approved active demands to logistics and warehouse users: approved, on_the_way
+    // Unapproved ("pending") demands remain in Admin panel until reviewed and approved by Admin.
+    const demands = await Demand.find({ ...bQ, status: { $in: ["approved", "on_the_way"] } }).sort({ submittedAt: -1, createdAt: -1 });
     const sorted = await sortDemandsWithPriority(demands);
     res.json(sorted.map(demandToJson));
   } catch (e) {
@@ -1839,7 +1840,7 @@ app.patch(["/api/logistics/demands/:id", "/api/warehouse/demands/:id"], authMidd
       } else {
         return {
           ...obj,
-          status: obj.status ? obj.status : "pending"
+          status: obj.status ? obj.status : "approved"
         };
       }
     });
