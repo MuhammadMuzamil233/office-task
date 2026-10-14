@@ -388,7 +388,7 @@ function render() {
         </td>
         <td>${item.quantity}</td>
         <td><input class="pickup" type="number" min="0" max="${item.quantity}" step="1" value="${savedPickup}" placeholder="${item.quantity}" ${item.status === 'on_the_way' && !isAdmin ? 'disabled' : ''}></td>
-        <td>${esc(item.invoiceNumber || '-')}</td>
+        <td>${item.status === 'on_the_way' ? `<code>${esc(item.invoiceNumber || '-')}</code>` : `<input class="invoice-input" type="text" maxlength="100" placeholder="Invoice no." value="${esc(item.invoiceNumber || '')}" style="width:110px;padding:3px 6px;font-size:12px;border:1px solid #cbd5e1;border-radius:3px;">`}</td>
         <td>${esc(item.warehouse || '-')}</td>
         <td class="status">
           ${item.status === 'on_the_way'
@@ -458,9 +458,11 @@ function render() {
             }
             action.disabled = true;
             action.textContent = "Dispatching...";
+            const invoiceInput = row.querySelector('.invoice-input');
+            const invoiceVal = invoiceInput ? invoiceInput.value.trim() : '';
             await api('/api/logistics/demands/' + d.id, {
               method: 'PATCH',
-              body: JSON.stringify({ itemIndexes: [item.index], status: 'on_the_way', pickedQuantity: value === '' ? null : Number(value) })
+              body: JSON.stringify({ itemIndexes: [item.index], status: 'on_the_way', pickedQuantity: value === '' ? null : Number(value), invoiceNumbers: { [item.index]: invoiceVal } })
             });
             await load();
           } catch (e) {

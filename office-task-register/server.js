@@ -1805,7 +1805,7 @@ app.get(["/api/logistics/demands", "/api/warehouse/demands"], authMiddleware, lo
 
 app.patch(["/api/logistics/demands/:id", "/api/warehouse/demands/:id"], authMiddleware, logisticsMiddleware, async (req, res) => {
   try {
-    const { itemIndexes, status, pickedQuantity } = req.body || {};
+    const { itemIndexes, status, pickedQuantity, invoiceNumbers } = req.body || {};
     if (!Array.isArray(itemIndexes) || !itemIndexes.length || status !== "on_the_way" || itemIndexes.some(index => !Number.isInteger(index) || index < 0)) {
       return res.status(400).json({ error: "Select at least one item" });
     }
@@ -1829,13 +1829,16 @@ app.patch(["/api/logistics/demands/:id", "/api/warehouse/demands/:id"], authMidd
     if (hasPickedQuantity && (!Number.isInteger(normalizedPickedQuantity) || normalizedPickedQuantity < 0 || selectedItems.some(item => normalizedPickedQuantity > Number(item.quantity)))) {
       return res.status(400).json({ error: "Pickup quantity must be a whole number between 0 and the demanded quantity" });
     }
+    const invoiceMap = (invoiceNumbers && typeof invoiceNumbers === "object" && !Array.isArray(invoiceNumbers)) ? invoiceNumbers : {};
     demand.products = demand.products.map((item, index) => {
       const obj = item.toObject?.() || item;
       if (uniqueIndexes.includes(index)) {
+        const newInvoice = String(invoiceMap[index] || "").trim().slice(0, 100);
         return {
           ...obj,
           pickedQuantity: hasPickedQuantity ? normalizedPickedQuantity : Number(obj.quantity),
-          status: "on_the_way"
+          status: "on_the_way",
+          invoiceNumber: newInvoice || obj.invoiceNumber || ""
         };
       } else {
         return {
